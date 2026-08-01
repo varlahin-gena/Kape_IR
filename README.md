@@ -27,5 +27,5 @@ Default KAPE root: last used path, parent of the EXE, or browse in the UI header
 - Update Targets/Modules from [EricZimmerman/KapeFiles](https://github.com/EricZimmerman/KapeFiles)
 
 ## Notes
-- Local-only custom targets (e.g. `!PSBCollection`) are kept across GitHub sync
+- Local-only custom targets are kept across GitHub sync
 - `Modules\bin` is not overwritten by sync and is not auto-copied into ZIP exports
