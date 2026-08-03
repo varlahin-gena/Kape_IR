@@ -54,17 +54,17 @@ public partial class MainViewModel : ObservableObject
     private bool _suppressSelectionEvents;
 
     [ObservableProperty] private string _kapeRoot = "";
-    [ObservableProperty] private string _statusText = "Ready";
+    [ObservableProperty] private string _statusText = "Готово";
     [ObservableProperty] private string _targetSearch = "";
     [ObservableProperty] private string _moduleSearch = "";
     [ObservableProperty] private string _treeSearch = "";
-    [ObservableProperty] private string _targetFilter = "All";
-    [ObservableProperty] private string _moduleFilter = "All";
+    [ObservableProperty] private string _targetFilter = "Все";
+    [ObservableProperty] private string _moduleFilter = "Все";
     [ObservableProperty] private bool _treeSharedOnly;
     [ObservableProperty] private bool _treeIsTargets = true;
 
     [ObservableProperty] private string _packageName = "!WindowsTriage";
-    [ObservableProperty] private string _packageDescription = "Windows triage pack";
+    [ObservableProperty] private string _packageDescription = "Пакет Windows triage";
     [ObservableProperty] private string _packageAuthor = "";
     [ObservableProperty] private string _packageVersion = "1.0";
     [ObservableProperty] private string _tsource = "C:";
@@ -78,7 +78,7 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string _selectedTargetsText = "";
     [ObservableProperty] private string _selectedModulesText = "";
-    [ObservableProperty] private string _detailText = "Select an item to see details.";
+    [ObservableProperty] private string _detailText = "Выберите элемент, чтобы увидеть сведения.";
     [ObservableProperty] private CatalogRowVm? _selectedExisting;
     [ObservableProperty] private string _treeStats = "";
 
@@ -86,7 +86,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<CatalogRowVm> ModuleRows { get; } = new();
     public ObservableCollection<CatalogRowVm> ExistingPacks { get; } = new();
     public ObservableCollection<TreeNodeVm> TreeRoots { get; } = new();
-    public List<string> FilterOptions { get; } = new() { "All", "Selected only", "Compound only", "Leaf only" };
+    public List<string> FilterOptions { get; } = new() { "Все", "Только выбранные", "Только compound", "Только leaf" };
 
     public PackageDefinition Package { get; private set; } = new();
 
@@ -126,7 +126,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void BrowseKapeRoot()
     {
-        var dlg = new OpenFolderDialog { Title = "Select KAPE root" };
+        var dlg = new OpenFolderDialog { Title = "Выберите корень KAPE" };
         if (!string.IsNullOrWhiteSpace(KapeRoot) && Directory.Exists(KapeRoot))
             dlg.InitialDirectory = KapeRoot;
         if (dlg.ShowDialog() == true)
@@ -141,11 +141,11 @@ public partial class MainViewModel : ObservableObject
     {
         if (!Directory.Exists(Path.Combine(KapeRoot, "Targets")))
         {
-            MessageBox.Show($"Targets folder not found in:\n{KapeRoot}", "KAPE root", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Папка Targets не найдена в:\n{KapeRoot}", "Корень KAPE", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
-        StatusText = "Scanning catalog…";
+        StatusText = "Сканирование каталога…";
         var root = KapeRoot;
         await Task.Run(() =>
         {
@@ -164,8 +164,8 @@ public partial class MainViewModel : ObservableObject
     private void OnCatalogLoaded()
     {
         var last = GitHubKapeFilesSync.ReadLastSync(KapeRoot);
-        var syncNote = last is not null && last.TryGetValue("synced_at", out var at) ? $" | GitHub sync: {at}" : "";
-        StatusText = $"Loaded {_catalog.Targets.Count} targets, {_catalog.Modules.Count} modules{syncNote}";
+        var syncNote = last is not null && last.TryGetValue("synced_at", out var at) ? $" | синхронизация GitHub: {at}" : "";
+        StatusText = $"Загружено: {_catalog.Targets.Count} таргетов, {_catalog.Modules.Count} модулей{syncNote}";
         RefreshTargetRows();
         RefreshModuleRows();
         RefreshExisting();
@@ -178,39 +178,39 @@ public partial class MainViewModel : ObservableObject
     {
         var last = GitHubKapeFilesSync.ReadLastSync(KapeRoot);
         var lastLine = last is not null && last.TryGetValue("synced_at", out var at)
-            ? $"\n\nLast sync: {at}"
+            ? $"\n\nПоследняя синхронизация: {at}"
             : "";
         var ok = MessageBox.Show(
-            "Download latest Targets and Modules from:\n" +
+            "Скачать актуальные Targets и Modules с:\n" +
             $"https://github.com/{GitHubKapeFilesSync.Repo}\n\n" +
-            "Upstream files will be overwritten.\n" +
-            "Local-only custom files and Modules\\bin are kept." +
-            lastLine + "\n\nContinue?",
-            "Update from GitHub",
+            "Файлы из upstream будут перезаписаны.\n" +
+            "Локальные custom-файлы и Modules\\bin сохранятся." +
+            lastLine + "\n\nПродолжить?",
+            "Обновление с GitHub",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
         if (ok != MessageBoxResult.Yes) return;
 
-        StatusText = "Updating from GitHub…";
+        StatusText = "Обновление с GitHub…";
         var progress = new Progress<string>(m => StatusText = m);
         var root = KapeRoot;
         var result = await Task.Run(() => GitHubKapeFilesSync.SyncAsync(root, progress).GetAwaiter().GetResult());
         if (result.Ok)
         {
-            MessageBox.Show(result.Message, "GitHub sync", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(result.Message, "Синхронизация GitHub", MessageBoxButton.OK, MessageBoxImage.Information);
             await ReloadCatalogAsync();
         }
         else
         {
-            MessageBox.Show(result.Message, "GitHub sync", MessageBoxButton.OK, MessageBoxImage.Error);
-            StatusText = "GitHub sync failed";
+            MessageBox.Show(result.Message, "Синхронизация GitHub", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText = "Ошибка синхронизации GitHub";
         }
     }
 
     public void RefreshTargetRows()
     {
         var compoundsOnly = ParseFilter(TargetFilter);
-        var selectedOnly = TargetFilter == "Selected only";
+        var selectedOnly = TargetFilter == "Только выбранные";
         var keys = KapeCatalog.BuildSelectionKeys(Package.Targets);
         var items = _catalog.FilterTargets(TargetSearch, selectedOnly ? null : compoundsOnly).ToList();
         if (selectedOnly)
@@ -228,7 +228,7 @@ public partial class MainViewModel : ObservableObject
     public void RefreshModuleRows()
     {
         var compoundsOnly = ParseFilter(ModuleFilter);
-        var selectedOnly = ModuleFilter == "Selected only";
+        var selectedOnly = ModuleFilter == "Только выбранные";
         var keys = KapeCatalog.BuildSelectionKeys(Package.Modules);
         var items = _catalog.FilterModules(ModuleSearch, selectedOnly ? null : compoundsOnly).ToList();
         if (selectedOnly)
@@ -331,7 +331,7 @@ public partial class MainViewModel : ObservableObject
     private void UpdateTreeStats(ItemKind kind, HashSet<string> keys)
     {
         var count = kind == ItemKind.Target ? Package.Targets.Count : Package.Modules.Count;
-        TreeStats = $"Package {(kind == ItemKind.Target ? "targets" : "modules")}: {count}";
+        TreeStats = $"В пакете {(kind == ItemKind.Target ? "таргетов" : "модулей")}: {count}";
     }
 
     public void ToggleCatalogRow(CatalogRowVm row, ItemKind kind)
@@ -383,7 +383,7 @@ public partial class MainViewModel : ObservableObject
             else Package.Modules = merged;
         }
 
-        StatusText = $"{(selected ? "Added" : "Removed")}: {item.Name} в†’ {(kind == ItemKind.Target ? Package.Targets.Count : Package.Modules.Count)} items";
+        StatusText = $"{(selected ? "Добавлено" : "Убрано")}: {item.Name} → {(kind == ItemKind.Target ? Package.Targets.Count : Package.Modules.Count)} шт.";
         SyncAllViews();
     }
 
@@ -423,8 +423,8 @@ public partial class MainViewModel : ObservableObject
 
     private static bool? ParseFilter(string filter) => filter switch
     {
-        "Compound only" => true,
-        "Leaf only" => false,
+        "Только compound" => true,
+        "Только leaf" => false,
         _ => null
     };
 
@@ -469,17 +469,53 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void SuggestModules()
+    {
+        if (Package.Targets.Count == 0)
+        {
+            MessageBox.Show("Сначала выберите хотя бы один таргет.", "Подсказки модулей");
+            return;
+        }
+
+        var advisor = new ModuleAdvisor(_catalog);
+        var suggestions = advisor.Suggest(Package.Targets, Package.Modules);
+        if (suggestions.Count == 0)
+        {
+            MessageBox.Show(
+                "Нет подходящих модулей для текущих таргетов.\n" +
+                "Попробуйте leaf-таргеты с FileMask (Prefetch, Amcache, $MFT, EventLogs, …).",
+                "Подсказки модулей");
+            return;
+        }
+
+        var dlg = new SuggestModulesWindow(suggestions) { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true || !dlg.Applied || dlg.Chosen.Count == 0)
+            return;
+
+        var incoming = dlg.Chosen.Select(m => new SelectionEntry
+        {
+            Name = m.Name,
+            Category = string.IsNullOrWhiteSpace(m.Category) ? "General" : m.Category,
+            Path = Path.GetFileName(m.RelativePath)
+        });
+        Package.Modules = KapeCatalog.MergeEntries(Package.Modules, incoming);
+        ModuleFilter = "Только выбранные";
+        SyncAllViews();
+        StatusText = $"Добавлено модулей из подсказок: {dlg.Chosen.Count} (в пакете {Package.Modules.Count})";
+    }
+
+    [RelayCommand]
     private void NewPack()
     {
         Package = new PackageDefinition
         {
             Name = "!WindowsTriage",
-            Description = "Windows triage pack",
+            Description = "Пакет Windows triage",
             Author = PackageAuthor
         };
         PushPackageToForm();
         SyncAllViews();
-        StatusText = "New empty pack";
+        StatusText = "Новый пустой пакет";
     }
 
     [RelayCommand]
@@ -487,7 +523,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (SelectedExisting is null)
         {
-            MessageBox.Show("Select a compound target first.", "Load");
+            MessageBox.Show("Сначала выберите compound-таргет.", "Загрузка");
             return;
         }
         var loaded = KapeFileIo.PackageFromCompoundTarget(SelectedExisting.Item.AbsolutePath);
@@ -506,23 +542,23 @@ public partial class MainViewModel : ObservableObject
         }
         Package = loaded;
         PushPackageToForm();
-        TargetFilter = "Selected only";
-        if (Package.Modules.Count > 0) ModuleFilter = "Selected only";
+        TargetFilter = "Только выбранные";
+        if (Package.Modules.Count > 0) ModuleFilter = "Только выбранные";
         SyncAllViews();
-        StatusText = $"Loaded {SelectedExisting.Item.Name}: {Package.Targets.Count} targets, {Package.Modules.Count} modules";
+        StatusText = $"Загружен {SelectedExisting.Item.Name}: {Package.Targets.Count} таргетов, {Package.Modules.Count} модулей";
     }
 
     [RelayCommand]
     private void OpenPackageJson()
     {
-        var dlg = new OpenFileDialog { Filter = "JSON|*.json|All|*.*", Title = "Open package.json" };
+        var dlg = new OpenFileDialog { Filter = "JSON|*.json|Все|*.*", Title = "Открыть package.json" };
         if (dlg.ShowDialog() != true) return;
         Package = PackageExporter.LoadPackageJson(dlg.FileName);
         PushPackageToForm();
-        TargetFilter = "Selected only";
-        if (Package.Modules.Count > 0) ModuleFilter = "Selected only";
+        TargetFilter = "Только выбранные";
+        if (Package.Modules.Count > 0) ModuleFilter = "Только выбранные";
         SyncAllViews();
-        StatusText = $"Loaded package.json: {Package.Targets.Count} targets, {Package.Modules.Count} modules";
+        StatusText = $"Загружен package.json: {Package.Targets.Count} таргетов, {Package.Modules.Count} модулей";
     }
 
     [RelayCommand]
@@ -543,7 +579,7 @@ public partial class MainViewModel : ObservableObject
         var refs = CollectCheckedRefs(TreeRoots).ToList();
         if (refs.Count == 0)
         {
-            MessageBox.Show("Nothing checked in tree.", "Tree");
+            MessageBox.Show("В дереве ничего не отмечено.", "Дерево");
             return;
         }
         var incoming = _catalog.SelectionFromRefs(refs, kind, flatten: true);
@@ -552,7 +588,7 @@ public partial class MainViewModel : ObservableObject
         else
             Package.Modules = replace ? incoming : KapeCatalog.MergeEntries(Package.Modules, incoming);
         var stats = _catalog.OverlapStats(refs, kind);
-        StatusText = $"{(replace ? "Replaced" : "Merged")}: {refs.Count} refs в†’ {stats.UniqueLeaves} unique leaves";
+        StatusText = $"{(replace ? "Заменено" : "Добавлено")}: {refs.Count} ссылок → {stats.UniqueLeaves} уникальных leaf";
         SyncAllViews();
     }
 
@@ -587,7 +623,7 @@ public partial class MainViewModel : ObservableObject
     {
         PullFormToPackage();
         var text = KapeFileIo.RenderRunBat(Package);
-        MessageBox.Show(text, "Launch script preview");
+        MessageBox.Show(text, "Превью скрипта запуска");
     }
 
     [RelayCommand]
@@ -596,11 +632,11 @@ public partial class MainViewModel : ObservableObject
         PullFormToPackage();
         if (Package.Targets.Count == 0)
         {
-            MessageBox.Show("Add at least one target.", "Build", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show("Добавьте хотя бы один таргет.", "Сборка", MessageBoxButton.OK, MessageBoxImage.Error);
             return;
         }
 
-        var dlg = new OpenFolderDialog { Title = "Select output folder for the package" };
+        var dlg = new OpenFolderDialog { Title = "Выберите папку для сохранения пакета" };
         var initial = Path.Combine(KapeRoot, "PackBuilder", "exports");
         Directory.CreateDirectory(initial);
         dlg.InitialDirectory = initial;
@@ -610,30 +646,30 @@ public partial class MainViewModel : ObservableObject
         {
             var exporter = new PackageExporter(_catalog);
             var result = exporter.Export(Package, dlg.FolderName, InstallIntoKape, MakeZip, CopyDeps);
-            var msg = $"Package folder:\n{result.PackageDir}\n\nCompound target: {Path.GetFileName(result.TargetFile)}";
-            if (result.ModuleFile is not null) msg += $"\nCompound module: {Path.GetFileName(result.ModuleFile)}";
-            if (result.InstalledTarget is not null) msg += $"\nInstalled into KAPE: {result.InstalledTarget}";
+            var msg = $"Папка пакета:\n{result.PackageDir}\n\nCompound-таргет: {Path.GetFileName(result.TargetFile)}";
+            if (result.ModuleFile is not null) msg += $"\nCompound-модуль: {Path.GetFileName(result.ModuleFile)}";
+            if (result.InstalledTarget is not null) msg += $"\nУстановлено в KAPE: {result.InstalledTarget}";
             if (result.ZipFile is not null) msg += $"\nZIP: {result.ZipFile}";
             if (result.Warnings.Count > 0)
-                msg += "\n\nWarnings:\n - " + string.Join("\n - ", result.Warnings.Take(12));
-            MessageBox.Show(msg, "Build complete");
-            StatusText = $"Built package: {Package.Name}";
+                msg += "\n\nПредупреждения:\n - " + string.Join("\n - ", result.Warnings.Take(12));
+            MessageBox.Show(msg, "Сборка завершена");
+            StatusText = $"Собран пакет: {Package.Name}";
             _ = ReloadCatalogAsync();
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Build failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Ошибка сборки", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     public void ShowItemInfo(CatalogItem item)
     {
         var text =
-            $"{item.Name}\nPath: {item.RelativePath}\nCategory: {item.Category}\n" +
-            $"Author: {item.Author} | Version: {item.Version}\nCompound: {item.IsCompound}\n" +
-            $"Description: {item.Description}\n";
+            $"{item.Name}\nПуть: {item.RelativePath}\nКатегория: {item.Category}\n" +
+            $"Автор: {item.Author} | Версия: {item.Version}\nCompound: {item.IsCompound}\n" +
+            $"Описание: {item.Description}\n";
         if (item.Children.Count > 0)
-            text += "Children: " + string.Join(", ", item.Children.Take(30));
+            text += "Дочерние: " + string.Join(", ", item.Children.Take(30));
         DetailText = text;
     }
 

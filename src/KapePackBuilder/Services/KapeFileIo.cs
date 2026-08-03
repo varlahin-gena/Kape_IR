@@ -86,6 +86,64 @@ public static class KapeFileIo
         return children;
     }
 
+    /// <summary>Collect FileMask values from a target (.tkape) Targets: entries.</summary>
+    public static List<string> ExtractTargetFileMasks(Dictionary<string, object?> data)
+    {
+        var masks = new List<string>();
+        foreach (var entry in EnumMaps(GetList(data, "Targets")))
+        {
+            var mask = GetString(entry, "FileMask");
+            if (string.IsNullOrWhiteSpace(mask)) continue;
+            masks.AddRange(SplitMaskTokens(mask));
+        }
+        return DedupMasks(masks);
+    }
+
+    /// <summary>Collect FileMask from a module (.mkape) root (and processor overrides if present).</summary>
+    public static List<string> ExtractModuleFileMasks(Dictionary<string, object?> data)
+    {
+        var masks = new List<string>();
+        var root = GetString(data, "FileMask");
+        if (!string.IsNullOrWhiteSpace(root))
+            masks.AddRange(SplitMaskTokens(root));
+        foreach (var entry in EnumMaps(GetList(data, "Processors")))
+        {
+            var mask = GetString(entry, "FileMask");
+            if (string.IsNullOrWhiteSpace(mask)) continue;
+            masks.AddRange(SplitMaskTokens(mask));
+        }
+        return DedupMasks(masks);
+    }
+
+    public static IEnumerable<string> SplitMaskTokens(string raw)
+    {
+        var s = raw.Trim().Trim('"', '\'');
+        if (s.StartsWith("regex:", StringComparison.OrdinalIgnoreCase))
+            s = s[6..].Trim();
+        // Drop surrounding parentheses used by some modules: (a|b)
+        if (s.StartsWith('(') && s.EndsWith(')'))
+            s = s[1..^1];
+        foreach (var part in s.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var cleaned = part.Trim().Trim('"', '\'');
+            if (string.IsNullOrWhiteSpace(cleaned) || cleaned is "*" or "*.*")
+                continue;
+            yield return cleaned;
+        }
+    }
+
+    private static List<string> DedupMasks(IEnumerable<string> masks)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var list = new List<string>();
+        foreach (var m in masks)
+        {
+            if (seen.Add(m))
+                list.Add(m);
+        }
+        return list;
+    }
+
     public static PackageDefinition PackageFromCompoundTarget(string path, Dictionary<string, object?>? data = null)
     {
         data ??= LoadKapeFile(path);

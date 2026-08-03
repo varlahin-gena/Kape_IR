@@ -18,13 +18,25 @@ public sealed class CatalogItem
     public string ItemId { get; init; } = "";
     public bool IsCompound { get; init; }
     public List<string> Children { get; init; } = new();
+    public List<string> FileMasks { get; init; } = new();
     public string AbsolutePath { get; init; } = "";
 
     public string DisplayName => IsCompound ? $"[C] {Name}" : Name;
 
     public string SearchBlob =>
-        string.Join(' ', new[] { Name, Category, Description, Author, RelativePath }.Concat(Children))
+        string.Join(' ', new[] { Name, Category, Description, Author, RelativePath }
+                .Concat(Children)
+                .Concat(FileMasks))
             .ToLowerInvariant();
+}
+
+public sealed class ModuleSuggestion
+{
+    public CatalogItem Module { get; init; } = null!;
+    public int Score { get; init; }
+    public string Reason { get; init; } = "";
+    public List<string> MatchedTargets { get; init; } = new();
+    public bool AlreadySelected { get; init; }
 }
 
 public sealed class SelectionEntry
@@ -38,7 +50,7 @@ public sealed class SelectionEntry
 public sealed class PackageDefinition
 {
     public string Name { get; set; } = "!WindowsTriage";
-    public string Description { get; set; } = "";
+    public string Description { get; set; } = "Пакет Windows triage";
     public string Author { get; set; } = "";
     public string Version { get; set; } = "1.0";
     public string PackageId { get; set; } = Guid.NewGuid().ToString();

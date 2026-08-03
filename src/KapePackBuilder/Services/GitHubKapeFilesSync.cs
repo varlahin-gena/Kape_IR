@@ -18,9 +18,9 @@ public static class GitHubKapeFilesSync
         CancellationToken ct = default)
     {
         if (!Directory.Exists(kapeRoot))
-            return new SyncResult { Ok = false, Message = $"KAPE root not found: {kapeRoot}" };
+            return new SyncResult { Ok = false, Message = $"Корень KAPE не найден: {kapeRoot}" };
 
-        progress?.Report("Downloading KapeFiles from GitHub…");
+        progress?.Report("Скачивание KapeFiles с GitHub…");
         byte[] data;
         try
         {
@@ -28,10 +28,10 @@ public static class GitHubKapeFilesSync
         }
         catch (Exception ex)
         {
-            return new SyncResult { Ok = false, Message = $"Download failed: {ex.Message}" };
+            return new SyncResult { Ok = false, Message = $"Ошибка загрузки: {ex.Message}" };
         }
 
-        progress?.Report($"Downloaded {data.Length:N0} bytes, extracting…");
+        progress?.Report($"Скачано {data.Length:N0} байт, распаковка…");
         var tmp = Path.Combine(Path.GetTempPath(), "kapefiles_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tmp);
         try
@@ -42,21 +42,21 @@ public static class GitHubKapeFilesSync
 
             var extracted = FindExtractedRoot(tmp);
             if (extracted is null)
-                return new SyncResult { Ok = false, Message = "Could not find KapeFiles folder in archive" };
+                return new SyncResult { Ok = false, Message = "В архиве не найдена папка KapeFiles" };
 
             var srcTargets = Path.Combine(extracted, "Targets");
             var srcModules = Path.Combine(extracted, "Modules");
             if (!Directory.Exists(srcTargets) || !Directory.Exists(srcModules))
-                return new SyncResult { Ok = false, Message = "Archive missing Targets/Modules" };
+                return new SyncResult { Ok = false, Message = "В архиве нет Targets/Modules" };
 
             var destTargets = Path.Combine(kapeRoot, "Targets");
             var destModules = Path.Combine(kapeRoot, "Modules");
             Directory.CreateDirectory(destTargets);
             Directory.CreateDirectory(destModules);
 
-            progress?.Report("Updating Targets…");
+            progress?.Report("Обновление Targets…");
             var (tCount, tErrors) = MergeTree(srcTargets, destTargets, progress);
-            progress?.Report("Updating Modules…");
+            progress?.Report("Обновление Modules…");
             var (mCount, mErrors) = MergeTree(srcModules, destModules, progress);
 
             var syncedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC";
@@ -82,8 +82,8 @@ public static class GitHubKapeFilesSync
 
             var errors = tErrors.Concat(mErrors).ToList();
             var msg =
-                $"Synced from {Repo}@{Branch}: {tCount} target files, {mCount} module files updated/added.";
-            if (errors.Count > 0) msg += $" ({errors.Count} file errors)";
+                $"Синхронизировано с {Repo}@{Branch}: обновлено/добавлено файлов Targets: {tCount}, Modules: {mCount}.";
+            if (errors.Count > 0) msg += $" (ошибок файлов: {errors.Count})";
             progress?.Report(msg);
 
             return new SyncResult
@@ -141,11 +141,11 @@ public static class GitHubKapeFilesSync
             if (total > 0)
             {
                 var pct = (int)(read * 100 / total);
-                progress?.Report($"Downloading KapeFiles… {pct}% ({read:N0}/{total:N0} bytes)");
+                progress?.Report($"Скачивание KapeFiles… {pct}% ({read:N0}/{total:N0} байт)");
             }
             else
             {
-                progress?.Report($"Downloading KapeFiles… {read:N0} bytes");
+                progress?.Report($"Скачивание KapeFiles… {read:N0} байт");
             }
         }
         return ms.ToArray();
@@ -187,7 +187,7 @@ public static class GitHubKapeFilesSync
                 File.Copy(path, target, true);
                 copied++;
                 if (copied % 50 == 0)
-                    progress?.Report($"Copying into {Path.GetFileName(dest)}… {copied} files");
+                    progress?.Report($"Копирование в {Path.GetFileName(dest)}… {copied} файлов");
             }
             catch (Exception ex)
             {

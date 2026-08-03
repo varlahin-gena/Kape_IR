@@ -61,11 +61,11 @@
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <TextBlock Text="KAPE root:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <TextBlock Text="Корень KAPE:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
         <TextBox Grid.Column="1" Text="{Binding KapeRoot, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
-        <Button Grid.Column="2" Content="Browse…" Command="{Binding BrowseKapeRootCommand}"/>
-        <Button Grid.Column="3" Content="Reload" Command="{Binding ReloadCatalogCommand}"/>
-        <Button Grid.Column="4" Content="Update from GitHub" Command="{Binding UpdateFromGitHubCommand}"
+        <Button Grid.Column="2" Content="Обзор…" Command="{Binding BrowseKapeRootCommand}"/>
+        <Button Grid.Column="3" Content="Обновить" Command="{Binding ReloadCatalogCommand}"/>
+        <Button Grid.Column="4" Content="Обновить с GitHub" Command="{Binding UpdateFromGitHubCommand}"
                 Background="#2d6a4f" Foreground="White"/>
       </Grid>
     </Border>
@@ -85,24 +85,24 @@
 
       <TabControl Grid.Column="0" Background="#1e1e1e">
         <!-- Targets -->
-        <TabItem Header="Targets">
+        <TabItem Header="Таргеты">
           <DockPanel Margin="6">
             <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="160"/>
+                <ColumnDefinition Width="180"/>
               </Grid.ColumnDefinitions>
               <TextBox Text="{Binding TargetSearch, UpdateSourceTrigger=PropertyChanged}"
-                       ToolTip="Search targets"/>
+                       ToolTip="Поиск таргетов"/>
               <ComboBox Grid.Column="1" Margin="6,0,0,0"
                         ItemsSource="{Binding FilterOptions}"
                         SelectedItem="{Binding TargetFilter}"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-              <TextBlock Text="Click checkbox to toggle. Double-click row for Info."
+              <TextBlock Text="Галочка — вкл/выкл. Двойной клик — сведения."
                          Foreground="#999" VerticalAlignment="Center"/>
-              <Button DockPanel.Dock="Right" Content="Uncheck all" Command="{Binding ClearTargetsCommand}"/>
-              <Button DockPanel.Dock="Right" Content="Check visible" Command="{Binding CheckVisibleTargetsCommand}"/>
+              <Button DockPanel.Dock="Right" Content="Снять все" Command="{Binding ClearTargetsCommand}"/>
+              <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding CheckVisibleTargetsCommand}"/>
             </DockPanel>
             <TextBox DockPanel.Dock="Bottom" Height="90" IsReadOnly="True" TextWrapping="Wrap"
                      Text="{Binding DetailText}" Margin="0,6,0,0"/>
@@ -119,8 +119,8 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Name" DisplayMemberBinding="{Binding DisplayName}" Width="280"/>
-                  <GridViewColumn Header="Category / path" DisplayMemberBinding="{Binding Meta}" Width="360"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="280"/>
+                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="360"/>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -128,23 +128,26 @@
         </TabItem>
 
         <!-- Modules -->
-        <TabItem Header="Modules">
+        <TabItem Header="Модули">
           <DockPanel Margin="6">
             <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="160"/>
+                <ColumnDefinition Width="180"/>
               </Grid.ColumnDefinitions>
-              <TextBox Text="{Binding ModuleSearch, UpdateSourceTrigger=PropertyChanged}"/>
+              <TextBox Text="{Binding ModuleSearch, UpdateSourceTrigger=PropertyChanged}"
+                       ToolTip="Поиск модулей"/>
               <ComboBox Grid.Column="1" Margin="6,0,0,0"
                         ItemsSource="{Binding FilterOptions}"
                         SelectedItem="{Binding ModuleFilter}"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-              <TextBlock Text="Click checkbox to toggle. Double-click row for Info."
+              <TextBlock Text="Галочка — вкл/выкл. «Подсказать» — парсеры под выбранные таргеты."
                          Foreground="#999" VerticalAlignment="Center"/>
-              <Button DockPanel.Dock="Right" Content="Uncheck all" Command="{Binding ClearModulesCommand}"/>
-              <Button DockPanel.Dock="Right" Content="Check visible" Command="{Binding CheckVisibleModulesCommand}"/>
+              <Button DockPanel.Dock="Right" Content="Снять все" Command="{Binding ClearModulesCommand}"/>
+              <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding CheckVisibleModulesCommand}"/>
+              <Button DockPanel.Dock="Right" Content="Подсказать по таргетам" Command="{Binding SuggestModulesCommand}"
+                      Background="#2d6a4f" Foreground="White"/>
             </DockPanel>
             <ListView ItemsSource="{Binding ModuleRows}"
                       MouseDoubleClick="Module_MouseDoubleClick"
@@ -159,8 +162,8 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Name" DisplayMemberBinding="{Binding DisplayName}" Width="280"/>
-                  <GridViewColumn Header="Category / path" DisplayMemberBinding="{Binding Meta}" Width="360"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="280"/>
+                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="360"/>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -168,10 +171,10 @@
         </TabItem>
 
         <!-- Compound tree -->
-        <TabItem Header="Compound tree">
+        <TabItem Header="Дерево compound">
           <DockPanel Margin="6">
             <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#aaa" Margin="0,0,0,6"
-                       Text="Tree syncs with Targets/Modules. Compound selects all leaf children. ⋆ = shared across packs."/>
+                       Text="Дерево синхронизируется с таргетами/модулями. Compound выбирает все листовые элементы. ⋆ — входит в несколько пакетов."/>
             <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -180,15 +183,16 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
-              <TextBox Text="{Binding TreeSearch, UpdateSourceTrigger=PropertyChanged}"/>
-              <CheckBox Grid.Column="1" Content="Shared only" IsChecked="{Binding TreeSharedOnly}" VerticalAlignment="Center" Margin="8,0"/>
-              <CheckBox Grid.Column="2" Content="Targets tree" IsChecked="{Binding TreeIsTargets}" VerticalAlignment="Center"/>
-              <Button Grid.Column="3" Content="Expand" Command="{Binding ExpandTreeCommand}"/>
-              <Button Grid.Column="4" Content="Collapse" Command="{Binding CollapseTreeCommand}"/>
+              <TextBox Text="{Binding TreeSearch, UpdateSourceTrigger=PropertyChanged}"
+                       ToolTip="Поиск в дереве"/>
+              <CheckBox Grid.Column="1" Content="Только общие" IsChecked="{Binding TreeSharedOnly}" VerticalAlignment="Center" Margin="8,0"/>
+              <CheckBox Grid.Column="2" Content="Дерево таргетов" IsChecked="{Binding TreeIsTargets}" VerticalAlignment="Center"/>
+              <Button Grid.Column="3" Content="Развернуть" Command="{Binding ExpandTreeCommand}"/>
+              <Button Grid.Column="4" Content="Свернуть" Command="{Binding CollapseTreeCommand}"/>
             </Grid>
             <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
-              <Button Content="Merge checked → package" Command="{Binding MergeTreeIntoPackageCommand}" Background="#1f6aa5" Foreground="White"/>
-              <Button Content="Replace package" Command="{Binding ReplacePackageFromTreeCommand}"/>
+              <Button Content="Добавить в пакет" Command="{Binding MergeTreeIntoPackageCommand}" Background="#1f6aa5" Foreground="White"/>
+              <Button Content="Заменить пакет" Command="{Binding ReplacePackageFromTreeCommand}"/>
               <TextBlock Text="{Binding TreeStats}" VerticalAlignment="Center" Margin="12,0,0,0"/>
             </DockPanel>
             <TreeView ItemsSource="{Binding TreeRoots}"
@@ -216,21 +220,21 @@
         </TabItem>
 
         <!-- Existing packs -->
-        <TabItem Header="Existing packs">
+        <TabItem Header="Готовые пакеты">
           <DockPanel Margin="6">
             <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8"
-                       Text="Load one compound into the package (checkboxes sync on Targets/Modules). To merge several packs use Compound tree."/>
+                       Text="Загрузить один compound в пакет (галочки синхронизируются). Чтобы объединить несколько — используйте «Дерево compound»."/>
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
-              <Button Content="Load selected compound" Command="{Binding LoadSelectedCompoundCommand}"/>
-              <Button Content="Open package.json…" Command="{Binding OpenPackageJsonCommand}"/>
+              <Button Content="Загрузить выбранный" Command="{Binding LoadSelectedCompoundCommand}"/>
+              <Button Content="Открыть package.json…" Command="{Binding OpenPackageJsonCommand}"/>
             </StackPanel>
             <ListView ItemsSource="{Binding ExistingPacks}"
                       SelectedItem="{Binding SelectedExisting}"
                       VirtualizingPanel.IsVirtualizing="True">
               <ListView.View>
                 <GridView>
-                  <GridViewColumn Header="Name" DisplayMemberBinding="{Binding DisplayName}" Width="220"/>
-                  <GridViewColumn Header="Description" DisplayMemberBinding="{Binding Item.Description}" Width="420"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="220"/>
+                  <GridViewColumn Header="Описание" DisplayMemberBinding="{Binding Item.Description}" Width="420"/>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -242,14 +246,14 @@
       <Border Grid.Column="2" Background="#252526" Padding="10" CornerRadius="4">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel>
-            <TextBlock Text="Package" FontSize="18" FontWeight="Bold" Margin="0,0,0,8"/>
-            <TextBlock Text="Name"/>
+            <TextBlock Text="Пакет" FontSize="18" FontWeight="Bold" Margin="0,0,0,8"/>
+            <TextBlock Text="Имя"/>
             <TextBox Text="{Binding PackageName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
-            <TextBlock Text="Description"/>
+            <TextBlock Text="Описание"/>
             <TextBox Text="{Binding PackageDescription, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
-            <TextBlock Text="Author"/>
+            <TextBlock Text="Автор"/>
             <TextBox Text="{Binding PackageAuthor, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
-            <TextBlock Text="Version"/>
+            <TextBlock Text="Версия"/>
             <TextBox Text="{Binding PackageVersion, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
             <TextBlock Text="tsource"/>
             <TextBox Text="{Binding Tsource, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
@@ -258,21 +262,25 @@
               <CheckBox Content="--flush" IsChecked="{Binding Flush}"/>
               <CheckBox Content="--vss" IsChecked="{Binding Vss}"/>
             </StackPanel>
-            <TextBlock Text="Selected targets" FontWeight="Bold"/>
+            <TextBlock Text="Выбранные таргеты" FontWeight="Bold"/>
             <TextBox Text="{Binding SelectedTargetsText}" IsReadOnly="True" Height="140" TextWrapping="NoWrap"
                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"/>
-            <Button Content="Clear targets" Command="{Binding ClearTargetsCommand}" HorizontalAlignment="Left" Margin="0,0,0,8"/>
-            <TextBlock Text="Selected modules" FontWeight="Bold"/>
+            <Button Content="Очистить таргеты" Command="{Binding ClearTargetsCommand}" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+            <TextBlock Text="Выбранные модули" FontWeight="Bold"/>
             <TextBox Text="{Binding SelectedModulesText}" IsReadOnly="True" Height="110" TextWrapping="NoWrap"
                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"/>
-            <Button Content="Clear modules" Command="{Binding ClearModulesCommand}" HorizontalAlignment="Left" Margin="0,0,0,8"/>
-            <TextBlock Text="Notes"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <Button Content="Подсказать по таргетам" Command="{Binding SuggestModulesCommand}"
+                      Background="#2d6a4f" Foreground="White" Margin="0,0,8,0"/>
+              <Button Content="Очистить модули" Command="{Binding ClearModulesCommand}"/>
+            </StackPanel>
+            <TextBlock Text="Заметки"/>
             <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" Height="60" TextWrapping="Wrap"
                      AcceptsReturn="True" Margin="0,0,0,8"/>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-              <CheckBox Content="Install into KAPE" IsChecked="{Binding InstallIntoKape}"/>
-              <CheckBox Content="ZIP archive" IsChecked="{Binding MakeZip}"/>
-              <CheckBox Content="Copy deps" IsChecked="{Binding CopyDeps}"/>
+              <CheckBox Content="Установить в KAPE" IsChecked="{Binding InstallIntoKape}"/>
+              <CheckBox Content="ZIP-архив" IsChecked="{Binding MakeZip}"/>
+              <CheckBox Content="Копировать зависимости" IsChecked="{Binding CopyDeps}"/>
             </StackPanel>
             <Grid>
               <Grid.ColumnDefinitions>
@@ -280,9 +288,9 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
               </Grid.ColumnDefinitions>
-              <Button Grid.Column="0" Content="New pack" Command="{Binding NewPackCommand}" Margin="0,0,4,0"/>
-              <Button Grid.Column="1" Content="Preview cmd" Command="{Binding PreviewCommandCommand}" Margin="2,0"/>
-              <Button Grid.Column="2" Content="Build package" Command="{Binding BuildPackageCommand}"
+              <Button Grid.Column="0" Content="Новый пакет" Command="{Binding NewPackCommand}" Margin="0,0,4,0"/>
+              <Button Grid.Column="1" Content="Превью cmd" Command="{Binding PreviewCommandCommand}" Margin="2,0"/>
+              <Button Grid.Column="2" Content="Собрать пакет" Command="{Binding BuildPackageCommand}"
                       Background="#1f6aa5" Foreground="White" Margin="4,0,0,0"/>
             </Grid>
           </StackPanel>

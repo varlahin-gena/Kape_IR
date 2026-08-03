@@ -70,11 +70,11 @@ public sealed class KapeCatalog
         if (packs.Count <= 1)
         {
             var direct = DirectParents(item.Name, item.Kind);
-            return direct.Count == 1 ? $"in: {direct[0]}" : "";
+            return direct.Count == 1 ? $"в: {direct[0]}" : "";
         }
         var shown = string.Join(", ", packs.Take(5));
         var more = packs.Count > 5 ? $" +{packs.Count - 5}" : "";
-        return $"⋆ in {packs.Count} packs: {shown}{more}";
+        return $"⋆ в {packs.Count} пак.: {shown}{more}";
     }
 
     public List<CatalogItem> FlattenToLeaves(IEnumerable<string> refs, ItemKind kind)
@@ -277,6 +277,7 @@ public sealed class KapeCatalog
                 ItemId = KapeFileIo.GetString(data, "Id"),
                 IsCompound = compound,
                 Children = compound ? KapeFileIo.ExtractTargetChildren(data) : new List<string>(),
+                FileMasks = compound ? new List<string>() : KapeFileIo.ExtractTargetFileMasks(data),
                 AbsolutePath = path
             });
         }
@@ -304,6 +305,7 @@ public sealed class KapeCatalog
                 ItemId = KapeFileIo.GetString(data, "Id"),
                 IsCompound = compound,
                 Children = compound ? KapeFileIo.ExtractModuleChildren(data) : new List<string>(),
+                FileMasks = compound ? new List<string>() : KapeFileIo.ExtractModuleFileMasks(data),
                 AbsolutePath = path
             });
         }
