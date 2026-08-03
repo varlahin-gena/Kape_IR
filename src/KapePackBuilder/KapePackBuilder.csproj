@@ -15,4 +15,14 @@
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 
+  <!-- Stub for standalone pack EXE; publish.ps1 refreshes tools\KapePackRunner.exe -->
+  <ItemGroup>
+    <None Include="..\..\tools\KapePackRunner.exe" Condition="Exists('..\..\tools\KapePackRunner.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>KapePackRunner.exe</Link>
+    </None>
+    <EmbeddedResource Include="..\..\tools\KapePackRunner.exe" Condition="Exists('..\..\tools\KapePackRunner.exe')"
+                      LogicalName="KapePackRunner.exe" />
+  </ItemGroup>
+
 </Project>

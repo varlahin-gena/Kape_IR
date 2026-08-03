@@ -13,9 +13,11 @@ public sealed class PackageExporter
     public ExportResult Export(
         PackageDefinition pkg,
         string outputDir,
-        bool installIntoKape = true,
-        bool makeZip = true,
-        bool copyDependencies = true)
+        bool installIntoKape = false,
+        bool makeZip = false,
+        bool copyDependencies = true,
+        bool includeModuleBin = true,
+        bool buildStandaloneExe = true)
     {
         var warnings = new List<string>();
         pkg.PackageId = KapeFileIo.EnsureGuid(pkg.PackageId);
@@ -42,35 +44,56 @@ public sealed class PackageExporter
             File.WriteAllText(moduleFile, KapeFileIo.RenderCompoundModule(pkg));
         }
 
-        if (copyDependencies)
+        // Autonomous packs always need dependency targets/modules.
+        if (copyDependencies || buildStandaloneExe)
         {
             warnings.AddRange(CopyTargetDeps(pkg, packageDir));
             if (pkg.Modules.Count > 0)
-                warnings.AddRange(CopyModuleDeps(pkg, packageDir));
+                warnings.AddRange(CopyModuleDeps(pkg, packageDir, includeModuleBin || buildStandaloneExe));
         }
+
+        if (buildStandaloneExe)
+            warnings.AddRange(CopyRuntimeFiles(packageDir, includeModuleBin));
 
         var batFile = Path.Combine(packageDir, "run_collection.bat");
         var ps1File = Path.Combine(packageDir, "run_collection.ps1");
-        File.WriteAllText(batFile, KapeFileIo.RenderRunBat(pkg));
-        File.WriteAllText(ps1File, KapeFileIo.RenderRunPs1(pkg));
+        File.WriteAllText(batFile, KapeFileIo.RenderRunBat(pkg), KapeFileIo.BatEncoding);
+        File.WriteAllText(ps1File, KapeFileIo.RenderRunPs1(pkg), KapeFileIo.BatEncoding);
 
         var manifest = BuildManifest(pkg, warnings);
         var manifestFile = Path.Combine(packageDir, "package.json");
         File.WriteAllText(manifestFile, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
 
-        File.WriteAllText(Path.Combine(packageDir, "README.txt"), ReadmeText(pkg, installIntoKape));
+        File.WriteAllText(Path.Combine(packageDir, "README.txt"), ReadmeText(pkg, installIntoKape, buildStandaloneExe));
 
         string? installedTarget = null;
         string? installedModule = null;
         if (installIntoKape)
             (installedTarget, installedModule) = InstallIntoKape(pkg, targetFile, moduleFile);
 
+        // Always build zip when making standalone EXE (payload); optional keep zip for user.
         string? zipFile = null;
-        if (makeZip)
+        var needZip = makeZip || buildStandaloneExe;
+        var zipPath = Path.Combine(outputDir, PackageDefinition.SafeDir(pkg.Name) + ".zip");
+        if (needZip)
         {
-            zipFile = Path.Combine(outputDir, PackageDefinition.SafeDir(pkg.Name) + ".zip");
-            if (File.Exists(zipFile)) File.Delete(zipFile);
-            ZipFile.CreateFromDirectory(packageDir, zipFile, CompressionLevel.Optimal, false);
+            if (File.Exists(zipPath)) File.Delete(zipPath);
+            ZipFile.CreateFromDirectory(packageDir, zipPath, CompressionLevel.Optimal, false);
+            if (makeZip)
+                zipFile = zipPath;
+        }
+
+        string? standaloneExe = null;
+        if (buildStandaloneExe)
+        {
+            var stub = StandaloneExeBuilder.ResolveStubPath();
+            var exeName = PackageDefinition.SafeDir(pkg.Name) + ".exe";
+            standaloneExe = Path.Combine(outputDir, exeName);
+            StandaloneExeBuilder.Build(stub, zipPath, standaloneExe);
+            if (!makeZip && File.Exists(zipPath))
+            {
+                try { File.Delete(zipPath); } catch { /* keep if locked */ }
+            }
         }
 
         return new ExportResult
@@ -82,6 +105,7 @@ public sealed class PackageExporter
             Ps1File = ps1File,
             ManifestFile = manifestFile,
             ZipFile = zipFile,
+            StandaloneExe = standaloneExe,
             InstalledTarget = installedTarget,
             InstalledModule = installedModule,
             Warnings = warnings
@@ -111,6 +135,80 @@ public sealed class PackageExporter
         return pkg;
     }
 
+    private List<string> CopyRuntimeFiles(string packageDir, bool includeModuleBin)
+    {
+        var warnings = new List<string>();
+        var kape = FindKapeExe(_catalog.KapeRoot);
+        if (kape is null)
+        {
+            warnings.Add(
+                "kape.exe не найден в корне KAPE — автономный EXE не сможет запустить сбор без него. " +
+                "Положите kape.exe в корень KAPE и пересоберите пакет.");
+        }
+        else
+        {
+            File.Copy(kape, Path.Combine(packageDir, "kape.exe"), true);
+            // Companion files often next to kape.exe
+            foreach (var name in new[] { "kape.db", "KAPE.db", "gkape.exe", "Get-KAPEUpdate.ps1", "CHANGELOG.txt" })
+            {
+                var src = Path.Combine(Path.GetDirectoryName(kape)!, name);
+                if (File.Exists(src))
+                    File.Copy(src, Path.Combine(packageDir, name), true);
+            }
+        }
+
+        if (includeModuleBin)
+        {
+            var binSrc = Path.Combine(_catalog.KapeRoot, "Modules", "bin");
+            if (Directory.Exists(binSrc))
+            {
+                var binDst = Path.Combine(packageDir, "Modules", "bin");
+                CopyDirectory(binSrc, binDst);
+            }
+            else if (Directory.Exists(Path.Combine(packageDir, "Modules")))
+            {
+                warnings.Add("Modules\\bin отсутствует — модули-парсеры могут не запуститься на целевой машине.");
+            }
+        }
+
+        return warnings;
+    }
+
+    private static string? FindKapeExe(string kapeRoot)
+    {
+        foreach (var name in new[] { "kape.exe", "KAPE.exe", "Kape.exe" })
+        {
+            var p = Path.Combine(kapeRoot, name);
+            if (File.Exists(p)) return p;
+        }
+
+        try
+        {
+            return Directory.EnumerateFiles(kapeRoot, "kape.exe", SearchOption.AllDirectories).FirstOrDefault();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void CopyDirectory(string src, string dst)
+    {
+        Directory.CreateDirectory(dst);
+        foreach (var dir in Directory.EnumerateDirectories(src, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(src, dir);
+            Directory.CreateDirectory(Path.Combine(dst, rel));
+        }
+        foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(src, file);
+            var dest = Path.Combine(dst, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(file, dest, true);
+        }
+    }
+
     private (string, string?) InstallIntoKape(PackageDefinition pkg, string targetFile, string? moduleFile)
     {
         var destT = Path.Combine(_catalog.KapeRoot, "Targets", "Compound", Path.GetFileName(targetFile));
@@ -126,8 +224,8 @@ public sealed class PackageExporter
         }
 
         var safe = PackageDefinition.SafeDir(pkg.Name);
-        File.WriteAllText(Path.Combine(_catalog.KapeRoot, $"run_{safe}.bat"), KapeFileIo.RenderRunBat(pkg));
-        File.WriteAllText(Path.Combine(_catalog.KapeRoot, $"run_{safe}.ps1"), KapeFileIo.RenderRunPs1(pkg));
+        File.WriteAllText(Path.Combine(_catalog.KapeRoot, $"run_{safe}.bat"), KapeFileIo.RenderRunBat(pkg), KapeFileIo.BatEncoding);
+        File.WriteAllText(Path.Combine(_catalog.KapeRoot, $"run_{safe}.ps1"), KapeFileIo.RenderRunPs1(pkg), KapeFileIo.BatEncoding);
         return (destT, destM);
     }
 
@@ -156,7 +254,7 @@ public sealed class PackageExporter
         return warnings;
     }
 
-    private List<string> CopyModuleDeps(PackageDefinition pkg, string packageDir)
+    private List<string> CopyModuleDeps(PackageDefinition pkg, string packageDir, bool includeBin)
     {
         var warnings = new List<string>();
         var refs = pkg.Modules.Select(m => m.Path).ToList();
@@ -181,11 +279,10 @@ public sealed class PackageExporter
             File.Copy(item.AbsolutePath, dest, true);
         }
 
-        if (Directory.Exists(Path.Combine(_catalog.KapeRoot, "Modules", "bin")))
+        if (!includeBin && Directory.Exists(Path.Combine(_catalog.KapeRoot, "Modules", "bin")))
         {
             warnings.Add(
-                "Modules\\bin есть в корне KAPE, но не скопирован (может быть большим). " +
-                "Держите пакет рядом с полным KAPE или скопируйте bin вручную при необходимости.");
+                "Modules\\bin не включён в пакет. Для автономных модулей включите «Включить Modules\\bin».");
         }
         return warnings;
     }
@@ -222,7 +319,7 @@ public sealed class PackageExporter
         warnings
     };
 
-    private static string ReadmeText(PackageDefinition pkg, bool installed)
+    private static string ReadmeText(PackageDefinition pkg, bool installed, bool standalone)
     {
         var lines = new List<string>
         {
@@ -240,17 +337,29 @@ public sealed class PackageExporter
         {
             "  - run_collection.bat / run_collection.ps1",
             "  - манифест package.json",
-            "  - скопированные зависимые Targets/Modules (при экспорте с зависимостями)",
-            "",
-            "Использование:",
-            "  1. Лучше запускать из полного каталога KAPE, где есть kape.exe."
+            "  - зависимые Targets/Modules",
+            ""
         });
-        lines.Add(installed
-            ? $"  2. Установлено в локальный KAPE. Используйте target {pkg.TargetCompoundName}."
-            : "  2. Скопируйте Targets\\ и Modules\\ из этого пакета в корень KAPE, затем запустите скрипты.");
+
+        if (standalone)
+        {
+            lines.AddRange(new[]
+            {
+                "Автономный EXE:",
+                "  1. Запустите .exe от имени администратора.",
+                "  2. Рядом распакуется папка с тем же именем — внутри kape.exe и сбор.",
+                "  3. Скрипт run_collection.bat запустится автоматически.",
+                ""
+            });
+        }
+
+        lines.Add("Использование папки пакета:");
+        lines.Add("  1. Нужен kape.exe в этой папке (или полный KAPE).");
+        if (installed)
+            lines.Add($"  2. Также установлено в локальный KAPE: target {pkg.TargetCompoundName}.");
         lines.AddRange(new[]
         {
-            "  3. Запускайте PowerShell/CMD от имени администратора.",
+            "  3. Запускайте от имени администратора.",
             "",
             "Сгенерировано KAPE Pack Builder",
             ""

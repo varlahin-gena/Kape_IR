@@ -11,9 +11,41 @@ public static class KapeFileIo
         @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
         RegexOptions.Compiled);
 
+    private static readonly Regex DocUrlRe = new(
+        @"https?://[^\s<>""']+",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly IDeserializer Deserializer = new DeserializerBuilder()
         .IgnoreUnmatchedProperties()
         .Build();
+
+    /// <summary>
+    /// Collect documentation URLs from # comment lines (YAML parser strips comments).
+    /// </summary>
+    public static List<string> ExtractDocumentationLinks(string path)
+    {
+        if (!File.Exists(path)) return new List<string>();
+        return ExtractDocumentationLinksFromText(File.ReadAllText(path, Encoding.UTF8));
+    }
+
+    public static List<string> ExtractDocumentationLinksFromText(string text)
+    {
+        var urls = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+        {
+            var trimmed = line.TrimStart();
+            if (!trimmed.StartsWith('#')) continue;
+            foreach (Match m in DocUrlRe.Matches(trimmed))
+            {
+                var url = m.Value.TrimEnd('.', ',', ';', ')', ']');
+                if (url.Length < 12) continue;
+                if (seen.Add(url))
+                    urls.Add(url);
+            }
+        }
+        return urls;
+    }
 
     public static Dictionary<string, object?> LoadKapeFile(string path)
     {
@@ -216,8 +248,8 @@ public static class KapeFileIo
         sb.AppendLine($"Author: {(string.IsNullOrWhiteSpace(pkg.Author) ? "KAPE Pack Builder" : pkg.Author)}");
         sb.AppendLine($"Version: {pkg.Version}");
         sb.AppendLine($"Id: {Guid.NewGuid()}");
-        sb.AppendLine("ExportFormat: ");
-        sb.AppendLine("FileMask: \"\"");
+        // KAPE validates every .mkape under Modules\; empty ExportFormat fails the whole run.
+        sb.AppendLine("ExportFormat: csv");
         sb.AppendLine("Processors:");
         foreach (var entry in pkg.Modules)
         {
@@ -234,31 +266,18 @@ public static class KapeFileIo
 
     public static string RenderRunBat(PackageDefinition pkg, string kapeRel = ".\\kape.exe")
     {
-        var target = pkg.TargetCompoundName;
-        var moduleArg = "";
-        if (pkg.ModuleCompoundName is not null)
-            moduleArg = $" --mdest RESULTS\\%m\\ModuleOutput --zm true --module {pkg.ModuleCompoundName}";
-        else if (pkg.Modules.Count > 0)
-        {
-            var names = string.Join(",", pkg.Modules.Select(m => Path.GetFileNameWithoutExtension(m.Path)));
-            moduleArg = $" --mdest RESULTS\\%m\\ModuleOutput --zm true --module {names}";
-        }
-
-        var zipArg = pkg.ZipOutput ? " --zip %m" : "";
-        var flushArg = pkg.Flush ? " --flush" : "";
-        var vssArg = pkg.Vss ? " --vss" : "";
-
-        return string.Join('\n', new[]
+        // Thin wrapper: all args live in PowerShell where "!" in names is safe.
+        _ = kapeRel;
+        return string.Join("\r\n", new[]
         {
             "@echo off",
             "setlocal",
+            "chcp 65001 >nul",
             "cd /d \"%~dp0\"",
-            "echo [*] KAPE Pack Builder launch script",
-            $"echo [*] Package: {pkg.Name}",
-            $"echo [*] Target:  {target}",
-            $"\"{kapeRel}\" --tsource {pkg.Tsource} --tdest RESULTS\\%m --target {target}{zipArg}{moduleArg}{flushArg}{vssArg}",
-            "echo [*]",
-            "echo [*] Done. Check RESULTS\\%%COMPUTERNAME%%",
+            "echo [*] Запуск через PowerShell…",
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0run_collection.ps1\"",
+            "set \"KAPE_ERR=%ERRORLEVEL%\"",
+            "if not \"%KAPE_ERR%\"==\"0\" echo [!] Код выхода: %KAPE_ERR%",
             "pause",
             ""
         });
@@ -269,7 +288,7 @@ public static class KapeFileIo
         var args = new List<string>
         {
             "--tsource", pkg.Tsource,
-            "--tdest", "RESULTS\\%m",
+            "--tdest", @"RESULTS\%m",
             "--target", pkg.TargetCompoundName
         };
         if (pkg.ZipOutput)
@@ -278,7 +297,7 @@ public static class KapeFileIo
         {
             args.AddRange(new[]
             {
-                "--mdest", "RESULTS\\%m\\ModuleOutput", "--zm", "true",
+                "--mdest", @"RESULTS\%m\ModuleOutput", "--zm", "true",
                 "--module", pkg.ModuleCompoundName
             });
         }
@@ -287,26 +306,56 @@ public static class KapeFileIo
             var names = string.Join(",", pkg.Modules.Select(m => Path.GetFileNameWithoutExtension(m.Path)));
             args.AddRange(new[]
             {
-                "--mdest", "RESULTS\\%m\\ModuleOutput", "--zm", "true",
+                "--mdest", @"RESULTS\%m\ModuleOutput", "--zm", "true",
                 "--module", names
             });
         }
         if (pkg.Flush) args.Add("--flush");
         if (pkg.Vss) args.Add("--vss");
 
-        var argLiteral = string.Join(", ", args.Select(a => $"'{a}'"));
-        return string.Join('\n', new[]
+        var argLiteral = string.Join(", ", args.Select(a => $"'{a.Replace("'", "''")}'"));
+        return string.Join("\r\n", new[]
         {
-            "#Requires -RunAsAdministrator",
-            "$ErrorActionPreference = 'Stop'",
-            "Set-Location -Path $PSScriptRoot",
+            "$ErrorActionPreference = 'Continue'",
+            "try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}",
+            "Set-Location -LiteralPath $PSScriptRoot",
             $"Write-Host '[*] Package: {pkg.Name}'",
+            $"Write-Host '[*] Target:  {pkg.TargetCompoundName}'",
             "$kape = Join-Path $PSScriptRoot 'kape.exe'",
-            "if (-not (Test-Path $kape)) { throw 'kape.exe not found next to this script' }",
-            $"& $kape {argLiteral}",
-            "Write-Host '[*] Done.'",
+            "if (-not (Test-Path -LiteralPath $kape)) {",
+            "  Write-Host '[!] kape.exe не найден рядом со скриптом' -ForegroundColor Red",
+            "  exit 2",
+            "}",
+            $"$kapeArgs = @({argLiteral})",
+            "Write-Host ('[*] Command: kape.exe ' + ($kapeArgs -join ' '))",
+            "& $kape @kapeArgs",
+            "$code = $LASTEXITCODE",
+            "$results = Join-Path $PSScriptRoot ('RESULTS\\' + $env:COMPUTERNAME)",
+            "if (Test-Path -LiteralPath $results) {",
+            "  Write-Host \"[*] Готово. Результаты: $results\" -ForegroundColor Green",
+            "} else {",
+            "  Write-Host '[!] Папка RESULTS не создана — сбор не выполнен или упал.' -ForegroundColor Red",
+            "  if ($code -eq 0) { $code = 1 }",
+            "}",
+            "exit $code",
             ""
         });
+    }
+
+    /// <summary>UTF-8 with BOM — needed so cmd.exe + chcp 65001 / PowerShell show Russian correctly.</summary>
+    public static Encoding BatEncoding { get; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+
+    private static string EscapeBatSetValue(string value)
+    {
+        return (value ?? "").Replace("\"", "\"\"");
+    }
+
+    private static string QuoteBatArg(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return "\"\"";
+        if (value.Contains(' ') || value.Contains('!') || value.Contains('&') || value.Contains('^'))
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        return value;
     }
 
     public static string EnsureGuid(string? value)

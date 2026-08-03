@@ -99,14 +99,34 @@
                         SelectedItem="{Binding TargetFilter}"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-              <TextBlock Text="Галочка — вкл/выкл. Двойной клик — сведения."
+              <TextBlock Text="Галочка — вкл/выкл. Клик по строке — сведения и ссылки на документацию."
                          Foreground="#999" VerticalAlignment="Center"/>
               <Button DockPanel.Dock="Right" Content="Снять все" Command="{Binding ClearTargetsCommand}"/>
               <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding CheckVisibleTargetsCommand}"/>
             </DockPanel>
-            <TextBox DockPanel.Dock="Bottom" Height="90" IsReadOnly="True" TextWrapping="Wrap"
-                     Text="{Binding DetailText}" Margin="0,6,0,0"/>
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+              <TextBlock DockPanel.Dock="Top" Text="Документация" FontWeight="SemiBold" Margin="0,0,0,4"
+                         Visibility="{Binding HasDocumentationLinks, Converter={StaticResource BoolToVis}}"/>
+              <ScrollViewer DockPanel.Dock="Top" MaxHeight="72" Margin="0,0,0,6"
+                            Visibility="{Binding HasDocumentationLinks, Converter={StaticResource BoolToVis}}">
+                <ItemsControl ItemsSource="{Binding DocumentationLinks}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Content="{Binding}"
+                              Command="{Binding DataContext.OpenDocumentationLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}"
+                              Margin="0,0,0,2" Padding="4,1" HorizontalAlignment="Left"
+                              Background="Transparent" BorderThickness="0" Foreground="#6cb6ff"
+                              Cursor="Hand" ToolTip="Открыть в браузере"/>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <TextBox Height="90" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                       Text="{Binding DetailText}"/>
+            </DockPanel>
             <ListView ItemsSource="{Binding TargetRows}"
+                      SelectionChanged="TargetList_SelectionChanged"
                       MouseDoubleClick="Catalog_MouseDoubleClick"
                       VirtualizingPanel.IsVirtualizing="True">
               <ListView.View>
@@ -119,8 +139,8 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="280"/>
-                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="360"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="260"/>
+                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="320"/>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -142,14 +162,36 @@
                         SelectedItem="{Binding ModuleFilter}"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-              <TextBlock Text="Галочка — вкл/выкл. «Подсказать» — парсеры под выбранные таргеты."
+              <TextBlock Text="Галочка — вкл/выкл. Клик — сведения. «Подсказать» — парсеры под выбранные таргеты."
                          Foreground="#999" VerticalAlignment="Center"/>
               <Button DockPanel.Dock="Right" Content="Снять все" Command="{Binding ClearModulesCommand}"/>
               <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding CheckVisibleModulesCommand}"/>
               <Button DockPanel.Dock="Right" Content="Подсказать по таргетам" Command="{Binding SuggestModulesCommand}"
                       Background="#2d6a4f" Foreground="White"/>
             </DockPanel>
+            <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+              <TextBlock DockPanel.Dock="Top" Text="Документация" FontWeight="SemiBold" Margin="0,0,0,4"
+                         Visibility="{Binding HasDocumentationLinks, Converter={StaticResource BoolToVis}}"/>
+              <ScrollViewer DockPanel.Dock="Top" MaxHeight="72" Margin="0,0,0,6"
+                            Visibility="{Binding HasDocumentationLinks, Converter={StaticResource BoolToVis}}">
+                <ItemsControl ItemsSource="{Binding DocumentationLinks}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Button Content="{Binding}"
+                              Command="{Binding DataContext.OpenDocumentationLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="{Binding}"
+                              Margin="0,0,0,2" Padding="4,1" HorizontalAlignment="Left"
+                              Background="Transparent" BorderThickness="0" Foreground="#6cb6ff"
+                              Cursor="Hand" ToolTip="Открыть в браузере"/>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <TextBox Height="90" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                       Text="{Binding DetailText}"/>
+            </DockPanel>
             <ListView ItemsSource="{Binding ModuleRows}"
+                      SelectionChanged="ModuleList_SelectionChanged"
                       MouseDoubleClick="Module_MouseDoubleClick"
                       VirtualizingPanel.IsVirtualizing="True">
               <ListView.View>
@@ -162,8 +204,8 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="280"/>
-                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="360"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="260"/>
+                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="320"/>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -258,9 +300,12 @@
             <TextBlock Text="tsource"/>
             <TextBox Text="{Binding Tsource, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6"/>
             <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
-              <CheckBox Content="--zip" IsChecked="{Binding ZipOutput}"/>
-              <CheckBox Content="--flush" IsChecked="{Binding Flush}"/>
-              <CheckBox Content="--vss" IsChecked="{Binding Vss}"/>
+              <CheckBox Content="Упаковать в ZIP" IsChecked="{Binding ZipOutput}"
+                        ToolTip="Флаг KAPE --zip: архивировать собранные данные"/>
+              <CheckBox Content="Очистить вывод" IsChecked="{Binding Flush}"
+                        ToolTip="Флаг KAPE --flush: очистить папку назначения перед сбором"/>
+              <CheckBox Content="Теневые копии (VSS)" IsChecked="{Binding Vss}"
+                        ToolTip="Флаг KAPE --vss: сбор через Volume Shadow Copy"/>
             </StackPanel>
             <TextBlock Text="Выбранные таргеты" FontWeight="Bold"/>
             <TextBox Text="{Binding SelectedTargetsText}" IsReadOnly="True" Height="140" TextWrapping="NoWrap"
@@ -278,20 +323,24 @@
             <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" Height="60" TextWrapping="Wrap"
                      AcceptsReturn="True" Margin="0,0,0,8"/>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-              <CheckBox Content="Установить в KAPE" IsChecked="{Binding InstallIntoKape}"/>
-              <CheckBox Content="ZIP-архив" IsChecked="{Binding MakeZip}"/>
-              <CheckBox Content="Копировать зависимости" IsChecked="{Binding CopyDeps}"/>
+              <CheckBox Content="Также установить в KAPE" IsChecked="{Binding InstallIntoKape}"
+                        ToolTip="Дополнительно скопировать compound в локальный KAPE"/>
+              <CheckBox Content="Оставить ZIP" IsChecked="{Binding MakeZip}"
+                        ToolTip="Помимо EXE сохранить ZIP-архив пакета"/>
+              <CheckBox Content="Включить Modules\bin" IsChecked="{Binding IncludeModuleBin}"
+                        ToolTip="Положить инструменты парсеров в автономный пакет (может быть большим)"/>
             </StackPanel>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1.4*"/>
               </Grid.ColumnDefinitions>
               <Button Grid.Column="0" Content="Новый пакет" Command="{Binding NewPackCommand}" Margin="0,0,4,0"/>
               <Button Grid.Column="1" Content="Превью cmd" Command="{Binding PreviewCommandCommand}" Margin="2,0"/>
-              <Button Grid.Column="2" Content="Собрать пакет" Command="{Binding BuildPackageCommand}"
-                      Background="#1f6aa5" Foreground="White" Margin="4,0,0,0"/>
+              <Button Grid.Column="2" Content="Собрать автономный EXE" Command="{Binding BuildPackageCommand}"
+                      Background="#1f6aa5" Foreground="White" Margin="4,0,0,0"
+                      ToolTip="Один EXE: распаковка + kape.exe + таргеты/модули + запуск сбора"/>
             </Grid>
           </StackPanel>
         </ScrollViewer>

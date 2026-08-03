@@ -23,6 +23,8 @@ bld/
 [Ll]ogs/
 dist/
 publish/
+artifacts/
+tools/*.exe
 
 # Visual Studio
 .vs/

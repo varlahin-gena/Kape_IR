@@ -278,6 +278,7 @@ public sealed class KapeCatalog
                 IsCompound = compound,
                 Children = compound ? KapeFileIo.ExtractTargetChildren(data) : new List<string>(),
                 FileMasks = compound ? new List<string>() : KapeFileIo.ExtractTargetFileMasks(data),
+                DocumentationUrls = KapeFileIo.ExtractDocumentationLinks(path),
                 AbsolutePath = path
             });
         }
@@ -306,6 +307,7 @@ public sealed class KapeCatalog
                 IsCompound = compound,
                 Children = compound ? KapeFileIo.ExtractModuleChildren(data) : new List<string>(),
                 FileMasks = compound ? new List<string>() : KapeFileIo.ExtractModuleFileMasks(data),
+                DocumentationUrls = KapeFileIo.ExtractDocumentationLinks(path),
                 AbsolutePath = path
             });
         }

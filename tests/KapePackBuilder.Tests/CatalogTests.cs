@@ -60,7 +60,7 @@ public class CatalogTests
     {
         var pkg = new Models.PackageDefinition
         {
-            Name = "!TestPack",
+            Name = "TestPack",
             Description = "desc",
             Author = "author",
             Targets =
@@ -71,7 +71,7 @@ public class CatalogTests
         var text = KapeFileIo.RenderCompoundTarget(pkg);
         Assert.Contains("Description:", text);
         Assert.Contains("Prefetch.tkape", text);
-        Assert.Contains("!TestPack", pkg.TargetCompoundName);
+        Assert.Equal("TestPack", pkg.TargetCompoundName);
     }
 
     [Fact]

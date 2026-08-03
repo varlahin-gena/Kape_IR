@@ -19,6 +19,7 @@ public sealed class CatalogItem
     public bool IsCompound { get; init; }
     public List<string> Children { get; init; } = new();
     public List<string> FileMasks { get; init; } = new();
+    public List<string> DocumentationUrls { get; init; } = new();
     public string AbsolutePath { get; init; } = "";
 
     public string DisplayName => IsCompound ? $"[C] {Name}" : Name;
@@ -26,7 +27,8 @@ public sealed class CatalogItem
     public string SearchBlob =>
         string.Join(' ', new[] { Name, Category, Description, Author, RelativePath }
                 .Concat(Children)
-                .Concat(FileMasks))
+                .Concat(FileMasks)
+                .Concat(DocumentationUrls))
             .ToLowerInvariant();
 }
 
@@ -49,7 +51,7 @@ public sealed class SelectionEntry
 
 public sealed class PackageDefinition
 {
-    public string Name { get; set; } = "!WindowsTriage";
+    public string Name { get; set; } = "WindowsTriage";
     public string Description { get; set; } = "Пакет Windows triage";
     public string Author { get; set; } = "";
     public string Version { get; set; } = "1.0";
@@ -63,12 +65,16 @@ public sealed class PackageDefinition
     public bool Vss { get; set; }
     public string Notes { get; set; } = "";
 
+    /// <summary>
+    /// Compound target name (= .tkape file name without extension).
+    /// Do not auto-prefix '!': CMD delayed expansion eats it and breaks --target.
+    /// </summary>
     public string TargetCompoundName
     {
         get
         {
-            var clean = SafeName(Name);
-            return clean.StartsWith('!') ? clean : "!" + clean;
+            var clean = SafeName(Name).TrimStart('!');
+            return string.IsNullOrEmpty(clean) ? "WindowsTriage" : clean;
         }
     }
 
@@ -77,8 +83,7 @@ public sealed class PackageDefinition
         get
         {
             if (Modules.Count == 0) return null;
-            var baseName = SafeName(Name).TrimStart('!');
-            return "!" + baseName + "_Modules";
+            return TargetCompoundName + "_Modules";
         }
     }
 
@@ -105,6 +110,7 @@ public sealed class ExportResult
     public string Ps1File { get; init; } = "";
     public string ManifestFile { get; init; } = "";
     public string? ZipFile { get; init; }
+    public string? StandaloneExe { get; init; }
     public string? InstalledTarget { get; init; }
     public string? InstalledModule { get; init; }
     public List<string> Warnings { get; init; } = new();

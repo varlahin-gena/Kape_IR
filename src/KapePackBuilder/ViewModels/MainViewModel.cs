@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Threading;
@@ -63,7 +64,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _treeSharedOnly;
     [ObservableProperty] private bool _treeIsTargets = true;
 
-    [ObservableProperty] private string _packageName = "!WindowsTriage";
+    [ObservableProperty] private string _packageName = "WindowsTriage";
     [ObservableProperty] private string _packageDescription = "Пакет Windows triage";
     [ObservableProperty] private string _packageAuthor = "";
     [ObservableProperty] private string _packageVersion = "1.0";
@@ -72,20 +73,23 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _zipOutput = true;
     [ObservableProperty] private bool _flush;
     [ObservableProperty] private bool _vss;
-    [ObservableProperty] private bool _installIntoKape = true;
-    [ObservableProperty] private bool _makeZip = true;
+    [ObservableProperty] private bool _installIntoKape;
+    [ObservableProperty] private bool _makeZip;
     [ObservableProperty] private bool _copyDeps = true;
+    [ObservableProperty] private bool _includeModuleBin = true;
 
     [ObservableProperty] private string _selectedTargetsText = "";
     [ObservableProperty] private string _selectedModulesText = "";
     [ObservableProperty] private string _detailText = "Выберите элемент, чтобы увидеть сведения.";
     [ObservableProperty] private CatalogRowVm? _selectedExisting;
     [ObservableProperty] private string _treeStats = "";
+    [ObservableProperty] private bool _hasDocumentationLinks;
 
     public ObservableCollection<CatalogRowVm> TargetRows { get; } = new();
     public ObservableCollection<CatalogRowVm> ModuleRows { get; } = new();
     public ObservableCollection<CatalogRowVm> ExistingPacks { get; } = new();
     public ObservableCollection<TreeNodeVm> TreeRoots { get; } = new();
+    public ObservableCollection<string> DocumentationLinks { get; } = new();
     public List<string> FilterOptions { get; } = new() { "Все", "Только выбранные", "Только compound", "Только leaf" };
 
     public PackageDefinition Package { get; private set; } = new();
@@ -252,6 +256,7 @@ public partial class MainViewModel : ObservableObject
 
     public void RebuildTree()
     {
+        var expandedPaths = CaptureExpandedPaths();
         var kind = TreeIsTargets ? ItemKind.Target : ItemKind.Module;
         var compounds = _catalog.Compounds(kind).ToList();
         var childNames = compounds
@@ -276,7 +281,41 @@ public partial class MainViewModel : ObservableObject
                 TreeRoots.Add(node);
         }
 
+        RestoreExpandedPaths(expandedPaths);
         UpdateTreeStats(kind, keys);
+    }
+
+    private HashSet<string> CaptureExpandedPaths()
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Walk(IEnumerable<TreeNodeVm> nodes)
+        {
+            foreach (var n in nodes)
+            {
+                if (n.IsExpanded)
+                    set.Add(n.Item.AbsolutePath);
+                if (n.Children.Count > 0)
+                    Walk(n.Children);
+            }
+        }
+        Walk(TreeRoots);
+        return set;
+    }
+
+    private void RestoreExpandedPaths(HashSet<string> expandedPaths)
+    {
+        if (expandedPaths.Count == 0) return;
+        void Walk(IEnumerable<TreeNodeVm> nodes)
+        {
+            foreach (var n in nodes)
+            {
+                if (expandedPaths.Contains(n.Item.AbsolutePath))
+                    n.IsExpanded = true;
+                if (n.Children.Count > 0)
+                    Walk(n.Children);
+            }
+        }
+        Walk(TreeRoots);
     }
 
     private TreeNodeVm? BuildTreeNode(
@@ -301,7 +340,8 @@ public partial class MainViewModel : ObservableObject
             ? AllLeavesSelected(item, kind, keys)
             : KapeCatalog.IsSelected(item, keys);
 
-        var node = new TreeNodeVm(item, _catalog.SharedBadge(item), selected, depth < 1);
+        // Always start collapsed; RebuildTree restores previously expanded paths.
+        var node = new TreeNodeVm(item, _catalog.SharedBadge(item), selected, expanded: false);
         if (item.IsCompound)
         {
             var visible = 0;
@@ -509,7 +549,7 @@ public partial class MainViewModel : ObservableObject
     {
         Package = new PackageDefinition
         {
-            Name = "!WindowsTriage",
+            Name = "WindowsTriage",
             Description = "Пакет Windows triage",
             Author = PackageAuthor
         };
@@ -636,7 +676,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var dlg = new OpenFolderDialog { Title = "Выберите папку для сохранения пакета" };
+        var dlg = new OpenFolderDialog { Title = "Выберите папку для сохранения автономного EXE" };
         var initial = Path.Combine(KapeRoot, "PackBuilder", "exports");
         Directory.CreateDirectory(initial);
         dlg.InitialDirectory = initial;
@@ -644,21 +684,35 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
+            StatusText = "Сборка автономного EXE…";
             var exporter = new PackageExporter(_catalog);
-            var result = exporter.Export(Package, dlg.FolderName, InstallIntoKape, MakeZip, CopyDeps);
-            var msg = $"Папка пакета:\n{result.PackageDir}\n\nCompound-таргет: {Path.GetFileName(result.TargetFile)}";
-            if (result.ModuleFile is not null) msg += $"\nCompound-модуль: {Path.GetFileName(result.ModuleFile)}";
-            if (result.InstalledTarget is not null) msg += $"\nУстановлено в KAPE: {result.InstalledTarget}";
+            var result = exporter.Export(
+                Package,
+                dlg.FolderName,
+                installIntoKape: InstallIntoKape,
+                makeZip: MakeZip,
+                copyDependencies: true,
+                includeModuleBin: IncludeModuleBin,
+                buildStandaloneExe: true);
+
+            var msg = result.StandaloneExe is not null
+                ? $"Автономный EXE:\n{result.StandaloneExe}\n\n"
+                : "";
+            msg += $"Папка пакета:\n{result.PackageDir}";
             if (result.ZipFile is not null) msg += $"\nZIP: {result.ZipFile}";
+            if (result.InstalledTarget is not null) msg += $"\nТакже установлено в KAPE: {result.InstalledTarget}";
             if (result.Warnings.Count > 0)
                 msg += "\n\nПредупреждения:\n - " + string.Join("\n - ", result.Warnings.Take(12));
             MessageBox.Show(msg, "Сборка завершена");
-            StatusText = $"Собран пакет: {Package.Name}";
+            StatusText = result.StandaloneExe is not null
+                ? $"Собран EXE: {Path.GetFileName(result.StandaloneExe)}"
+                : $"Собран пакет: {Package.Name}";
             _ = ReloadCatalogAsync();
         }
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "Ошибка сборки", MessageBoxButton.OK, MessageBoxImage.Error);
+            StatusText = "Ошибка сборки";
         }
     }
 
@@ -668,9 +722,34 @@ public partial class MainViewModel : ObservableObject
             $"{item.Name}\nПуть: {item.RelativePath}\nКатегория: {item.Category}\n" +
             $"Автор: {item.Author} | Версия: {item.Version}\nCompound: {item.IsCompound}\n" +
             $"Описание: {item.Description}\n";
+        if (item.FileMasks.Count > 0)
+            text += "FileMask: " + string.Join(", ", item.FileMasks.Take(12)) + "\n";
         if (item.Children.Count > 0)
-            text += "Дочерние: " + string.Join(", ", item.Children.Take(30));
+            text += "Дочерние: " + string.Join(", ", item.Children.Take(30)) + "\n";
+        if (item.DocumentationUrls.Count > 0)
+            text += $"Документация ({item.DocumentationUrls.Count}): см. ссылки ниже\n";
+        else
+            text += "Документация: нет ссылок в файле\n";
         DetailText = text;
+
+        DocumentationLinks.Clear();
+        foreach (var url in item.DocumentationUrls)
+            DocumentationLinks.Add(url);
+        HasDocumentationLinks = DocumentationLinks.Count > 0;
+    }
+
+    [RelayCommand]
+    private void OpenDocumentationLink(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Не удалось открыть ссылку", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void PushPackageToForm()
@@ -688,7 +767,7 @@ public partial class MainViewModel : ObservableObject
 
     private void PullFormToPackage()
     {
-        Package.Name = string.IsNullOrWhiteSpace(PackageName) ? "!WindowsTriage" : PackageName.Trim();
+        Package.Name = string.IsNullOrWhiteSpace(PackageName) ? "WindowsTriage" : PackageName.Trim();
         Package.Description = PackageDescription.Trim();
         Package.Author = PackageAuthor.Trim();
         Package.Version = string.IsNullOrWhiteSpace(PackageVersion) ? "1.0" : PackageVersion.Trim();

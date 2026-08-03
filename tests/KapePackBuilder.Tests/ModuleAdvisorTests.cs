@@ -64,12 +64,29 @@ public class ModuleAdvisorTests
     }
 
     [Fact]
-    public void ExtractTargetFileMasks_ReadsPrefetch()
+    public void ExtractDocumentationLinks_ReadsPrefetchComments()
     {
         var path = Path.Combine(KapeRoot, "Targets", "Windows", "Prefetch.tkape");
         if (!File.Exists(path)) return;
-        var data = KapeFileIo.LoadKapeFile(path);
-        var masks = KapeFileIo.ExtractTargetFileMasks(data);
-        Assert.Contains(masks, m => m.Contains(".pf", StringComparison.OrdinalIgnoreCase));
+        var urls = KapeFileIo.ExtractDocumentationLinks(path);
+        Assert.NotEmpty(urls);
+        Assert.Contains(urls, u => u.Contains("forensicswiki", StringComparison.OrdinalIgnoreCase) ||
+                                   u.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ExtractDocumentationLinksFromText_IgnoresNonCommentUrls()
+    {
+        var text = """
+Description: test
+Path: C:\Windows\
+# Documentation
+# https://example.com/docs
+# not a url
+BinaryUrl: https://download.example.com/tool.zip
+""";
+        var urls = KapeFileIo.ExtractDocumentationLinksFromText(text);
+        Assert.Single(urls);
+        Assert.Equal("https://example.com/docs", urls[0]);
     }
 }

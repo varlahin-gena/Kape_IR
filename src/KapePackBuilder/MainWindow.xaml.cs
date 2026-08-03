@@ -49,6 +49,18 @@ public partial class MainWindow : Window
             Vm.ShowItemInfo(row.Item);
     }
 
+    private void TargetList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListView { SelectedItem: CatalogRowVm row })
+            Vm.ShowItemInfo(row.Item);
+    }
+
+    private void ModuleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListView { SelectedItem: CatalogRowVm row })
+            Vm.ShowItemInfo(row.Item);
+    }
+
     private void Tree_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is TreeView { SelectedItem: TreeNodeVm node })
