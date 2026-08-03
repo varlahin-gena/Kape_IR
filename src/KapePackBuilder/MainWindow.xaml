@@ -7,6 +7,7 @@
         MinHeight="700" MinWidth="1100"
         Background="#1e1e1e"
         Foreground="#e8e8e8"
+        Icon="pack://application:,,,/app.ico"
         Loaded="Window_Loaded">
   <Window.Resources>
     <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -30,6 +31,10 @@
       <Setter Property="Foreground" Value="#e8e8e8"/>
       <Setter Property="Margin" Value="0,0,10,0"/>
     </Style>
+    <Style TargetType="RadioButton">
+      <Setter Property="Foreground" Value="#e8e8e8"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
     <Style TargetType="TabItem">
       <Setter Property="Foreground" Value="#111"/>
     </Style>
@@ -41,12 +46,65 @@
       <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
       <Setter Property="ScrollViewer.IsDeferredScrollingEnabled" Value="True"/>
     </Style>
+    <Style TargetType="ListViewItem">
+      <Setter Property="Foreground" Value="#e8e8e8"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+      <Setter Property="Padding" Value="2,1"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListViewItem">
+            <Border x:Name="Bd"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+              <GridViewRowPresenter VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#333337"/>
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#0e639c"/>
+                <Setter Property="Foreground" Value="#ffffff"/>
+              </Trigger>
+              <MultiTrigger>
+                <MultiTrigger.Conditions>
+                  <Condition Property="IsSelected" Value="True"/>
+                  <Condition Property="IsMouseOver" Value="True"/>
+                </MultiTrigger.Conditions>
+                <Setter TargetName="Bd" Property="Background" Value="#1177bb"/>
+                <Setter Property="Foreground" Value="#ffffff"/>
+              </MultiTrigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.5"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style TargetType="TreeView">
       <Setter Property="Background" Value="#2b2b2b"/>
       <Setter Property="Foreground" Value="#e8e8e8"/>
       <Setter Property="BorderBrush" Value="#444"/>
       <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
       <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
+    </Style>
+    <Style TargetType="TreeViewItem">
+      <Setter Property="Foreground" Value="#e8e8e8"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Style.Triggers>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="#0e639c"/>
+          <Setter Property="Foreground" Value="#ffffff"/>
+        </Trigger>
+        <Trigger Property="IsMouseOver" Value="True">
+          <Setter Property="Background" Value="#333337"/>
+        </Trigger>
+      </Style.Triggers>
     </Style>
   </Window.Resources>
 
@@ -99,7 +157,7 @@
                         SelectedItem="{Binding TargetFilter}"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-              <TextBlock Text="Галочка — вкл/выкл. Клик по строке — сведения и ссылки на документацию."
+              <TextBlock Text="Клик по строке или галочка — в пакет. Выделение показывает сведения справа внизу."
                          Foreground="#999" VerticalAlignment="Center"/>
               <Button DockPanel.Dock="Right" Content="Снять все" Command="{Binding ClearTargetsCommand}"/>
               <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding CheckVisibleTargetsCommand}"/>
@@ -127,6 +185,7 @@
             </DockPanel>
             <ListView ItemsSource="{Binding TargetRows}"
                       SelectionChanged="TargetList_SelectionChanged"
+                      PreviewMouseLeftButtonDown="TargetList_PreviewMouseLeftButtonDown"
                       MouseDoubleClick="Catalog_MouseDoubleClick"
                       VirtualizingPanel.IsVirtualizing="True">
               <ListView.View>
@@ -162,7 +221,7 @@
                         SelectedItem="{Binding ModuleFilter}"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-              <TextBlock Text="Галочка — вкл/выкл. Клик — сведения. «Подсказать» — парсеры под выбранные таргеты."
+              <TextBlock Text="Клик по строке или галочка — в пакет. «Подсказать» — парсеры под выбранные таргеты."
                          Foreground="#999" VerticalAlignment="Center"/>
               <Button DockPanel.Dock="Right" Content="Снять все" Command="{Binding ClearModulesCommand}"/>
               <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding CheckVisibleModulesCommand}"/>
@@ -192,6 +251,7 @@
             </DockPanel>
             <ListView ItemsSource="{Binding ModuleRows}"
                       SelectionChanged="ModuleList_SelectionChanged"
+                      PreviewMouseLeftButtonDown="ModuleList_PreviewMouseLeftButtonDown"
                       MouseDoubleClick="Module_MouseDoubleClick"
                       VirtualizingPanel.IsVirtualizing="True">
               <ListView.View>
@@ -216,7 +276,7 @@
         <TabItem Header="Дерево compound">
           <DockPanel Margin="6">
             <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#aaa" Margin="0,0,0,6"
-                       Text="Дерево синхронизируется с таргетами/модулями. Compound выбирает все листовые элементы. ⋆ — входит в несколько пакетов."/>
+                       Text="Переключатель «Таргеты / Модули» выбирает, какое дерево показывать. Compound отмечает все leaf. ⋆ — входит в несколько пакетов."/>
             <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -228,7 +288,17 @@
               <TextBox Text="{Binding TreeSearch, UpdateSourceTrigger=PropertyChanged}"
                        ToolTip="Поиск в дереве"/>
               <CheckBox Grid.Column="1" Content="Только общие" IsChecked="{Binding TreeSharedOnly}" VerticalAlignment="Center" Margin="8,0"/>
-              <CheckBox Grid.Column="2" Content="Дерево таргетов" IsChecked="{Binding TreeIsTargets}" VerticalAlignment="Center"/>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                <RadioButton Content="Таргеты"
+                             GroupName="TreeKind"
+                             IsChecked="{Binding TreeIsTargets, Mode=TwoWay}"
+                             Margin="0,0,10,0"
+                             ToolTip="Дерево compound-таргетов (.tkape)"/>
+                <RadioButton Content="Модули"
+                             GroupName="TreeKind"
+                             IsChecked="{Binding TreeIsModules, Mode=TwoWay}"
+                             ToolTip="Дерево compound-модулей (.mkape)"/>
+              </StackPanel>
               <Button Grid.Column="3" Content="Развернуть" Command="{Binding ExpandTreeCommand}"/>
               <Button Grid.Column="4" Content="Свернуть" Command="{Binding CollapseTreeCommand}"/>
             </Grid>
@@ -255,6 +325,16 @@
                 <Style TargetType="TreeViewItem">
                   <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
                   <Setter Property="Foreground" Value="#e8e8e8"/>
+                  <Setter Property="Background" Value="Transparent"/>
+                  <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                      <Setter Property="Background" Value="#0e639c"/>
+                      <Setter Property="Foreground" Value="#ffffff"/>
+                    </Trigger>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter Property="Background" Value="#333337"/>
+                    </Trigger>
+                  </Style.Triggers>
                 </Style>
               </TreeView.ItemContainerStyle>
             </TreeView>

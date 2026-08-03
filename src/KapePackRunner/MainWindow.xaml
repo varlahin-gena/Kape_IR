@@ -1,0 +1,104 @@
+<Window x:Class="KapePackRunner.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="KAPE Pack"
+        Height="560" Width="820"
+        MinHeight="420" MinWidth="640"
+        WindowStartupLocation="CenterScreen"
+        Background="#FF0F1419"
+        Foreground="#FFE6EDF3"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        Icon="pack://application:,,,/app.ico"
+        Loaded="OnLoaded">
+  <Window.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="14,8"/>
+      <Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="Background" Value="#FF21262D"/>
+      <Setter Property="Foreground" Value="#FFE6EDF3"/>
+      <Setter Property="BorderBrush" Value="#FF30363D"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="bd" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="6" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="bd" Property="Background" Value="#FF30363D"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Margin="0,0,0,12">
+      <TextBlock x:Name="TitleText" Text="KAPE Pack" FontSize="22" FontWeight="SemiBold"/>
+      <TextBlock x:Name="SubtitleText" Text="Автономный сбор артефактов" Opacity="0.7" Margin="0,4,0,0"/>
+    </StackPanel>
+
+    <Border Grid.Row="1" Background="#FF161B22" BorderBrush="#FF30363D" BorderThickness="1"
+            CornerRadius="8" Padding="14,10" Margin="0,0,0,12">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock x:Name="StatusText" Text="Подготовка…" FontWeight="SemiBold"/>
+          <ProgressBar x:Name="ProgressBar" Height="6" Margin="0,8,0,0"
+                       IsIndeterminate="True" Minimum="0" Maximum="100"
+                       Background="#FF21262D" Foreground="#FF3FB950"/>
+        </StackPanel>
+        <TextBlock Grid.Column="1" x:Name="PercentText" VerticalAlignment="Center"
+                   Margin="16,0,0,0" Opacity="0.6" FontFamily="Consolas"/>
+      </Grid>
+    </Border>
+
+    <TextBlock Grid.Row="2" Text="Журнал" Opacity="0.55" Margin="0,0,0,6" FontSize="12"/>
+
+    <Border Grid.Row="3" Background="#FF010409" BorderBrush="#FF30363D" BorderThickness="1"
+            CornerRadius="8" Padding="2">
+      <TextBox x:Name="LogBox"
+               IsReadOnly="True"
+               TextWrapping="Wrap"
+               VerticalScrollBarVisibility="Auto"
+               HorizontalScrollBarVisibility="Auto"
+               AcceptsReturn="True"
+               BorderThickness="0"
+               Background="Transparent"
+               Foreground="#FF8B949E"
+               CaretBrush="#FFE6EDF3"
+               FontFamily="Consolas"
+               FontSize="12"
+               Padding="12"/>
+    </Border>
+
+    <DockPanel Grid.Row="4" Margin="0,14,0,0" LastChildFill="False">
+      <Button x:Name="OpenResultsBtn" Content="Открыть RESULTS" Click="OpenResults_Click"
+              IsEnabled="False" DockPanel.Dock="Left"/>
+      <Button x:Name="CloseBtn" Content="Закрыть" Click="Close_Click"
+              DockPanel.Dock="Right" Margin="0" IsEnabled="False"/>
+    </DockPanel>
+  </Grid>
+</Window>

@@ -105,9 +105,17 @@ Targets:
         {
             var result = GitHubKapeFilesSync.SyncAsync(tmp).GetAwaiter().GetResult();
             Assert.True(result.Ok);
-            Assert.True(result.TargetsCopied > 100);
+            // Fresh tree: almost everything is added (not "copied over identical files").
+            Assert.True(result.TargetsAdded + result.TargetsUpdated > 100);
             Assert.True(File.Exists(custom));
             Assert.True(Directory.EnumerateFiles(Path.Combine(tmp, "Targets"), "Prefetch.tkape", SearchOption.AllDirectories).Any());
+
+            var again = GitHubKapeFilesSync.SyncAsync(tmp).GetAwaiter().GetResult();
+            Assert.True(again.Ok);
+            Assert.Equal(0, again.TargetsAdded);
+            Assert.Equal(0, again.TargetsUpdated);
+            Assert.True(again.TargetsUnchanged > 100);
+            Assert.Contains("изменений нет", again.Message);
         }
         finally
         {

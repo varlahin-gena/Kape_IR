@@ -120,8 +120,15 @@ public sealed class SyncResult
 {
     public bool Ok { get; init; }
     public string Message { get; init; } = "";
+    /// <summary>Added + updated (actual writes).</summary>
     public int TargetsCopied { get; init; }
     public int ModulesCopied { get; init; }
+    public int TargetsAdded { get; init; }
+    public int TargetsUpdated { get; init; }
+    public int TargetsUnchanged { get; init; }
+    public int ModulesAdded { get; init; }
+    public int ModulesUpdated { get; init; }
+    public int ModulesUnchanged { get; init; }
     public long ZipBytes { get; init; }
     public List<string> Errors { get; init; } = new();
     public string SyncedAt { get; init; } = "";

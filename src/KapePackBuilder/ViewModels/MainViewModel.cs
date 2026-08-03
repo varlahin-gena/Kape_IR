@@ -112,7 +112,22 @@ public partial class MainViewModel : ObservableObject
     partial void OnTargetFilterChanged(string value) => RefreshTargetRows();
     partial void OnModuleFilterChanged(string value) => RefreshModuleRows();
     partial void OnTreeSharedOnlyChanged(bool value) => RebuildTree();
-    partial void OnTreeIsTargetsChanged(bool value) => RebuildTree();
+    partial void OnTreeIsTargetsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TreeIsModules));
+        RebuildTree();
+    }
+
+    /// <summary>Inverse of TreeIsTargets for the Modules radio button.</summary>
+    public bool TreeIsModules
+    {
+        get => !TreeIsTargets;
+        set
+        {
+            if (value)
+                TreeIsTargets = false;
+        }
+    }
 
     private void Debounce(ref DispatcherTimer? timer, Action action)
     {
@@ -381,6 +396,22 @@ public partial class MainViewModel : ObservableObject
         SetItemSelected(row.Item, kind, row.IsSelected);
     }
 
+    /// <summary>Row click (not checkbox): flip inclusion without double-firing Checked handlers.</summary>
+    public void ToggleRowFromListClick(CatalogRowVm row, ItemKind kind)
+    {
+        if (_suppressSelectionEvents) return;
+        _suppressSelectionEvents = true;
+        try
+        {
+            row.IsSelected = !row.IsSelected;
+        }
+        finally
+        {
+            _suppressSelectionEvents = false;
+        }
+        SetItemSelected(row.Item, kind, row.IsSelected);
+    }
+
     public void ToggleTreeNode(TreeNodeVm node)
     {
         if (_suppressSelectionEvents) return;
@@ -445,13 +476,28 @@ public partial class MainViewModel : ObservableObject
         try
         {
             SyncSelectionTexts();
-            RefreshTargetRows();
-            RefreshModuleRows();
+            SyncVisibleRowChecks(ItemKind.Target);
+            SyncVisibleRowChecks(ItemKind.Module);
             RebuildTree();
         }
         finally
         {
             _suppressSelectionEvents = false;
+        }
+    }
+
+    /// <summary>Update checkmarks in place — avoid Clear()+rebuild (scroll/selection jump, flaky UI).</summary>
+    private void SyncVisibleRowChecks(ItemKind kind)
+    {
+        var rows = kind == ItemKind.Target ? TargetRows : ModuleRows;
+        var keys = KapeCatalog.BuildSelectionKeys(kind == ItemKind.Target ? Package.Targets : Package.Modules);
+        foreach (var row in rows)
+        {
+            var should = row.Item.IsCompound
+                ? AllLeavesSelected(row.Item, kind, keys)
+                : KapeCatalog.IsSelected(row.Item, keys);
+            if (row.IsSelected != should)
+                row.IsSelected = should;
         }
     }
 
@@ -695,8 +741,16 @@ public partial class MainViewModel : ObservableObject
                 includeModuleBin: IncludeModuleBin,
                 buildStandaloneExe: true);
 
+            var stubInfo = "";
+            try
+            {
+                var stub = StandaloneExeBuilder.ResolveStubPath();
+                stubInfo = $"\nStub: {stub} ({new FileInfo(stub).Length / (1024 * 1024)} МБ, GUI)";
+            }
+            catch { /* ignore */ }
+
             var msg = result.StandaloneExe is not null
-                ? $"Автономный EXE:\n{result.StandaloneExe}\n\n"
+                ? $"Автономный EXE:\n{result.StandaloneExe}{stubInfo}\n\n"
                 : "";
             msg += $"Папка пакета:\n{result.PackageDir}";
             if (result.ZipFile is not null) msg += $"\nZIP: {result.ZipFile}";

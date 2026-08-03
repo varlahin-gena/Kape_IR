@@ -6,7 +6,8 @@
         MinHeight="420" MinWidth="720"
         WindowStartupLocation="CenterOwner"
         Background="#1e1e1e"
-        Foreground="#e8e8e8">
+        Foreground="#e8e8e8"
+        Icon="pack://application:,,,/app.ico">
   <Window.Resources>
     <Style TargetType="TextBlock">
       <Setter Property="Foreground" Value="#e8e8e8"/>

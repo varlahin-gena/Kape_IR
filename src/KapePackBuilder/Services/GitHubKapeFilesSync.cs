@@ -55,9 +55,9 @@ public static class GitHubKapeFilesSync
             Directory.CreateDirectory(destModules);
 
             progress?.Report("Обновление Targets…");
-            var (tCount, tErrors) = MergeTree(srcTargets, destTargets, progress);
+            var t = MergeTree(srcTargets, destTargets, progress);
             progress?.Report("Обновление Modules…");
-            var (mCount, mErrors) = MergeTree(srcModules, destModules, progress);
+            var m = MergeTree(srcModules, destModules, progress);
 
             var syncedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC";
             var meta = new
@@ -66,8 +66,12 @@ public static class GitHubKapeFilesSync
                 branch = Branch,
                 url = ZipUrl,
                 synced_at = syncedAt,
-                targets_copied = tCount,
-                modules_copied = mCount
+                targets_added = t.Added,
+                targets_updated = t.Updated,
+                targets_unchanged = t.Unchanged,
+                modules_added = m.Added,
+                modules_updated = m.Updated,
+                modules_unchanged = m.Unchanged
             };
             try
             {
@@ -80,18 +84,29 @@ public static class GitHubKapeFilesSync
             }
             catch { /* ignore */ }
 
-            var errors = tErrors.Concat(mErrors).ToList();
-            var msg =
-                $"Синхронизировано с {Repo}@{Branch}: обновлено/добавлено файлов Targets: {tCount}, Modules: {mCount}.";
-            if (errors.Count > 0) msg += $" (ошибок файлов: {errors.Count})";
-            progress?.Report(msg);
+            var errors = t.Errors.Concat(m.Errors).ToList();
+            var changed = t.Added + t.Updated + m.Added + m.Updated;
+            var msg = changed == 0
+                ? $"Синхронизировано с {Repo}@{Branch}: изменений нет " +
+                  $"(Targets: {t.Unchanged}, Modules: {m.Unchanged} уже актуальны)."
+                : $"Синхронизировано с {Repo}@{Branch}.\n" +
+                  $"Targets — добавлено: {t.Added}, обновлено: {t.Updated}, без изменений: {t.Unchanged}.\n" +
+                  $"Modules — добавлено: {m.Added}, обновлено: {m.Updated}, без изменений: {m.Unchanged}.";
+            if (errors.Count > 0) msg += $"\nОшибок файлов: {errors.Count}";
+            progress?.Report(msg.Replace('\n', ' '));
 
             return new SyncResult
             {
-                Ok = errors.Count == 0 || tCount + mCount > 0,
+                Ok = errors.Count == 0 || changed > 0,
                 Message = msg,
-                TargetsCopied = tCount,
-                ModulesCopied = mCount,
+                TargetsCopied = t.Added + t.Updated,
+                ModulesCopied = m.Added + m.Updated,
+                TargetsAdded = t.Added,
+                TargetsUpdated = t.Updated,
+                TargetsUnchanged = t.Unchanged,
+                ModulesAdded = m.Added,
+                ModulesUpdated = m.Updated,
+                ModulesUnchanged = m.Unchanged,
                 ZipBytes = data.Length,
                 Errors = errors,
                 SyncedAt = syncedAt
@@ -170,10 +185,10 @@ public static class GitHubKapeFilesSync
         return null;
     }
 
-    private static (int copied, List<string> errors) MergeTree(string src, string dest, IProgress<string>? progress)
+    private static MergeStats MergeTree(string src, string dest, IProgress<string>? progress)
     {
-        var copied = 0;
-        var errors = new List<string>();
+        var stats = new MergeStats();
+        var processed = 0;
         foreach (var path in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
         {
             var name = Path.GetFileName(path);
@@ -183,17 +198,60 @@ public static class GitHubKapeFilesSync
             var target = Path.Combine(dest, rel);
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.Copy(path, target, true);
-                copied++;
-                if (copied % 50 == 0)
-                    progress?.Report($"Копирование в {Path.GetFileName(dest)}… {copied} файлов");
+                if (File.Exists(target) && FilesContentEqual(path, target))
+                {
+                    stats.Unchanged++;
+                }
+                else
+                {
+                    var isNew = !File.Exists(target);
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    File.Copy(path, target, overwrite: true);
+                    if (isNew) stats.Added++;
+                    else stats.Updated++;
+                }
+
+                processed++;
+                if (processed % 50 == 0)
+                    progress?.Report(
+                        $"Сверка {Path.GetFileName(dest)}… +{stats.Added} / ~{stats.Updated} / ={stats.Unchanged}");
             }
             catch (Exception ex)
             {
-                errors.Add($"{rel.Replace('\\', '/')}: {ex.Message}");
+                stats.Errors.Add($"{rel.Replace('\\', '/')}: {ex.Message}");
             }
         }
-        return (copied, errors);
+        return stats;
+    }
+
+    /// <summary>Compare by size then bytes — zip timestamps differ from local copies.</summary>
+    private static bool FilesContentEqual(string a, string b)
+    {
+        var fa = new FileInfo(a);
+        var fb = new FileInfo(b);
+        if (fa.Length != fb.Length) return false;
+        if (fa.Length == 0) return true;
+
+        using var sa = File.OpenRead(a);
+        using var sb = File.OpenRead(b);
+        var bufA = new byte[64 * 1024];
+        var bufB = new byte[64 * 1024];
+        while (true)
+        {
+            var na = sa.Read(bufA, 0, bufA.Length);
+            var nb = sb.Read(bufB, 0, bufB.Length);
+            if (na != nb) return false;
+            if (na == 0) return true;
+            if (!bufA.AsSpan(0, na).SequenceEqual(bufB.AsSpan(0, nb)))
+                return false;
+        }
+    }
+
+    private sealed class MergeStats
+    {
+        public int Added { get; set; }
+        public int Updated { get; set; }
+        public int Unchanged { get; set; }
+        public List<string> Errors { get; } = new();
     }
 }

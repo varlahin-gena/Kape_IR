@@ -7,7 +7,7 @@ $runnerOut = Join-Path $PSScriptRoot "artifacts\runner"
 $out = Join-Path $PSScriptRoot "dist"
 New-Item -ItemType Directory -Force -Path $tools, $runnerOut, $out | Out-Null
 
-Write-Host "[*] Publishing KapePackRunner stub..."
+Write-Host "[*] Publishing KapePackRunner stub (GUI)..."
 dotnet publish .\src\KapePackRunner\KapePackRunner.csproj `
   -c Release `
   -r win-x64 `
@@ -15,7 +15,6 @@ dotnet publish .\src\KapePackRunner\KapePackRunner.csproj `
   -p:PublishSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true `
   -p:EnableCompressionInSingleFile=true `
-  -p:PublishTrimmed=true `
   -o $runnerOut
 
 Copy-Item -Force (Join-Path $runnerOut "KapePackRunner.exe") (Join-Path $tools "KapePackRunner.exe")
