@@ -17,11 +17,17 @@ public sealed class PackageExporter
         bool makeZip = false,
         bool copyDependencies = true,
         bool includeModuleBin = true,
-        bool buildStandaloneExe = true)
+        bool buildStandaloneExe = true,
+        IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         var warnings = new List<string>();
         pkg.PackageId = KapeFileIo.EnsureGuid(pkg.PackageId);
+        void Report(string msg) => progress?.Report(msg);
+        void Check() => cancellationToken.ThrowIfCancellationRequested();
 
+        Check();
+        Report("Подготовка папки пакета…");
         var packageDir = Path.Combine(outputDir, PackageDefinition.SafeDir(pkg.Name));
         if (Directory.Exists(packageDir))
             Directory.Delete(packageDir, true);
@@ -44,17 +50,28 @@ public sealed class PackageExporter
             File.WriteAllText(moduleFile, KapeFileIo.RenderCompoundModule(pkg));
         }
 
+        Check();
         // Autonomous packs always need dependency targets/modules.
         if (copyDependencies || buildStandaloneExe)
         {
-            warnings.AddRange(CopyTargetDeps(pkg, packageDir));
+            Report("Копирование таргетов…");
+            warnings.AddRange(CopyTargetDeps(pkg, packageDir, cancellationToken));
             if (pkg.Modules.Count > 0)
-                warnings.AddRange(CopyModuleDeps(pkg, packageDir, includeModuleBin || buildStandaloneExe));
+            {
+                Report("Копирование модулей…");
+                warnings.AddRange(CopyModuleDeps(pkg, packageDir, includeModuleBin || buildStandaloneExe, cancellationToken));
+            }
         }
 
+        Check();
         if (buildStandaloneExe)
-            warnings.AddRange(CopyRuntimeFiles(packageDir, includeModuleBin));
+        {
+            Report("Копирование kape.exe / runtime…");
+            warnings.AddRange(CopyRuntimeFiles(packageDir, includeModuleBin, cancellationToken));
+        }
 
+        Check();
+        Report("Запись скриптов и манифеста…");
         var batFile = Path.Combine(packageDir, "run_collection.bat");
         var ps1File = Path.Combine(packageDir, "run_collection.ps1");
         File.WriteAllText(batFile, KapeFileIo.RenderRunBat(pkg), KapeFileIo.BatEncoding);
@@ -69,7 +86,11 @@ public sealed class PackageExporter
         string? installedTarget = null;
         string? installedModule = null;
         if (installIntoKape)
+        {
+            Check();
+            Report("Установка в локальный KAPE…");
             (installedTarget, installedModule) = InstallIntoKape(pkg, targetFile, moduleFile);
+        }
 
         // Always build zip when making standalone EXE (payload); optional keep zip for user.
         string? zipFile = null;
@@ -77,6 +98,8 @@ public sealed class PackageExporter
         var zipPath = Path.Combine(outputDir, PackageDefinition.SafeDir(pkg.Name) + ".zip");
         if (needZip)
         {
+            Check();
+            Report("Создание ZIP…");
             if (File.Exists(zipPath)) File.Delete(zipPath);
             ZipFile.CreateFromDirectory(packageDir, zipPath, CompressionLevel.Optimal, false);
             if (makeZip)
@@ -86,16 +109,20 @@ public sealed class PackageExporter
         string? standaloneExe = null;
         if (buildStandaloneExe)
         {
+            Check();
+            Report("Сборка автономного EXE…");
             var stub = StandaloneExeBuilder.ResolveStubPath();
             var exeName = PackageDefinition.SafeDir(pkg.Name) + ".exe";
             standaloneExe = Path.Combine(outputDir, exeName);
             StandaloneExeBuilder.Build(stub, zipPath, standaloneExe);
+            FileHash.WriteSha256Sidecar(standaloneExe);
             if (!makeZip && File.Exists(zipPath))
             {
                 try { File.Delete(zipPath); } catch { /* keep if locked */ }
             }
         }
 
+        Report("Готово");
         return new ExportResult
         {
             PackageDir = packageDir,
@@ -135,8 +162,9 @@ public sealed class PackageExporter
         return pkg;
     }
 
-    private List<string> CopyRuntimeFiles(string packageDir, bool includeModuleBin)
+    private List<string> CopyRuntimeFiles(string packageDir, bool includeModuleBin, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         var warnings = new List<string>();
         var kape = FindKapeExe(_catalog.KapeRoot);
         if (kape is null)
@@ -151,6 +179,7 @@ public sealed class PackageExporter
             // Companion files often next to kape.exe
             foreach (var name in new[] { "kape.db", "KAPE.db", "gkape.exe", "Get-KAPEUpdate.ps1", "CHANGELOG.txt" })
             {
+                ct.ThrowIfCancellationRequested();
                 var src = Path.Combine(Path.GetDirectoryName(kape)!, name);
                 if (File.Exists(src))
                     File.Copy(src, Path.Combine(packageDir, name), true);
@@ -163,7 +192,7 @@ public sealed class PackageExporter
             if (Directory.Exists(binSrc))
             {
                 var binDst = Path.Combine(packageDir, "Modules", "bin");
-                CopyDirectory(binSrc, binDst);
+                CopyDirectory(binSrc, binDst, ct);
             }
             else if (Directory.Exists(Path.Combine(packageDir, "Modules")))
             {
@@ -192,16 +221,19 @@ public sealed class PackageExporter
         }
     }
 
-    private static void CopyDirectory(string src, string dst)
+    private static void CopyDirectory(string src, string dst, CancellationToken ct = default)
     {
         Directory.CreateDirectory(dst);
         foreach (var dir in Directory.EnumerateDirectories(src, "*", SearchOption.AllDirectories))
         {
+            ct.ThrowIfCancellationRequested();
             var rel = Path.GetRelativePath(src, dir);
             Directory.CreateDirectory(Path.Combine(dst, rel));
         }
+        var n = 0;
         foreach (var file in Directory.EnumerateFiles(src, "*", SearchOption.AllDirectories))
         {
+            if (++n % 25 == 0) ct.ThrowIfCancellationRequested();
             var rel = Path.GetRelativePath(src, file);
             var dest = Path.Combine(dst, rel);
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
@@ -229,7 +261,7 @@ public sealed class PackageExporter
         return (destT, destM);
     }
 
-    private List<string> CopyTargetDeps(PackageDefinition pkg, string packageDir)
+    private List<string> CopyTargetDeps(PackageDefinition pkg, string packageDir, CancellationToken ct)
     {
         var warnings = new List<string>();
         var refs = pkg.Targets.Select(t => t.Path).ToList();
@@ -242,19 +274,54 @@ public sealed class PackageExporter
                 warnings.Add($"Таргет не найден в каталоге: {r}");
         }
 
+        // KAPE: one basename under Targets\ — never copy Apps\X and Compound\X together.
+        var unique = items
+            .GroupBy(i => Path.GetFileName(i.AbsolutePath), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                if (g.Count() > 1)
+                {
+                    var keep = NameCollisionFixer.Prefer(g);
+                    warnings.Add(
+                        $"Дубликат имени {g.Key}: в пакет взят {keep.RelativePath}, " +
+                        $"пропущено: {string.Join(", ", g.Where(x => x != keep).Select(x => x.RelativePath))}");
+                    return keep;
+                }
+                return g.First();
+            })
+            .ToList();
+
         var generated = (pkg.TargetCompoundName + ".tkape").ToLowerInvariant();
-        foreach (var item in items)
+        var writtenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in unique)
         {
+            ct.ThrowIfCancellationRequested();
             var dest = ResolveDest(packageDir, item.AbsolutePath, "Targets");
-            if (File.Exists(dest) && Path.GetFileName(dest).Equals(generated, StringComparison.OrdinalIgnoreCase))
+            var destName = Path.GetFileName(dest);
+            if (destName.Equals(generated, StringComparison.OrdinalIgnoreCase) && File.Exists(dest))
                 continue;
+            if (!writtenNames.Add(destName))
+            {
+                warnings.Add($"Пропуск повторного копирования {destName} ({item.RelativePath})");
+                continue;
+            }
+
+            // Extra safety: if another relative path already wrote this basename
+            var targetsRoot = Path.Combine(packageDir, "Targets");
+            if (!NameCollisionFixer.ShouldWriteUniqueBasename(targetsRoot, dest, item.AbsolutePath, out var skip) &&
+                skip is not null)
+            {
+                warnings.Add(skip);
+                continue;
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             File.Copy(item.AbsolutePath, dest, true);
         }
         return warnings;
     }
 
-    private List<string> CopyModuleDeps(PackageDefinition pkg, string packageDir, bool includeBin)
+    private List<string> CopyModuleDeps(PackageDefinition pkg, string packageDir, bool includeBin, CancellationToken ct)
     {
         var warnings = new List<string>();
         var refs = pkg.Modules.Select(m => m.Path).ToList();
@@ -267,14 +334,47 @@ public sealed class PackageExporter
                 warnings.Add($"Модуль не найден в каталоге: {r}");
         }
 
+        var unique = items
+            .GroupBy(i => Path.GetFileName(i.AbsolutePath), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                if (g.Count() > 1)
+                {
+                    var keep = NameCollisionFixer.Prefer(g);
+                    warnings.Add(
+                        $"Дубликат имени {g.Key}: в пакет взят {keep.RelativePath}, " +
+                        $"пропущено: {string.Join(", ", g.Where(x => x != keep).Select(x => x.RelativePath))}");
+                    return keep;
+                }
+                return g.First();
+            })
+            .ToList();
+
         var generated = (pkg.ModuleCompoundName + ".mkape")?.ToLowerInvariant();
-        foreach (var item in items)
+        var writtenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in unique)
         {
+            ct.ThrowIfCancellationRequested();
             var dest = ResolveDest(packageDir, item.AbsolutePath, "Modules");
+            var destName = Path.GetFileName(dest);
             if (generated is not null &&
-                File.Exists(dest) &&
-                Path.GetFileName(dest).Equals(generated, StringComparison.OrdinalIgnoreCase))
+                destName.Equals(generated, StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(dest))
                 continue;
+            if (!writtenNames.Add(destName))
+            {
+                warnings.Add($"Пропуск повторного копирования {destName} ({item.RelativePath})");
+                continue;
+            }
+
+            var modulesRoot = Path.Combine(packageDir, "Modules");
+            if (!NameCollisionFixer.ShouldWriteUniqueBasename(modulesRoot, dest, item.AbsolutePath, out var skip) &&
+                skip is not null)
+            {
+                warnings.Add(skip);
+                continue;
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
             File.Copy(item.AbsolutePath, dest, true);
         }
@@ -347,8 +447,8 @@ public sealed class PackageExporter
             {
                 "Автономный EXE:",
                 "  1. Запустите .exe — одно окно с логом (UAC: права администратора).",
-                "  2. Рядом распакуется папка с тем же именем — внутри kape.exe и RESULTS.",
-                "  3. Консоли cmd/PowerShell не нужны: сбор идёт внутри окна.",
+                "  2. Рядом распакуется папка; выберите диск/--tsource и нажмите «Начать сбор».",
+                "  3. Журнал можно сохранить кнопкой «Сохранить лог…».",
                 ""
             });
         }

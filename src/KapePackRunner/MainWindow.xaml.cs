@@ -4,7 +4,9 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using Microsoft.Win32;
 
 namespace KapePackRunner;
 
@@ -12,8 +14,12 @@ public partial class MainWindow : Window
 {
     private string? _resultsDir;
     private string? _packageDir;
+    private LaunchConfig? _cfg;
+    private Process? _kapeProcess;
     private int _foundFiles;
     private int _copiedFiles;
+    private bool _running;
+    private readonly StringBuilder _logBuffer = new();
 
     private static readonly Regex CopyProgress = new(
         @"Copied\s+([\d\s,\u00A0]+)\s+out\s+of\s+([\d\s,\u00A0]+)",
@@ -35,10 +41,10 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        await RunAsync();
+        await PrepareAsync();
     }
 
-    private async Task RunAsync()
+    private async Task PrepareAsync()
     {
         try
         {
@@ -69,19 +75,57 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var cfg = PackPayload.ReadLaunchConfig(_packageDir);
-            if (cfg is null || string.IsNullOrWhiteSpace(cfg.Target))
+            _cfg = PackPayload.ReadLaunchConfig(_packageDir);
+            if (_cfg is null || string.IsNullOrWhiteSpace(_cfg.Target))
             {
                 Fail("Нет package.json или не указан target_compound.");
                 return;
             }
 
-            Title = $"KAPE Pack — {cfg.Name}";
-            TitleText.Text = cfg.Name;
-            SubtitleText.Text = $"Target: {cfg.Target}" +
-                                (string.IsNullOrWhiteSpace(cfg.Module) ? "" : $"  ·  Module: {cfg.Module}");
+            Title = $"KAPE Pack — {_cfg.Name}";
+            TitleText.Text = _cfg.Name;
+            SubtitleText.Text = $"Target: {_cfg.Target}" +
+                                (string.IsNullOrWhiteSpace(_cfg.Module) ? "" : $"  ·  Module: {_cfg.Module}");
 
-            var args = PackPayload.BuildKapeArgs(cfg);
+            PopulateDrives(_cfg.Tsource);
+            TsourceBox.Text = _cfg.Tsource;
+            SourcePanel.Visibility = Visibility.Visible;
+            SetStatus("Выберите диск / tsource и нажмите «Начать сбор»", indeterminate: false, percent: 0);
+            PercentText.Text = "";
+            SaveLogBtn.IsEnabled = true;
+            CloseBtn.IsEnabled = true;
+            Log("Пакет готов. Укажите источник (--tsource) и запустите сбор.");
+        }
+        catch (Exception ex)
+        {
+            Fail(ex.Message);
+        }
+    }
+
+    private async void Start_Click(object sender, RoutedEventArgs e)
+    {
+        if (_running || _cfg is null || _packageDir is null) return;
+
+        var tsource = (TsourceBox.Text ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(tsource))
+        {
+            MessageBox.Show("Укажите диск или путь для --tsource.", "KAPE Pack",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _cfg.Tsource = tsource;
+        SourcePanel.IsEnabled = false;
+        StartBtn.IsEnabled = false;
+        CancelRunBtn.IsEnabled = true;
+        _running = true;
+        _foundFiles = 0;
+        _copiedFiles = 0;
+
+        try
+        {
+            var kape = Path.Combine(_packageDir, "kape.exe");
+            var args = PackPayload.BuildKapeArgs(_cfg);
             Log($"Команда: kape.exe {string.Join(" ", args.Select(Quote))}");
             SetStatus("Сбор артефактов (targets)…", indeterminate: true);
             PercentText.Text = "…";
@@ -110,14 +154,58 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _running = false;
+            _kapeProcess = null;
+            CancelRunBtn.IsEnabled = false;
             CloseBtn.IsEnabled = true;
             ProgressBar.IsIndeterminate = false;
+            SourcePanel.IsEnabled = true;
+            StartBtn.IsEnabled = true;
         }
+    }
+
+    private void PopulateDrives(string preferred)
+    {
+        DriveCombo.Items.Clear();
+        string? preferredRoot = null;
+        try
+        {
+            preferredRoot = Path.GetPathRoot(preferred.EndsWith(':') ? preferred + "\\" : preferred);
+        }
+        catch { /* ignore */ }
+
+        var selected = -1;
+        try
+        {
+            foreach (var d in DriveInfo.GetDrives().Where(x => x.IsReady))
+            {
+                var label = string.IsNullOrWhiteSpace(d.VolumeLabel)
+                    ? $"{d.Name.TrimEnd('\\')}"
+                    : $"{d.Name.TrimEnd('\\')} ({d.VolumeLabel})";
+                var idx = DriveCombo.Items.Add(new DriveItem(d.Name.TrimEnd('\\'), label));
+                if (preferredRoot is not null &&
+                    d.Name.StartsWith(preferredRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                    selected = idx;
+            }
+        }
+        catch { /* ignore */ }
+
+        if (DriveCombo.Items.Count == 0)
+            DriveCombo.Items.Add(new DriveItem("C:", "C:"));
+
+        DriveCombo.DisplayMemberPath = nameof(DriveItem.Label);
+        if (selected >= 0) DriveCombo.SelectedIndex = selected;
+        else DriveCombo.SelectedIndex = 0;
+    }
+
+    private void DriveCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DriveCombo.SelectedItem is DriveItem item)
+            TsourceBox.Text = item.Root;
     }
 
     private Task<int> RunKapeAsync(string kape, List<string> args, string workDir)
     {
-        // KAPE — консольное .NET-приложение: пишет в OEM code page (на RU обычно CP866), не UTF-8.
         var enc = GetConsoleEncoding();
         var tcs = new TaskCompletionSource<int>();
         var psi = new ProcessStartInfo
@@ -135,6 +223,7 @@ public partial class MainWindow : Window
             psi.ArgumentList.Add(a);
 
         var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        _kapeProcess = proc;
         proc.OutputDataReceived += (_, e) =>
         {
             if (e.Data is null) return;
@@ -191,7 +280,6 @@ public partial class MainWindow : Window
         {
             _copiedFiles = done;
             _foundFiles = total;
-            // Targets = 0–75% общего прогресса
             var pct = 75.0 * done / total;
             ApplyProgress(pct, $"Копирование… {done:N0} / {total:N0}");
             return;
@@ -213,7 +301,6 @@ public partial class MainWindow : Window
             var tip = line.Contains("powershell", StringComparison.OrdinalIgnoreCase)
                 ? "Модуль PowerShell (может занять несколько минут)…"
                 : "Выполнение модулей…";
-            // Modules = 75–98%
             var basePct = Math.Max(ProgressBar.Value, 75);
             if (basePct < 75) basePct = 75;
             if (ProgressBar.IsIndeterminate || ProgressBar.Value < 75)
@@ -255,8 +342,11 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrEmpty(message)) return;
         var stamp = DateTime.Now.ToString("HH:mm:ss");
-        LogBox.AppendText($"[{stamp}] {message}\r\n");
+        var line = $"[{stamp}] {message}";
+        _logBuffer.AppendLine(line);
+        LogBox.AppendText(line + "\r\n");
         LogBox.ScrollToEnd();
+        SaveLogBtn.IsEnabled = true;
     }
 
     private void Fail(string message)
@@ -267,6 +357,8 @@ public partial class MainWindow : Window
         Log(message);
         MessageBox.Show(message, "KAPE Pack", MessageBoxButton.OK, MessageBoxImage.Error);
         CloseBtn.IsEnabled = true;
+        SaveLogBtn.IsEnabled = true;
+        CancelRunBtn.IsEnabled = false;
     }
 
     private void OpenResults_Click(object sender, RoutedEventArgs e)
@@ -278,6 +370,48 @@ public partial class MainWindow : Window
             Arguments = "\"" + _resultsDir + "\"",
             UseShellExecute = true
         });
+    }
+
+    private void SaveLog_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new SaveFileDialog
+        {
+            Title = "Сохранить журнал",
+            Filter = "Текст (*.txt)|*.txt|Все файлы (*.*)|*.*",
+            FileName = $"kape_run_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
+            InitialDirectory = _packageDir is not null && Directory.Exists(_packageDir)
+                ? _packageDir
+                : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
+        };
+        if (dlg.ShowDialog() != true) return;
+        try
+        {
+            File.WriteAllText(dlg.FileName, _logBuffer.ToString(), Encoding.UTF8);
+            Log($"Лог сохранён: {dlg.FileName}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Сохранение лога", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void CancelRun_Click(object sender, RoutedEventArgs e)
+    {
+        var proc = _kapeProcess;
+        if (proc is null || proc.HasExited) return;
+        if (MessageBox.Show("Остановить kape.exe? Сбор будет прерван.", "KAPE Pack",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            proc.Kill(entireProcessTree: true);
+            Log("Сбор остановлен пользователем.");
+            SetStatus("Остановлено", indeterminate: false);
+        }
+        catch (Exception ex)
+        {
+            Log("Не удалось остановить процесс: " + ex.Message);
+        }
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
@@ -304,4 +438,6 @@ public partial class MainWindow : Window
         var digits = new string(raw.Where(char.IsDigit).ToArray());
         return int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out value);
     }
+
+    private sealed record DriveItem(string Root, string Label);
 }

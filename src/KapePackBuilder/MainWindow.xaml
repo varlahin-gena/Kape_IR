@@ -118,13 +118,20 @@
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <TextBlock Text="Корень KAPE:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
         <TextBox Grid.Column="1" Text="{Binding KapeRoot, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
         <Button Grid.Column="2" Content="Обзор…" Command="{Binding BrowseKapeRootCommand}"/>
         <Button Grid.Column="3" Content="Обновить" Command="{Binding ReloadCatalogCommand}"/>
-        <Button Grid.Column="4" Content="Обновить с GitHub" Command="{Binding UpdateFromGitHubCommand}"
+        <Button Grid.Column="4" Content="Убрать дубликаты" Command="{Binding FixNameCollisionsCommand}"
+                ToolTip="KAPE требует уникальные имена .tkape/.mkape. Лишние копии → PackBuilder\name_collisions"/>
+        <Button Grid.Column="5" Content="Обновить с GitHub" Command="{Binding UpdateFromGitHubCommand}"
                 Background="#2d6a4f" Foreground="White"/>
+        <Button Grid.Column="6" Content="Отмена" Command="{Binding CancelSyncCommand}"
+                Visibility="{Binding IsSyncing, Converter={StaticResource BoolToVis}}"
+                ToolTip="Отменить загрузку/синхронизацию с GitHub"/>
       </Grid>
     </Border>
 
@@ -349,6 +356,10 @@
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
               <Button Content="Загрузить выбранный" Command="{Binding LoadSelectedCompoundCommand}"/>
               <Button Content="Открыть package.json…" Command="{Binding OpenPackageJsonCommand}"/>
+              <Button Content="Сохранить сессию" Command="{Binding SaveSessionCommand}"
+                      ToolTip="Сохранить текущий пакет в PackBuilder\sessions"/>
+              <Button Content="Загрузить сессию…" Command="{Binding LoadSessionCommand}"
+                      ToolTip="Открыть ранее сохранённую сессию"/>
             </StackPanel>
             <ListView ItemsSource="{Binding ExistingPacks}"
                       SelectedItem="{Binding SelectedExisting}"
@@ -414,13 +425,17 @@
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="1.4*"/>
+                <ColumnDefinition Width="1.2*"/>
+                <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
               <Button Grid.Column="0" Content="Новый пакет" Command="{Binding NewPackCommand}" Margin="0,0,4,0"/>
               <Button Grid.Column="1" Content="Превью cmd" Command="{Binding PreviewCommandCommand}" Margin="2,0"/>
               <Button Grid.Column="2" Content="Собрать автономный EXE" Command="{Binding BuildPackageCommand}"
-                      Background="#1f6aa5" Foreground="White" Margin="4,0,0,0"
+                      Background="#1f6aa5" Foreground="White" Margin="4,0,4,0"
                       ToolTip="Один EXE: распаковка + kape.exe + таргеты/модули + запуск сбора"/>
+              <Button Grid.Column="3" Content="Отмена" Command="{Binding CancelBuildCommand}"
+                      Visibility="{Binding IsBuilding, Converter={StaticResource BoolToVis}}"
+                      ToolTip="Отменить текущую сборку пакета"/>
             </Grid>
           </StackPanel>
         </ScrollViewer>

@@ -52,10 +52,11 @@ compound-таргеты + модули + скрипты запуска + **ав�
 
 ## Структура репозитория
 ```
-assets/                  — иконка (исходник + .ico)
-src/KapePackBuilder/     — WPF-приложение
+src/KapePack.Core/       — domain (catalog, export, sync, zip-safe)
+src/KapePackBuilder/     — WPF UI
 src/KapePackRunner/      — GUI-stub для автономных EXE (окно + лог)
 tests/                   — unit-тесты
+.github/workflows/ci.yml — CI: build, test, publish
 publish.ps1              — публикация single-file EXE
 CHANGELOG.md             — история изменений
 ```

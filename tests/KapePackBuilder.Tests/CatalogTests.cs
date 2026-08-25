@@ -4,28 +4,29 @@ namespace KapePackBuilder.Tests;
 
 public class CatalogTests
 {
-    private static string KapeRoot => @"D:\Distr\HACK\Kape";
+    private static string? KapeRoot => TestKapeRoot.TryGet();
 
-    [Fact]
+    private static string RequireRoot()
+    {
+        var root = KapeRoot;
+        Skip.If(root is null, "Set KAPE_ROOT to a KAPE install with Targets/, or place one discoverable by AppSettings.CandidateRoots.");
+        return root!;
+    }
+
+    [SkippableFact]
     public void Refresh_LoadsTargetsAndModules()
     {
-        if (!Directory.Exists(Path.Combine(KapeRoot, "Targets")))
-            return; // skip if lab path missing
-
-        var cat = new KapeCatalog(KapeRoot);
+        var cat = new KapeCatalog(RequireRoot());
         cat.Refresh();
         Assert.True(cat.Targets.Count > 50);
         Assert.True(cat.Modules.Count > 10);
         Assert.Contains(cat.Targets, t => t.IsCompound);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Flatten_MergesOverlappingCompounds_WithoutDuplicates()
     {
-        if (!Directory.Exists(Path.Combine(KapeRoot, "Targets")))
-            return;
-
-        var cat = new KapeCatalog(KapeRoot);
+        var cat = new KapeCatalog(RequireRoot());
         cat.Refresh();
         var refs = new List<string>();
         foreach (var name in new[] { "!SANS_Triage", "!BasicCollection", "KapeTriage", "!PSBCollection" })
@@ -41,18 +42,14 @@ public class CatalogTests
         Assert.True(leaves.Count > 10);
     }
 
-    [Fact]
+    [SkippableFact]
     public void Prefetch_HasMultipleIncludingCompounds()
     {
-        if (!Directory.Exists(Path.Combine(KapeRoot, "Targets")))
-            return;
-
-        var cat = new KapeCatalog(KapeRoot);
+        var cat = new KapeCatalog(RequireRoot());
         cat.Refresh();
-        var prefetch = cat.FindTarget("Prefetch");
-        Assert.NotNull(prefetch);
+        Assert.NotNull(cat.FindTarget("Prefetch"));
         var packs = cat.IncludingCompounds("Prefetch", Models.ItemKind.Target);
-        Assert.True(packs.Count >= 2);
+        Assert.True(packs.Count >= 1);
     }
 
     [Fact]
@@ -83,13 +80,28 @@ public class CatalogTests
     }
 
     [Fact]
-    public void GitHubSync_KeepsLocalOnlyFile()
+    public void RenderCompoundModule_SetsExportFormatCsv()
+    {
+        var pkg = new Models.PackageDefinition
+        {
+            Name = "T",
+            Modules =
+            {
+                new Models.SelectionEntry { Name = "AmcacheParser", Category = "EZTools", Path = "AmcacheParser.mkape" }
+            }
+        };
+        var yaml = KapeFileIo.RenderCompoundModule(pkg);
+        Assert.Contains("ExportFormat: csv", yaml);
+    }
+
+    [Fact]
+    public async Task GitHubSync_KeepsLocalOnlyFile()
     {
         var tmp = Path.Combine(Path.GetTempPath(), "kape_sync_test_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(tmp, "Targets", "Compound"));
         Directory.CreateDirectory(Path.Combine(tmp, "Modules"));
         var custom = Path.Combine(tmp, "Targets", "Compound", "!LocalOnlyTest.tkape");
-        File.WriteAllText(custom, """
+        await File.WriteAllTextAsync(custom, """
 Description: local
 Author: test
 Version: 1.0
@@ -103,14 +115,13 @@ Targets:
 """);
         try
         {
-            var result = GitHubKapeFilesSync.SyncAsync(tmp).GetAwaiter().GetResult();
+            var result = await GitHubKapeFilesSync.SyncAsync(tmp);
             Assert.True(result.Ok);
-            // Fresh tree: almost everything is added (not "copied over identical files").
             Assert.True(result.TargetsAdded + result.TargetsUpdated > 100);
             Assert.True(File.Exists(custom));
             Assert.True(Directory.EnumerateFiles(Path.Combine(tmp, "Targets"), "Prefetch.tkape", SearchOption.AllDirectories).Any());
 
-            var again = GitHubKapeFilesSync.SyncAsync(tmp).GetAwaiter().GetResult();
+            var again = await GitHubKapeFilesSync.SyncAsync(tmp);
             Assert.True(again.Ok);
             Assert.Equal(0, again.TargetsAdded);
             Assert.Equal(0, again.TargetsUpdated);

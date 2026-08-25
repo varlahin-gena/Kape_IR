@@ -31,24 +31,38 @@ public sealed class AppSettings
         catch { /* ignore */ }
     }
 
-    public static string ResolveDefaultKapeRoot(AppSettings settings)
+    public static IEnumerable<string> CandidateRoots(AppSettings? settings)
     {
-        var candidates = new List<string>();
-        if (!string.IsNullOrWhiteSpace(settings.LastKapeRoot))
-            candidates.Add(settings.LastKapeRoot!);
+        if (!string.IsNullOrWhiteSpace(settings?.LastKapeRoot))
+            yield return settings!.LastKapeRoot!;
+
+        var env = Environment.GetEnvironmentVariable("KAPE_ROOT");
+        if (!string.IsNullOrWhiteSpace(env))
+            yield return env;
 
         var baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        candidates.Add(baseDir);
-        candidates.Add(Directory.GetParent(baseDir)?.FullName ?? "");
-        candidates.Add(Directory.GetParent(Directory.GetParent(baseDir)?.FullName ?? "")?.FullName ?? "");
-        candidates.Add(@"D:\Distr\HACK\Kape");
-        candidates.Add(Directory.GetCurrentDirectory());
+        yield return baseDir;
 
-        foreach (var c in candidates.Where(c => !string.IsNullOrWhiteSpace(c)))
+        var parent = Directory.GetParent(baseDir)?.FullName;
+        if (!string.IsNullOrEmpty(parent))
+            yield return parent;
+
+        var grand = string.IsNullOrEmpty(parent) ? null : Directory.GetParent(parent)?.FullName;
+        if (!string.IsNullOrEmpty(grand))
+            yield return grand;
+
+        yield return Directory.GetCurrentDirectory();
+    }
+
+    public static string ResolveDefaultKapeRoot(AppSettings settings)
+    {
+        foreach (var c in CandidateRoots(settings).Where(c => !string.IsNullOrWhiteSpace(c)))
         {
             if (Directory.Exists(Path.Combine(c, "Targets")))
                 return c;
         }
-        return @"D:\Distr\HACK\Kape";
+
+        // Last resort: remembered path or empty — UI will ask user to browse.
+        return settings.LastKapeRoot?.Trim() ?? "";
     }
 }

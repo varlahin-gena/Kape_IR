@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore KapePackBuilder.sln
+        working-directory: .
+
+      - name: Build
+        run: dotnet build KapePackBuilder.sln -c Release --no-restore
+        working-directory: .
+
+      - name: Test (unit + skippable lab)
+        run: dotnet test tests/KapePackBuilder.Tests/KapePackBuilder.Tests.csproj -c Release --no-build --filter "FullyQualifiedName!~GitHubSync"
+        working-directory: .
+        env:
+          # Optional: set repository variable/secret KAPE_ROOT on a self-hosted runner with a full tree.
+          KAPE_ROOT: ${{ vars.KAPE_ROOT }}
+
+      - name: Publish single-file EXEs
+        run: ./publish.ps1
+        shell: pwsh
+        working-directory: .
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kapepackbuilder-dist
+          path: |
+            dist/KapePackBuilder.exe
+            dist/KapePackRunner.exe

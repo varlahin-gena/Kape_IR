@@ -120,7 +120,7 @@ public sealed class SyncResult
 {
     public bool Ok { get; init; }
     public string Message { get; init; } = "";
-    /// <summary>Added + updated (actual writes).</summary>
+    /// <summary>Added + updated (actual writes; same counts for dry-run would-change).</summary>
     public int TargetsCopied { get; init; }
     public int ModulesCopied { get; init; }
     public int TargetsAdded { get; init; }
@@ -132,6 +132,11 @@ public sealed class SyncResult
     public long ZipBytes { get; init; }
     public List<string> Errors { get; init; } = new();
     public string SyncedAt { get; init; } = "";
+    public string? BackupDir { get; init; }
+    public string? ZipSha256 { get; init; }
+    public bool IsDryRun { get; init; }
+    public List<string> AddedSamples { get; init; } = new();
+    public List<string> UpdatedSamples { get; init; } = new();
 }
 
 public sealed class OverlapStats

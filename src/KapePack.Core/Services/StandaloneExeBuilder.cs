@@ -9,8 +9,8 @@ namespace KapePackBuilder.Services;
 /// </summary>
 public static class StandaloneExeBuilder
 {
-    public const string Magic = "KAPEPACK";
-    private const int FooterSize = 8 + 8 + 8;
+    public const string Magic = KapepackPayload.Magic;
+    private const int FooterSize = KapepackPayload.FooterSize;
     private const ushort ImageSubsystemWindowsGui = 2;
     private const ushort ImageSubsystemWindowsCui = 3;
 
@@ -123,7 +123,7 @@ public static class StandaloneExeBuilder
 
     private static string? ExtractEmbeddedStub(string toolsDir)
     {
-        var asm = Assembly.GetExecutingAssembly();
+        var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
         var name = asm.GetManifestResourceNames()
             .FirstOrDefault(n => n.EndsWith("KapePackRunner.exe", StringComparison.OrdinalIgnoreCase));
         if (name is null) return null;

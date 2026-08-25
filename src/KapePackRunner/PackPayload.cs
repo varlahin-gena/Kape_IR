@@ -1,62 +1,15 @@
 using System.IO;
-using System.IO.Compression;
-using System.Text;
 using System.Text.Json;
 
 namespace KapePackRunner;
 
 internal static class PackPayload
 {
-    public const string Magic = "KAPEPACK";
-    private const int FooterSize = 8 + 8 + 8;
-
     public static bool TryReadPayload(string exePath, out long zipStart, out long zipLen)
-    {
-        zipStart = 0;
-        zipLen = 0;
-        var fi = new FileInfo(exePath);
-        if (fi.Length < FooterSize + 64) return false;
-
-        using var fs = File.OpenRead(exePath);
-        fs.Seek(-FooterSize, SeekOrigin.End);
-        using var br = new BinaryReader(fs, Encoding.ASCII, leaveOpen: true);
-        zipStart = br.ReadInt64();
-        zipLen = br.ReadInt64();
-        var magic = Encoding.ASCII.GetString(br.ReadBytes(8));
-        if (!string.Equals(magic, Magic, StringComparison.Ordinal)) return false;
-        if (zipStart < 0 || zipLen <= 0) return false;
-        if (zipStart + zipLen + FooterSize > fi.Length) return false;
-        return true;
-    }
+        => KapePackBuilder.Services.KapepackPayload.TryRead(exePath, out zipStart, out zipLen);
 
     public static void Extract(string exePath, long zipStart, long zipLen, string outDir, Action<string>? log = null)
-    {
-        var tmpZip = Path.Combine(Path.GetTempPath(), "kapepack_" + Guid.NewGuid().ToString("N") + ".zip");
-        try
-        {
-            log?.Invoke($"Извлечение архива ({zipLen:N0} байт)…");
-            using (var fs = File.OpenRead(exePath))
-            using (var outFs = File.Create(tmpZip))
-            {
-                fs.Seek(zipStart, SeekOrigin.Begin);
-                CopyExactly(fs, outFs, zipLen);
-            }
-
-            if (Directory.Exists(outDir))
-            {
-                log?.Invoke("Очистка предыдущей распаковки…");
-                Directory.Delete(outDir, true);
-            }
-
-            Directory.CreateDirectory(outDir);
-            ZipFile.ExtractToDirectory(tmpZip, outDir, overwriteFiles: true);
-            log?.Invoke($"Распаковано в: {outDir}");
-        }
-        finally
-        {
-            try { File.Delete(tmpZip); } catch { /* ignore */ }
-        }
-    }
+        => KapePackBuilder.Services.KapepackPayload.Extract(exePath, zipStart, zipLen, outDir, log);
 
     public static LaunchConfig? ReadLaunchConfig(string packageDir)
     {
@@ -109,25 +62,12 @@ internal static class PackPayload
 
     private static string? GetStr(JsonElement root, string name)
         => root.TryGetProperty(name, out var p) ? p.GetString() : null;
-
-    private static void CopyExactly(Stream input, Stream output, long count)
-    {
-        var buffer = new byte[1024 * 256];
-        long left = count;
-        while (left > 0)
-        {
-            var n = input.Read(buffer, 0, (int)Math.Min(buffer.Length, left));
-            if (n <= 0) throw new EndOfStreamException("Неожиданный конец файла при чтении payload.");
-            output.Write(buffer, 0, n);
-            left -= n;
-        }
-    }
 }
 
 internal sealed class LaunchConfig
 {
     public string Name { get; init; } = "";
-    public string Tsource { get; init; } = "C:";
+    public string Tsource { get; set; } = "C:";
     public string Target { get; init; } = "";
     public string? Module { get; init; }
     public bool ZipOutput { get; init; }

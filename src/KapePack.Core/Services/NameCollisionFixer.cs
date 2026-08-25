@@ -1,0 +1,231 @@
+using KapePackBuilder.Models;
+
+namespace KapePackBuilder.Services;
+
+/// <summary>
+/// KAPE requires globally unique target/module file names (basename) across the whole tree.
+/// Duplicate Apps\X.tkape + Compound\X.tkape (or Apps + Windows) fails validation.
+/// </summary>
+public static class NameCollisionFixer
+{
+    public sealed record CollisionGroup(string FileName, IReadOnlyList<CatalogItem> Items);
+
+    public sealed class FixResult
+    {
+        public int Groups { get; init; }
+        public int Removed { get; set; }
+        public List<string> Kept { get; } = new();
+        public List<string> RemovedPaths { get; } = new();
+        public List<string> Errors { get; } = new();
+        public string QuarantineDir { get; init; } = "";
+    }
+
+    public static List<CollisionGroup> FindCollisions(IEnumerable<CatalogItem> items)
+    {
+        return items
+            .GroupBy(i => Path.GetFileName(i.AbsolutePath), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => new CollisionGroup(
+                g.Key,
+                g.OrderByDescending(PreferScore).ThenBy(i => i.RelativePath, StringComparer.OrdinalIgnoreCase).ToList()))
+            .OrderBy(g => g.FileName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Keep the preferred file in each collision group; move the rest under PackBuilder\name_collisions\.
+    /// </summary>
+    public static FixResult FixCollisions(string kapeRoot, IEnumerable<CatalogItem> items, bool dryRun = false)
+    {
+        var groups = FindCollisions(items);
+        var quarantine = Path.Combine(kapeRoot, "PackBuilder", "name_collisions");
+        var result = new FixResult { Groups = groups.Count, QuarantineDir = quarantine };
+
+        if (groups.Count == 0) return result;
+        if (!dryRun)
+            Directory.CreateDirectory(quarantine);
+
+        foreach (var group in groups)
+        {
+            var ordered = group.Items;
+            var keep = ordered[0];
+            result.Kept.Add(keep.RelativePath);
+            foreach (var loser in ordered.Skip(1))
+            {
+                result.RemovedPaths.Add(loser.RelativePath);
+                if (dryRun)
+                {
+                    result.Removed++;
+                    continue;
+                }
+
+                try
+                {
+                    var stamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+                    var safeRel = loser.RelativePath.Replace('/', '_').Replace('\\', '_');
+                    var dest = Path.Combine(quarantine, stamp + "__" + safeRel);
+                    Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                    if (File.Exists(dest))
+                        dest = Path.Combine(quarantine, stamp + "_" + Guid.NewGuid().ToString("N")[..8] + "__" + safeRel);
+                    File.Move(loser.AbsolutePath, dest, overwrite: false);
+                    result.Removed++;
+                }
+                catch (Exception ex)
+                {
+                    result.Errors.Add($"{loser.RelativePath}: {ex.Message}");
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Among candidates with the same basename, pick which AbsolutePath to keep/copy.</summary>
+    public static CatalogItem Prefer(IEnumerable<CatalogItem> items)
+        => items.OrderByDescending(PreferScore)
+            .ThenBy(i => i.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .First();
+
+    /// <summary>
+    /// When syncing from GitHub: skip writing a file if another path under destRoot already has this basename.
+    /// If the new path is preferred over the existing one, the existing file is moved aside and write is allowed.
+    /// Returns true if the file should be written to destPath.
+    /// </summary>
+    public static bool ShouldWriteUniqueBasename(
+        string destRoot,
+        string destPath,
+        string srcPath,
+        out string? skipReason)
+    {
+        skipReason = null;
+        var name = Path.GetFileName(destPath);
+        if (string.IsNullOrEmpty(name)) return true;
+
+        string? existingOther = null;
+        if (Directory.Exists(destRoot))
+        {
+            foreach (var hit in Directory.EnumerateFiles(destRoot, name, SearchOption.AllDirectories))
+            {
+                if (!PathsEqual(hit, destPath))
+                {
+                    existingOther = hit;
+                    break;
+                }
+            }
+        }
+
+        if (existingOther is null)
+            return true;
+
+        if (File.Exists(existingOther) && FilesContentEqual(srcPath, existingOther))
+        {
+            skipReason = $"пропуск дубликата имени {name} (уже есть {RelHint(destRoot, existingOther)})";
+            return false;
+        }
+
+        var newScore = PathPreferScore(RelHint(destRoot, destPath));
+        var oldScore = PathPreferScore(RelHint(destRoot, existingOther));
+        if (newScore > oldScore)
+        {
+            try
+            {
+                var quarantine = Path.Combine(Path.GetDirectoryName(destRoot) ?? destRoot, "PackBuilder", "name_collisions");
+                Directory.CreateDirectory(quarantine);
+                var dest = Path.Combine(quarantine,
+                    DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "__" +
+                    RelHint(destRoot, existingOther).Replace('/', '_').Replace('\\', '_'));
+                File.Move(existingOther, dest, overwrite: false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                skipReason = $"не удалось заменить {RelHint(destRoot, existingOther)} на предпочтительный путь: {ex.Message}";
+                return false;
+            }
+        }
+
+        skipReason =
+            $"пропуск {RelHint(destRoot, destPath)}: имя {name} уже занято ({RelHint(destRoot, existingOther)})";
+        return false;
+    }
+
+    public static int PathPreferScore(string relativePath)
+    {
+        var rel = relativePath.Replace('\\', '/');
+        var score = 100;
+        if (rel.Contains("/!Disabled", StringComparison.OrdinalIgnoreCase) ||
+            rel.Contains("!Disabled/", StringComparison.OrdinalIgnoreCase))
+            score -= 80;
+        if (rel.Contains("/Compound/", StringComparison.OrdinalIgnoreCase) ||
+            rel.StartsWith("Compound/", StringComparison.OrdinalIgnoreCase))
+            score -= 40;
+        score -= Math.Min(rel.Count(c => c == '/'), 5);
+        return score;
+    }
+
+    public static int PreferScore(CatalogItem item)
+    {
+        var rel = item.RelativePath.Replace('\\', '/');
+        var score = 100;
+        if (rel.Contains("/!Disabled", StringComparison.OrdinalIgnoreCase) ||
+            rel.Contains("/_Disabled", StringComparison.OrdinalIgnoreCase))
+            score -= 80;
+
+        var underCompound = rel.Contains("/Compound/", StringComparison.OrdinalIgnoreCase) ||
+                            rel.StartsWith("Targets/Compound/", StringComparison.OrdinalIgnoreCase) ||
+                            rel.StartsWith("Modules/Compound/", StringComparison.OrdinalIgnoreCase);
+
+        if (item.IsCompound)
+        {
+            // Real compounds belong in Compound/
+            if (underCompound) score += 40;
+            else score -= 10;
+        }
+        else
+        {
+            // Leaf targets wrongly sitting in Compound/ are common duplicates of Apps/Windows copies
+            if (underCompound) score -= 50;
+            else score += 20;
+        }
+
+        // Prefer shallower paths slightly
+        score -= Math.Min(rel.Count(c => c == '/'), 5);
+        return score;
+    }
+
+    private static string RelHint(string root, string absolute)
+    {
+        try
+        {
+            return Path.GetRelativePath(root, absolute).Replace('\\', '/');
+        }
+        catch
+        {
+            return absolute;
+        }
+    }
+
+    private static bool PathsEqual(string a, string b)
+        => string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+
+    private static bool FilesContentEqual(string a, string b)
+    {
+        var fa = new FileInfo(a);
+        var fb = new FileInfo(b);
+        if (fa.Length != fb.Length) return false;
+        if (fa.Length == 0) return true;
+        using var sa = File.OpenRead(a);
+        using var sb = File.OpenRead(b);
+        var bufA = new byte[64 * 1024];
+        var bufB = new byte[64 * 1024];
+        while (true)
+        {
+            var na = sa.Read(bufA, 0, bufA.Length);
+            var nb = sb.Read(bufB, 0, bufB.Length);
+            if (na != nb) return false;
+            if (na == 0) return true;
+            if (!bufA.AsSpan(0, na).SequenceEqual(bufB.AsSpan(0, nb)))
+                return false;
+        }
+    }
+}

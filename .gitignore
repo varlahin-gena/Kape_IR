@@ -50,8 +50,13 @@ Desktop.ini
 # Local KAPE trees / exports (do not commit evidence tooling data)
 **/exports/
 **/last_kapefiles_sync.json
+**/name_collisions/
+**/sessions/
+**/sync_backup/
+**/last_kapefiles_zip.sha256
 
-# Local scratch logs
+# Local scratch logs from manual runs
 *-out.txt
 test-github-out.txt
 publish-out.txt
+build-out.txt
