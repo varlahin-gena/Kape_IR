@@ -5,11 +5,11 @@ compound-таргеты + модули + скрипты запуска + **ав�
 
 Интерфейс на русском. Термины KAPE (`tsource`, `--zip`, compound, leaf, имена `.tkape`/`.mkape`) сохранены.
 
-**Текущая версия: 1.1.0**
+**Текущая версия: 1.2.0**
 
 ## Скачать (готовые EXE)
 
-Берите сборку из раздела **[Releases](https://github.com/varlahin-gena/KapePackBuilder/releases/latest)** (релиз **v1.1.0**):
+Берите сборку из раздела **[Releases](https://github.com/varlahin-gena/KapePackBuilder/releases/latest)** (релиз **v1.2.0**):
 
 | Файл | Назначение |
 |------|------------|

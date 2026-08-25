@@ -22,7 +22,7 @@ public static class GitHubKapeFilesSync
     public const string Repo = "EricZimmerman/KapeFiles";
     public const string Branch = "master";
     public static string ZipUrl => $"https://github.com/{Repo}/archive/refs/heads/{Branch}.zip";
-    private const string UserAgent = "KapePackBuilder/1.1 (+https://github.com/EricZimmerman/KapeFiles)";
+    private const string UserAgent = "KapePackBuilder/1.2 (+https://github.com/EricZimmerman/KapeFiles)";
     private const int SampleCap = 30;
     public const string LastZipSha256FileName = "last_kapefiles_zip.sha256";
 

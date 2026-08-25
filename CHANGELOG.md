@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — P0–P4 hardening
+## [1.2.0] — 2026-08-25
 
 ### Security
 - **Zip-slip** защита при распаковке (GitHub sync + PackRunner) через общий `SafeZip`
