@@ -25,6 +25,8 @@ dist/
 publish/
 artifacts/
 tools/*.exe
+tools/*.sha256
+tools/
 
 # Visual Studio
 .vs/
