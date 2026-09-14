@@ -16,7 +16,7 @@
 
 | Файл | Назначение |
 |------|------------|
-| **`KapePackBuilder.exe`** | Единственный нужный файл. Stub Runner встроен — отдельный `KapePackRunner.exe` не требуется. |
+| **`KapePackBuilder.exe`** | Единственный нужный файл |
 | `KapePackBuilder.exe.sha256` | Контрольная сумма SHA-256 |
 
 Проверка: `Get-FileHash .\KapePackBuilder.exe -Algorithm SHA256`
@@ -54,7 +54,7 @@ KAPE остаётся движком сбора; Builder — оболочка н
 ## Требования
 
 - Windows x64
-- Установленный / распакованный **KAPE** (`Targets`, `Modules`, желательно `kape.exe`) — путь указывается в Builder
+- Установленный / распакованный **KAPE** (`Targets`, `Modules`, `kape.exe`) — путь указывается в Builder
 - Права администратора на целевой системе для полного triage (UAC в CollectPack)
 
 ---
@@ -84,8 +84,6 @@ KAPE остаётся движком сбора; Builder — оболочка н
 | Two-phase IR | `CollectPack.exe --silent --tsource C: --case-id IR-001` |
 | Только volatile | `CollectPack.exe --silent --tsource C: --phase 1` |
 | Без RAM dump | `CollectPack.exe --silent --tsource C: --skip-memory` |
-
-**Не** оставляйте активный `_kape.cli` рядом с `kape.exe` при запуске CollectPack — KAPE тогда игнорирует CLI (в т.ч. `--sim`).
 
 ### Двухфазный IR (VolatileFirst)
 
@@ -145,7 +143,7 @@ publish.ps1              — сборка одного EXE (для разраб�
 ## Лицензия и стороннее ПО
 
 - **KAPE** — продукт Kroll; распространяется отдельно, в репозиторий не входит
-- Targets/Modules обычно из сообщества [Eric Zimmerman / KapeFiles](https://github.com/EricZimmerman/KapeFiles) и обновляются кнопкой sync в Builder
+- Targets/Modules обычно из сообщества [Eric Zimmerman / KapeFiles](https://github.com/EricZimmerman/KapeFiles) и обновляются кнопкой Обновить в Builder
 - Этот инструмент — обёртка для IR-сборки пакетов; соблюдайте лицензии KAPE и сторонних бинарников в `Modules\bin`
 
 ---
