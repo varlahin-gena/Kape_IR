@@ -73,7 +73,7 @@ public partial class MainViewModel
         var originNote = _catalog.HasUpstreamInventory
             ? $" | источник: GitHub {ghN}, локальных {localN}"
             : unkN > 0
-                ? $" | источник: локальных (по Author) {localN}, ? {unkN} — нажмите «Обновить…» для меток GitHub"
+                ? $" | источник: локальных (по Author) {localN}, ? {unkN} — нажмите «Обновить с GitHub…» для меток GitHub"
                 : $" | источник: локальных {localN}";
         var tDup = NameCollisionFixer.FindCollisions(_catalog.Targets);
         var mDup = NameCollisionFixer.FindCollisions(_catalog.Modules);

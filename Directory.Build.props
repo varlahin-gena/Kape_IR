@@ -1,10 +1,12 @@
 <Project>
   <PropertyGroup>
-    <KapePackVersion>1.8.3</KapePackVersion>
+    <KapePackVersion>1.8.4</KapePackVersion>
     <Version>$(KapePackVersion)</Version>
-    <AssemblyVersion>1.8.3.0</AssemblyVersion>
-    <FileVersion>1.8.3.0</FileVersion>
+    <AssemblyVersion>1.8.4.0</AssemblyVersion>
+    <FileVersion>1.8.4.0</FileVersion>
     <InformationalVersion>$(KapePackVersion)</InformationalVersion>
+    <Product>Kape_IR</Product>
+    <AssemblyTitle>Kape_IR</AssemblyTitle>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>

@@ -14,7 +14,7 @@ public static class ChainsawInstaller
         "https://github.com/WithSecureLabs/chainsaw/releases/latest/download/chainsaw_all_platforms+rules+examples.zip";
 
     public const string RelativeExe = @"Modules\bin\chainsaw\Chainsaw.exe";
-    private const string UserAgent = "KapePackBuilder/1.8.3 (+Chainsaw nest for KAPE Modules\\bin\\chainsaw)";
+    private const string UserAgent = "Kape_IR/1.8.4 (+Chainsaw nest for KAPE Modules\\bin\\chainsaw)";
 
     public static string GetInstallDir(string kapeRoot)
         => Path.Combine(kapeRoot, "Modules", "bin", "chainsaw");

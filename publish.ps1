@@ -1,10 +1,13 @@
-# Build Runner stub (embedded), then ONE self-contained Pack Builder EXE for end users.
+# Build Runner stub (embedded), then ONE Pack Builder EXE for end users.
 # Optional Authenticode: set env KAPEPACK_SIGN_CERT to a .pfx path and KAPEPACK_SIGN_PASSWORD
 param(
     [string]$SignCert = $env:KAPEPACK_SIGN_CERT,
     [string]$SignPassword = $env:KAPEPACK_SIGN_PASSWORD,
     [string]$TimestampUrl = $(if ($env:KAPEPACK_SIGN_TIMESTAMP) { $env:KAPEPACK_SIGN_TIMESTAMP } else { "http://timestamp.digicert.com" }),
-    [switch]$AlsoPublishRunner
+    [switch]$AlsoPublishRunner,
+    # Framework-dependent: tiny Builder (~few MB + stub). Needs .NET 8 Desktop Runtime on the analyst PC.
+    # CollectPack stubs stay self-contained (target hosts usually have no runtime).
+    [switch]$FrameworkDependent
 )
 
 $ErrorActionPreference = "Stop"
@@ -60,29 +63,37 @@ function Invoke-OptionalSign([string]$ExePath) {
     Write-Host "[+] Signed: $ExePath"
 }
 
-Write-Host "[*] Publishing KapePackRunner stub (embedded into Builder)..."
+# Runner stays self-contained (CollectPack on target hosts).
+# Self-contained Builder: publish stub WITHOUT compression so Builder compresses it once.
+# Framework-dependent Builder: cannot EnableCompressionInSingleFile — publish stub compressed.
+$compressStub = [bool]$FrameworkDependent
+Write-Host "[*] Publishing KapePackRunner stub (embedded into Builder, compress=$compressStub)..."
 dotnet publish .\src\KapePackRunner\KapePackRunner.csproj `
   -c Release `
   -r win-x64 `
   --self-contained true `
   -p:PublishSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true `
-  -p:EnableCompressionInSingleFile=true `
+  -p:EnableCompressionInSingleFile=$compressStub `
   -o $runnerOut
 
 $stubExe = Join-Path $runnerOut "KapePackRunner.exe"
 Copy-Item -Force $stubExe (Join-Path $tools "KapePackRunner.exe")
 Write-Sha256Sidecar (Join-Path $tools "KapePackRunner.exe")
-Write-Host "[+] Stub cached: $tools\KapePackRunner.exe"
+$stubLen = (Get-Item $stubExe).Length
+Write-Host ("[+] Stub cached: {0} ({1:N1} MB)" -f (Join-Path $tools "KapePackRunner.exe"), ($stubLen / 1MB))
 
-Write-Host "[*] Publishing KapePackBuilder (single deliverable)..."
+$builderSelfContained = -not $FrameworkDependent
+$compressBuilder = $builderSelfContained
+$modeLabel = if ($FrameworkDependent) { "framework-dependent (needs .NET 8 Desktop Runtime)" } else { "self-contained" }
+Write-Host "[*] Publishing KapePackBuilder ($modeLabel)..."
 dotnet publish .\src\KapePackBuilder\KapePackBuilder.csproj `
   -c Release `
   -r win-x64 `
-  --self-contained true `
+  --self-contained $builderSelfContained `
   -p:PublishSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true `
-  -p:EnableCompressionInSingleFile=true `
+  -p:EnableCompressionInSingleFile=$compressBuilder `
   -o $out
 
 $builderExe = Join-Path $out "KapePackBuilder.exe"
@@ -107,10 +118,13 @@ if ($AlsoPublishRunner) {
 
 Write-Host ""
 Write-Host "[+] Primary deliverable (one EXE): $builderExe"
-Get-Item $builderExe | Select-Object FullName, Length, LastWriteTime
+Get-Item $builderExe | Select-Object FullName, @{N='SizeMB';E={[math]::Round($_.Length/1MB,1)}}, Length, LastWriteTime
 if (Test-Path "$builderExe.sha256") {
     Get-Content "$builderExe.sha256"
 }
+if ($FrameworkDependent) {
+    Write-Host "[i] Framework-dependent build: install .NET 8 Desktop Runtime (x64) on analyst PCs."
+}
 if ($AlsoPublishRunner) {
-    Get-Item "$out\KapePackRunner.exe" | Select-Object FullName, Length, LastWriteTime
+    Get-Item "$out\KapePackRunner.exe" | Select-Object FullName, @{N='SizeMB';E={[math]::Round($_.Length/1MB,1)}}, Length, LastWriteTime
 }

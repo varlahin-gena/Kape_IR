@@ -26,7 +26,7 @@ public static class GitHubKapeFilesSync
     public const string Repo = "EricZimmerman/KapeFiles";
     public const string Branch = "master";
     public static string ZipUrl => $"https://github.com/{Repo}/archive/refs/heads/{Branch}.zip";
-    private const string UserAgent = "KapePackBuilder/1.8.3 (+https://github.com/EricZimmerman/KapeFiles)";
+    private const string UserAgent = "Kape_IR/1.8.4 (+https://github.com/EricZimmerman/KapeFiles)";
     private const int SampleCap = 30;
     public const string LastZipSha256FileName = "last_kapefiles_zip.sha256";
     /// <summary>Relative paths (Targets/…, Modules/…) present in the last successfully read KapeFiles zip.</summary>
@@ -386,7 +386,7 @@ public static class GitHubKapeFilesSync
 
     /// <summary>
     /// Paths from the last KapeFiles zip (<c>Targets/…</c>, <c>Modules/…</c>).
-    /// Null if the inventory file is missing (run «Обновить…» once).
+    /// Null if the inventory file is missing (run «Обновить с GitHub…» once).
     /// </summary>
     public static HashSet<string>? ReadUpstreamPathSet(string kapeRoot)
     {

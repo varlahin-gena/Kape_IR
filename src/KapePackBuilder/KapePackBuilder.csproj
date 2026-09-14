@@ -17,11 +17,13 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
-  <!-- Stub for standalone pack EXE; publish.ps1 refreshes tools\KapePackRunner.exe -->
+  <!-- Stub for CollectPack: embed once. Copy beside output for F5/debug, but do NOT
+       bundle again into PublishSingleFile (that doubled ~70 MB in the deliverable). -->
   <ItemGroup>
     <None Include="..\..\tools\KapePackRunner.exe" Condition="Exists('..\..\tools\KapePackRunner.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>KapePackRunner.exe</Link>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>
     <EmbeddedResource Include="..\..\tools\KapePackRunner.exe" Condition="Exists('..\..\tools\KapePackRunner.exe')"
                       LogicalName="KapePackRunner.exe" />

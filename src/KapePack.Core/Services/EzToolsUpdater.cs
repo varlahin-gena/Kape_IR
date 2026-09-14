@@ -13,7 +13,7 @@ public static class EzToolsUpdater
     public const string GetZimmermanToolsZipUrl =
         "https://download.ericzimmermanstools.com/Get-ZimmermanTools.zip";
 
-    private const string UserAgent = "KapePackBuilder/1.8.3 (+EZ Tools via Get-ZimmermanTools)";
+    private const string UserAgent = "Kape_IR/1.8.4 (+EZ Tools via Get-ZimmermanTools)";
 
     /// <summary>Common parsers expected for !EZParser-style workflows.</summary>
     public static readonly string[] KeyBinaries =

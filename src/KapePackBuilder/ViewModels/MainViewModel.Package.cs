@@ -203,7 +203,7 @@ public partial class MainViewModel
         else
             text += "Документация: нет ссылок в файле\n";
         if (item.Origin == CatalogOrigin.Unknown)
-            text += "Подсказка: «Обновить…» запишет список путей KapeFiles — метки GitHub/локальный станут точными.\n";
+            text += "Подсказка: «Обновить с GitHub…» запишет список путей KapeFiles — метки GitHub/локальный станут точными.\n";
         DetailText = text;
 
         DocumentationLinks.Clear();

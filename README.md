@@ -1,10 +1,10 @@
-﻿# Kape_IR — KAPE Pack Builder
+﻿# Kape_IR
 
 Десктопная GUI-утилита (C# / WPF) для сборки triage-пакетов на базе [KAPE](https://www.kroll.com/en/services/cyber-risk/incident-response-litigation-support/kroll-artifact-parser-extractor-kape): выбор Targets/Modules, подсказки парсеров, обновление каталога и **автономный CollectPack EXE** для сбора на целевой системе.
 
 Интерфейс на русском. Термины KAPE (`tsource`, `--zip`, `--sim`, compound, leaf, `.tkape` / `.mkape`) сохранены.
 
-**Версия: 1.8.3**
+**Версия: 1.8.4**
 
 > В этом репозитории **нет** дистрибутива KAPE (`kape.exe`, `Targets`, `Modules`). Нужна отдельная установка KAPE рядом с Builder.
 
@@ -25,7 +25,7 @@
 
 ## Что это за система
 
-**Pack Builder** — рабочее место аналитика IR / DFIR: из полного каталога KAPE собирается полевой пакет без ручной возни с CLI и копированием деревьев.
+**Kape_IR** — рабочее место аналитика IR / DFIR: из полного каталога KAPE собирается полевой пакет без ручной возни с CLI и копированием деревьев.
 
 ```
 ┌─────────────────────┐     export      ┌──────────────────────┐
@@ -45,7 +45,7 @@
 |-----------|------|
 | **Builder** | Каталог Targets/Modules, фильтры, подсказки модулей, сессии, sync с GitHub KapeFiles, EZ Tools / Chainsaw |
 | **CollectPack** | Портативный сборщик: распаковка рядом с EXE, запуск `kape.exe`, GUI-прогресс или silent |
-| **Two-phase IR** | Phase 1 volatile → Phase 2 disk (RFC 3227), Case ID, манифесты |
+| **Two-phase IR** | Phase 1 volatile → Phase 2 disk (RFC 3227 / Order of Volatility), Case ID, манифесты |
 
 KAPE остаётся движком сбора; Builder — оболочка над каталогом и упаковкой.
 
@@ -89,11 +89,30 @@ KAPE остаётся движком сбора; Builder — оболочка н
 
 ### Двухфазный IR (VolatileFirst)
 
-1. **Фаза 1** — volatile → `RESULTS\<host>\Phase1_Volatile`
-2. **Фаза 2** — выбранные таргеты / модули → `Phase2_Disk`
-3. В конце: `collection_log.txt`, `evidence_manifest.sha256`, `chain_of_custody.txt`
+Порядок по RFC 3227 (Order of Volatility): сначала живые данные, потом диск.
 
-Для дампа памяти нужен signed **WinPmem** как `Modules\bin\winpmem.exe` (см. `Velocidex_WinPmem.mkape`). Без него — `--skip-memory` или код выхода 2.
+#### Фаза 1 — volatile (`VolatileFirst` → `RESULTS\<host>\Phase1_Volatile`)
+
+Собирает **только live/volatile** evidence (modules-only, до дискового triage):
+
+| Шаг | Модуль | Что снимает |
+|-----|--------|-------------|
+| 1 | `Velocidex_WinPmem` | RAM-дамп (`memory.raw` / aff4) + `memory_hash.sha256` |
+| 2 | `LiveResponse_NetworkDetails` | IP/DNS/ARP/маршрут, netstat, NetBIOS |
+| 3 | `LiveResponse_ProcessDetails` | Процессы, дерево, сервисы, handles, injected threads |
+| 4 | `LiveResponse_NetSystemInfo` | `net user` / groups / sessions / shares / started services |
+| 5 | `LiveResponse_SystemSnapshot` | Время, env, firewall, quser/session, schtasks, Run-keys, services |
+
+Без RAM: модуль `VolatileFirst_NoMemory` или CollectPack `--skip-memory`.  
+Для дампа нужен signed **WinPmem** как `Modules\bin\winpmem.exe` (см. `Velocidex_WinPmem.mkape`). Без него — `--skip-memory` или код выхода 2.
+
+#### Фаза 2 — disk (`Phase2_Disk`)
+
+Выбранные в Builder **Targets** и парсеры (**Modules**) — классический KAPE-сбор с диска.
+
+#### После сбора
+
+`collection_log.txt`, `evidence_manifest.sha256`, `chain_of_custody.txt` (с Case ID, если задан).
 
 ---
 
@@ -101,9 +120,9 @@ KAPE остаётся движком сбора; Builder — оболочка н
 
 - Виртуализированные списки Targets / Modules, поиск и фильтры
 - Подсказки модулей по таргетам (FileMask, алиасы, приоритет EZTools)
-- Сборка автономного CollectPack (GUI + silent)
+- Сборка автономного CollectPack (GUI + silent); **selective Modules\bin** — в пакет только нужные парсеры
 - Вкладка **«Утилиты»** — инвентаризация `Modules\bin`
-- Обновление Targets/Modules, EZ Tools и Chainsaw («Обновить…»)
+- **Перечитать каталог** / **Обновить с GitHub…** (KapeFiles, EZ Tools, Chainsaw)
 - Дерево compound, сессии, `package.json`
 - Опциональная Authenticode-подпись (`KAPEPACK_SIGN_CERT`)
 

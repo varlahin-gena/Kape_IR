@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:KapePackBuilder.ViewModels"
-        Title="KAPE Pack Builder"
+        Title="Kape_IR"
         Height="860" Width="1280"
         MinHeight="700" MinWidth="1100"
         Background="#1e1e1e"
@@ -126,10 +126,11 @@
         <TextBlock Text="Корень KAPE:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
         <TextBox Grid.Column="1" Text="{Binding KapeRoot, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
         <Button Grid.Column="2" Content="Обзор…" Command="{Binding BrowseKapeRootCommand}"/>
-        <Button Grid.Column="3" Content="Обновить" Command="{Binding ReloadCatalogCommand}"/>
+        <Button Grid.Column="3" Content="Перечитать каталог" Command="{Binding ReloadCatalogCommand}"
+                ToolTip="Пересканировать локальные Targets/Modules на диске (без сети)"/>
         <Button Grid.Column="4" Content="Убрать дубликаты" Command="{Binding FixNameCollisionsCommand}"
                 ToolTip="KAPE требует уникальные имена .tkape/.mkape. Лишние копии → PackBuilder\name_collisions"/>
-        <Button Grid.Column="5" Content="Обновить…" Command="{Binding UpdateFromGitHubCommand}"
+        <Button Grid.Column="5" Content="Обновить с GitHub…" Command="{Binding UpdateFromGitHubCommand}"
                 Background="#2d6a4f" Foreground="White"
                 ToolTip="Проверка и обновление: KapeFiles (Targets/Modules), EZ Tools (Modules\bin), Chainsaw (Modules\bin\chainsaw)"/>
         <Button Grid.Column="6" Content="Журнал" Command="{Binding OpenAppLogFolderCommand}"

@@ -1,3 +1,5 @@
+using KapePack.Core.Models;
+
 namespace KapePack.Core.Services;
 
 /// <summary>Copies kape.exe runtime + Modules\bin into a CollectPack folder.</summary>
@@ -10,6 +12,8 @@ public sealed class PackageRuntimePacker
     public List<string> CopyRuntime(
         string packageDir,
         bool includeModuleBin,
+        PackageDefinition? pkg = null,
+        bool fullModuleBin = false,
         CancellationToken ct = default,
         IProgress<string>? progress = null)
     {
@@ -35,12 +39,18 @@ public sealed class PackageRuntimePacker
         }
 
         if (includeModuleBin)
-            warnings.AddRange(CopyModulesBin(packageDir, ct, progress));
+        {
+            if (fullModuleBin || pkg is null)
+                warnings.AddRange(CopyModulesBinFull(packageDir, ct, progress));
+            else
+                warnings.AddRange(SelectiveModulesBinCopier.Copy(_catalog, pkg, packageDir, ct, progress).Warnings);
+        }
 
         return warnings;
     }
 
-    private List<string> CopyModulesBin(
+    /// <summary>Legacy: ship entire Modules\bin (minus netN duplicate after promote).</summary>
+    private List<string> CopyModulesBinFull(
         string packageDir,
         CancellationToken ct,
         IProgress<string>? progress)
@@ -50,7 +60,7 @@ public sealed class PackageRuntimePacker
         if (Directory.Exists(binSrc))
         {
             var binDst = Path.Combine(packageDir, "Modules", "bin");
-            progress?.Report("Копирование Modules\\bin (без дубля netN)…");
+            progress?.Report("Копирование Modules\\bin целиком (без дубля netN)…");
             CopyDirectory(binSrc, binDst, ct, progress, skipRelPath: EzToolsLayout.IsUnderNetRuntimeFolder);
             var netSrc = EzToolsLayout.FindPreferredNetDir(binSrc);
             var promoted = netSrc is not null

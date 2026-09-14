@@ -137,8 +137,16 @@ public sealed class PackageExporter
         Check();
         if (buildStandaloneExe)
         {
-            Report("Копирование kape.exe / runtime…");
-            warnings.AddRange(_runtime.CopyRuntime(packageDir, includeModuleBin, cancellationToken, progress));
+            Report(includeModuleBin
+                ? "Копирование kape.exe / selective Modules\\bin…"
+                : "Копирование kape.exe / runtime…");
+            warnings.AddRange(_runtime.CopyRuntime(
+                packageDir,
+                includeModuleBin,
+                pkg,
+                fullModuleBin: false,
+                cancellationToken,
+                progress));
         }
 
         Check();

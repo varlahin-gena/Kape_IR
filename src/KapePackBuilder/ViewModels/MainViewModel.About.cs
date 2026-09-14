@@ -8,28 +8,21 @@ namespace KapePackBuilder.ViewModels;
 
 public partial class MainViewModel
 {
+    public const string ProductName = "Kape_IR";
+
     [RelayCommand]
     private void ShowAbout()
     {
-        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "?";
-        var path = Environment.ProcessPath ?? "(неизвестно)";
-        var stub = StandaloneExeBuilder.TryGetEmbeddedStubInfo(out var stubSize, out _)
-            ? $"Встроенный GUI-stub: да ({stubSize / (1024 * 1024)} МБ) — отдельный KapePackRunner.exe не нужен."
-            : "Встроенный GUI-stub: нет (dev-сборка?). Для автономных пакетов нужен publish.ps1.";
+        var asm = Assembly.GetExecutingAssembly();
+        var ver = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                  ?? asm.GetName().Version?.ToString()
+                  ?? "?";
+        // Strip any "+git" / build metadata for a clean About line.
+        var plus = ver.IndexOf('+');
+        if (plus >= 0)
+            ver = ver[..plus];
 
-        var logPath = AppLog.LogFilePath;
-        var openLog = _dialogs.Confirm(
-            $"KAPE Pack Builder {ver}\n\n" +
-            $"EXE:\n{path}\n\n" +
-            $"{stub}\n\n" +
-            "Поставка: один файл KapePackBuilder.exe.\n" +
-            "Полевые пакеты CollectPack.exe собираются из встроенного stub + payload.\n\n" +
-            $"Журнал:\n{logPath}\n\nОткрыть папку логов?",
-            "О программе",
-            DialogIcon.Question);
-
-        if (openLog)
-            OpenAppLogFolder();
+        _dialogs.ShowMessage($"{ProductName}\nВерсия: {ver}", "О программе", DialogIcon.Info);
     }
 
     [RelayCommand]

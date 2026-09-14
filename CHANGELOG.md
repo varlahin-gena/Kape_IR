@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.4] — 2026-09-14
+
+### Changed
+- CollectPack: **selective Modules\bin** — в автономный EXE только бинарники выбранных модулей (stem + shared .NET DLL, nested `chainsaw\`/`hayabusa\`/`Maps`), не весь `Modules\bin`
+- Publish: stub больше не дублируется в single-file (~206 МБ → ~131 МБ); опция `-FrameworkDependent` (~70 МБ)
+- UI: «Перечитать каталог» / «Обновить с GitHub…»; «О программе» — только имя **Kape_IR** и версия
+- Версия / Product / User-Agent = 1.8.4
+
 ## [1.8.3] — 2026-09-13
 
 ### Architecture / tests

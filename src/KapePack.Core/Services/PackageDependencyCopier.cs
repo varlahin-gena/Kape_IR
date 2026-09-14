@@ -114,7 +114,8 @@ public sealed class PackageDependencyCopier
         if (!includeBin && Directory.Exists(Path.Combine(_catalog.KapeRoot, "Modules", "bin")))
         {
             warnings.Add(
-                "Modules\\bin не включён в пакет. Для автономных модулей включите «Включить Modules\\bin».");
+                "Modules\\bin не включён в пакет — парсеры на целевой системе не запустятся, " +
+                "если модулям нужны локальные EXE.");
         }
 
         if (includeBin && pkg.IsTwoPhase)
