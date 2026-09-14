@@ -1,9 +1,9 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
 
-namespace KapePackBuilder.Services;
+namespace KapePack.Core.Services;
 
 public static class KapeFileIo
 {
@@ -49,19 +49,24 @@ public static class KapeFileIo
 
     public static Dictionary<string, object?> LoadKapeFile(string path)
     {
-        var raw = File.ReadAllText(path, Encoding.UTF8);
-        var cleaned = SanitizeYamlText(raw);
-        var data = Deserializer.Deserialize<object>(cleaned);
-        if (data is not Dictionary<object, object> map)
-            throw new InvalidDataException($"Invalid KAPE file (expected mapping): {path}");
-        return ToStringKeyed(map);
+        if (!TryReadKapeFile(path, out var data, out _))
+            throw new InvalidDataException($"Invalid KAPE file: {path}");
+        return data;
     }
 
-    public static bool TryLoadKapeFile(string path, out Dictionary<string, object?> data)
+    /// <summary>Single disk read: YAML map + raw text (for documentation URLs in comments).</summary>
+    public static bool TryReadKapeFile(string path, out Dictionary<string, object?> data, out string rawText)
     {
+        rawText = "";
+        data = new Dictionary<string, object?>();
         try
         {
-            data = LoadKapeFile(path);
+            rawText = File.ReadAllText(path, Encoding.UTF8);
+            var cleaned = SanitizeYamlText(rawText);
+            var parsed = Deserializer.Deserialize<object>(cleaned);
+            if (parsed is not Dictionary<object, object> map)
+                return false;
+            data = ToStringKeyed(map);
             return true;
         }
         catch
@@ -70,6 +75,9 @@ public static class KapeFileIo
             return false;
         }
     }
+
+    public static bool TryLoadKapeFile(string path, out Dictionary<string, object?> data)
+        => TryReadKapeFile(path, out data, out _);
 
     public static bool IsCompoundTarget(Dictionary<string, object?> data)
     {
@@ -116,6 +124,21 @@ public static class KapeFileIo
                 children.Add(Path.GetFileName(exe));
         }
         return children;
+    }
+
+    /// <summary>Leaf-module processor Executable values that are real binaries (not .mkape children).</summary>
+    public static List<string> ExtractModuleExecutables(Dictionary<string, object?> data)
+    {
+        var list = new List<string>();
+        foreach (var entry in EnumMaps(GetList(data, "Processors")))
+        {
+            var exe = GetString(entry, "Executable").Trim();
+            if (string.IsNullOrEmpty(exe) ||
+                exe.EndsWith(".mkape", StringComparison.OrdinalIgnoreCase))
+                continue;
+            list.Add(exe);
+        }
+        return list;
     }
 
     /// <summary>Collect FileMask values from a target (.tkape) Targets: entries.</summary>
@@ -221,9 +244,10 @@ public static class KapeFileIo
         foreach (var entry in pkg.Targets)
         {
             sb.AppendLine("    -");
-            sb.AppendLine($"        Name: {entry.Name}");
-            sb.AppendLine($"        Category: {(string.IsNullOrWhiteSpace(entry.Category) ? "General" : entry.Category)}");
-            sb.AppendLine($"        Path: {entry.Path}");
+            sb.AppendLine($"        Name: {FormatYamlScalar(entry.Name)}");
+            sb.AppendLine(
+                $"        Category: {FormatYamlScalar(string.IsNullOrWhiteSpace(entry.Category) ? "General" : entry.Category)}");
+            sb.AppendLine($"        Path: {FormatYamlScalar(entry.Path)}");
             if (!string.IsNullOrWhiteSpace(entry.Comments))
             {
                 var escaped = entry.Comments.Replace("\"", "\\\"");
@@ -241,7 +265,11 @@ public static class KapeFileIo
     }
 
     public static string RenderCompoundModule(PackageDefinition pkg)
+        => RenderCompoundModule(pkg, pkg.Modules);
+
+    public static string RenderCompoundModule(PackageDefinition pkg, IEnumerable<SelectionEntry> modules)
     {
+        var list = modules.ToList();
         var sb = new StringBuilder();
         sb.AppendLine($"Description: {(string.IsNullOrWhiteSpace(pkg.Description) ? pkg.Name : pkg.Description)} Modules");
         sb.AppendLine("Category: Compound");
@@ -251,10 +279,12 @@ public static class KapeFileIo
         // KAPE validates every .mkape under Modules\; empty ExportFormat fails the whole run.
         sb.AppendLine("ExportFormat: csv");
         sb.AppendLine("Processors:");
-        foreach (var entry in pkg.Modules)
+        foreach (var entry in list)
         {
             sb.AppendLine("    -");
-            sb.AppendLine($"        Executable: {entry.Path}");
+            // Quote paths starting with ! / !! — otherwise YAML treats them as tags
+            // (e.g. !!ToolSync.mkape → unresolved tag tag:yaml.org,2002:ToolSync.mkape).
+            sb.AppendLine($"        Executable: {FormatYamlScalar(entry.Path)}");
             sb.AppendLine("        CommandLine: \"\"");
             sb.AppendLine("        ExportFormat: \"\"");
         }
@@ -283,35 +313,61 @@ public static class KapeFileIo
         });
     }
 
+    public static string RenderKapeCli(PackageDefinition pkg)
+    {
+        if (!pkg.IsTwoPhase)
+            return KapeCliArgs.RenderCliLine(KapeCliArgs.FromPackage(pkg, fleetCliVars: true)) + "\r\n";
+
+        var manifest = CollectionPlan.FromPackage(pkg);
+        var phases = CollectionPlan.BuildPhases(manifest, new CollectionPlan.RuntimeOptions(pkg.Tsource));
+        var sb = new StringBuilder();
+        sb.AppendLine("# two_phase IR — CollectPack.exe runs both phases; fleet may use one line at a time");
+        foreach (var phase in phases)
+        {
+            var fleetOpts = phase.Options with { FleetCliVars = true };
+            // Rewrite paths for fleet %%d / %%m
+            if (phase.Name == "1")
+            {
+                fleetOpts = fleetOpts with
+                {
+                    Mdest = @"%%d\RESULTS\%%m\Phase1_Volatile",
+                    FleetCliVars = true
+                };
+            }
+            else if (phase.Name == "2")
+            {
+                fleetOpts = fleetOpts with
+                {
+                    Tdest = @"%%d\RESULTS\%%m\Phase2_Disk",
+                    Mdest = @"%%d\RESULTS\%%m\Phase2_Disk\ModuleOutput",
+                    FleetCliVars = true
+                };
+            }
+
+            sb.AppendLine("# " + phase.Label);
+            sb.AppendLine(KapeCliArgs.RenderCliLine(fleetOpts));
+        }
+
+        return sb.ToString();
+    }
+
     public static string RenderRunPs1(PackageDefinition pkg)
     {
-        var args = new List<string>
-        {
-            "--tsource", pkg.Tsource,
-            "--tdest", @"RESULTS\%m",
-            "--target", pkg.TargetCompoundName
-        };
-        if (pkg.ZipOutput)
-            args.AddRange(new[] { "--zip", "%m" });
-        if (pkg.ModuleCompoundName is not null)
-        {
-            args.AddRange(new[]
-            {
-                "--mdest", @"RESULTS\%m\ModuleOutput", "--zm", "true",
-                "--module", pkg.ModuleCompoundName
-            });
-        }
-        else if (pkg.Modules.Count > 0)
-        {
-            var names = string.Join(",", pkg.Modules.Select(m => Path.GetFileNameWithoutExtension(m.Path)));
-            args.AddRange(new[]
-            {
-                "--mdest", @"RESULTS\%m\ModuleOutput", "--zm", "true",
-                "--module", names
-            });
-        }
-        if (pkg.Flush) args.Add("--flush");
-        if (pkg.Vss) args.Add("--vss");
+        if (pkg.IsTwoPhase)
+            return RenderRunPs1TwoPhase(pkg);
+
+        var module = pkg.ModuleCompoundName;
+        if (module is null && pkg.Modules.Count > 0)
+            module = string.Join(",", pkg.Modules.Select(m => Path.GetFileNameWithoutExtension(m.Path)));
+
+        var args = KapeCliArgs.Build(new KapeCliArgs.Options(
+            pkg.Tsource,
+            pkg.TargetCompoundName,
+            module,
+            pkg.ZipOutput,
+            pkg.Flush,
+            pkg.Vss,
+            FleetCliVars: false));
 
         var argLiteral = string.Join(", ", args.Select(a => $"'{a.Replace("'", "''")}'"));
         return string.Join("\r\n", new[]
@@ -326,10 +382,26 @@ public static class KapeFileIo
             "  Write-Host '[!] kape.exe не найден рядом со скриптом' -ForegroundColor Red",
             "  exit 2",
             "}",
-            $"$kapeArgs = @({argLiteral})",
-            "Write-Host ('[*] Command: kape.exe ' + ($kapeArgs -join ' '))",
-            "& $kape @kapeArgs",
-            "$code = $LASTEXITCODE",
+            // Active _kape.cli forces KAPE batch mode and ignores @kapeArgs.
+            "$cli = Join-Path $PSScriptRoot '_kape.cli'",
+            "$cliHold = $cli + '.packhold'",
+            "if (Test-Path -LiteralPath $cli) {",
+            "  if (Test-Path -LiteralPath $cliHold) { Remove-Item -LiteralPath $cliHold -Force }",
+            "  Move-Item -LiteralPath $cli -Destination $cliHold -Force",
+            "  Write-Host '[i] _kape.cli временно отключён (иначе batch mode)'",
+            "}",
+            "$code = 0",
+            "try {",
+            $"  $kapeArgs = @({argLiteral})",
+            "  Write-Host ('[*] Command: kape.exe ' + ($kapeArgs -join ' '))",
+            "  & $kape @kapeArgs",
+            "  $code = $LASTEXITCODE",
+            "} finally {",
+            "  if (Test-Path -LiteralPath $cliHold) {",
+            "    if (Test-Path -LiteralPath $cli) { Remove-Item -LiteralPath $cli -Force }",
+            "    Move-Item -LiteralPath $cliHold -Destination $cli -Force",
+            "  }",
+            "}",
             "$results = Join-Path $PSScriptRoot ('RESULTS\\' + $env:COMPUTERNAME)",
             "if (Test-Path -LiteralPath $results) {",
             "  Write-Host \"[*] Готово. Результаты: $results\" -ForegroundColor Green",
@@ -341,6 +413,101 @@ public static class KapeFileIo
             ""
         });
     }
+
+    private static string RenderRunPs1TwoPhase(PackageDefinition pkg)
+    {
+        var manifest = CollectionPlan.FromPackage(pkg);
+        var phases = CollectionPlan.BuildPhases(manifest, new CollectionPlan.RuntimeOptions(pkg.Tsource));
+        var lines = new List<string>
+        {
+            "$ErrorActionPreference = 'Continue'",
+            "try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}",
+            "Set-Location -LiteralPath $PSScriptRoot",
+            $"Write-Host '[*] Package: {pkg.Name} (two_phase)'",
+            "$kape = Join-Path $PSScriptRoot 'kape.exe'",
+            "if (-not (Test-Path -LiteralPath $kape)) {",
+            "  Write-Host '[!] kape.exe не найден рядом со скриптом' -ForegroundColor Red",
+            "  exit 2",
+            "}",
+            "$cli = Join-Path $PSScriptRoot '_kape.cli'",
+            "$cliHold = $cli + '.packhold'",
+            "if (Test-Path -LiteralPath $cli) {",
+            "  if (Test-Path -LiteralPath $cliHold) { Remove-Item -LiteralPath $cliHold -Force }",
+            "  Move-Item -LiteralPath $cli -Destination $cliHold -Force",
+            "  Write-Host '[i] _kape.cli временно отключён (иначе batch mode)'",
+            "}",
+            "$code = 0",
+            "try {"
+        };
+
+        foreach (var phase in phases)
+        {
+            var argLiteral = string.Join(", ",
+                KapeCliArgs.Build(phase.Options).Select(a => $"'{a.Replace("'", "''")}'"));
+            lines.Add($"  Write-Host '[*] {phase.Label.Replace("'", "''")}'");
+            lines.Add($"  $kapeArgs = @({argLiteral})");
+            lines.Add("  Write-Host ('[*] Command: kape.exe ' + ($kapeArgs -join ' '))");
+            lines.Add("  & $kape @kapeArgs");
+            lines.Add("  if ($LASTEXITCODE -ne 0) { $code = $LASTEXITCODE }");
+        }
+
+        lines.AddRange(new[]
+        {
+            "} finally {",
+            "  if (Test-Path -LiteralPath $cliHold) {",
+            "    if (Test-Path -LiteralPath $cli) { Remove-Item -LiteralPath $cli -Force }",
+            "    Move-Item -LiteralPath $cliHold -Destination $cli -Force",
+            "  }",
+            "}",
+            "$results = Join-Path $PSScriptRoot ('RESULTS\\' + $env:COMPUTERNAME)",
+            "if (Test-Path -LiteralPath $results) {",
+            "  Write-Host \"[*] Готово. Результаты: $results\" -ForegroundColor Green",
+            "} else {",
+            "  Write-Host '[!] Папка RESULTS не создана — сбор не выполнен или упал.' -ForegroundColor Red",
+            "  if ($code -eq 0) { $code = 1 }",
+            "}",
+            "exit $code",
+            ""
+        });
+        return string.Join("\r\n", lines);
+    }
+
+    /// <summary>
+    /// Format a YAML plain scalar, quoting when needed so values like
+    /// <c>!!ToolSync.mkape</c> / <c>!EZParser.mkape</c> are not parsed as tags.
+    /// </summary>
+    public static string FormatYamlScalar(string? value)
+    {
+        var s = value ?? "";
+        if (s.Length == 0)
+            return "\"\"";
+
+        var needsQuote =
+            char.IsWhiteSpace(s[0]) ||
+            char.IsWhiteSpace(s[^1]) ||
+            s[0] is '!' or '#' or '&' or '*' or '?' or '|' or '>' or '@' or '`'
+                or '\'' or '"' or '%' or '{' or '}' or '[' or ']' or ',' or ':' or '-' ||
+            s.Contains(':') ||
+            s.Contains('#') ||
+            s.Contains('\n') ||
+            s.Contains('\r') ||
+            LooksLikeYamlBoolOrNull(s);
+
+        if (!needsQuote)
+            return s;
+
+        return "'" + s.Replace("'", "''", StringComparison.Ordinal) + "'";
+    }
+
+    private static bool LooksLikeYamlBoolOrNull(string s) =>
+        s.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+        s.Equals("false", StringComparison.OrdinalIgnoreCase) ||
+        s.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+        s.Equals("no", StringComparison.OrdinalIgnoreCase) ||
+        s.Equals("on", StringComparison.OrdinalIgnoreCase) ||
+        s.Equals("off", StringComparison.OrdinalIgnoreCase) ||
+        s.Equals("null", StringComparison.OrdinalIgnoreCase) ||
+        s.Equals("~", StringComparison.Ordinal);
 
     /// <summary>UTF-8 with BOM — needed so cmd.exe + chcp 65001 / PowerShell show Russian correctly.</summary>
     public static Encoding BatEncoding { get; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);

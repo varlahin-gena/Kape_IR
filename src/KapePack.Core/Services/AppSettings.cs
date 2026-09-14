@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace KapePackBuilder.Services;
+namespace KapePack.Core.Services;
 
 public sealed class AppSettings
 {
@@ -17,7 +17,10 @@ public sealed class AppSettings
             if (File.Exists(SettingsPath))
                 return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings();
         }
-        catch { /* ignore */ }
+        catch (Exception ex)
+        {
+            AppLog.Warn("AppSettings.Load failed: " + ex.Message);
+        }
         return new AppSettings();
     }
 
@@ -28,9 +31,16 @@ public sealed class AppSettings
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { /* ignore */ }
+        catch (Exception ex)
+        {
+            AppLog.Warn("AppSettings.Save failed: " + ex.Message);
+        }
     }
 
+    /// <summary>
+    /// Candidates for first launch only. Never walk parent folders of the EXE —
+    /// that picks the wrong KAPE tree when several installs sit nearby.
+    /// </summary>
     public static IEnumerable<string> CandidateRoots(AppSettings? settings)
     {
         if (!string.IsNullOrWhiteSpace(settings?.LastKapeRoot))
@@ -40,29 +50,26 @@ public sealed class AppSettings
         if (!string.IsNullOrWhiteSpace(env))
             yield return env;
 
+        // Only the EXE folder itself (common: Builder dropped into a KAPE root).
         var baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         yield return baseDir;
-
-        var parent = Directory.GetParent(baseDir)?.FullName;
-        if (!string.IsNullOrEmpty(parent))
-            yield return parent;
-
-        var grand = string.IsNullOrEmpty(parent) ? null : Directory.GetParent(parent)?.FullName;
-        if (!string.IsNullOrEmpty(grand))
-            yield return grand;
-
-        yield return Directory.GetCurrentDirectory();
     }
 
     public static string ResolveDefaultKapeRoot(AppSettings settings)
     {
         foreach (var c in CandidateRoots(settings).Where(c => !string.IsNullOrWhiteSpace(c)))
         {
-            if (Directory.Exists(Path.Combine(c, "Targets")))
-                return c;
+            if (KapeRootPaths.LooksLikeKapeRoot(c))
+            {
+                try { return Path.GetFullPath(c.Trim()); }
+                catch { return c.Trim(); }
+            }
         }
 
         // Last resort: remembered path or empty — UI will ask user to browse.
-        return settings.LastKapeRoot?.Trim() ?? "";
+        var last = settings.LastKapeRoot?.Trim() ?? "";
+        if (string.IsNullOrEmpty(last)) return "";
+        try { return Path.GetFullPath(last); }
+        catch { return last; }
     }
 }

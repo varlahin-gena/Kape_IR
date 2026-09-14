@@ -1,6 +1,6 @@
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
 
-namespace KapePackBuilder.Services;
+namespace KapePack.Core.Services;
 
 /// <summary>
 /// Suggests modules for selected targets using FileMask overlap, curated aliases,
@@ -19,8 +19,9 @@ public sealed class ModuleAdvisor
         ["WindowsTimeline"] = new[] { "WxTCmd" },
         ["JumpLists"] = new[] { "JLECmd" },
         ["LNKFilesAndJumpLists"] = new[] { "LECmd", "JLECmd" },
-        ["EventLogs"] = new[] { "EvtxECmd" },
-        ["EventLogs-RDP"] = new[] { "EvtxECmd_RDP", "EvtxECmd" },
+        ["EventLogs"] = new[] { "EvtxECmd", "Chainsaw_Offline", "Hayabusa_Offline" },
+        ["EventLogs-RDP"] = new[] { "EvtxECmd_RDP", "EvtxECmd", "Chainsaw_Offline" },
+        ["CombinedLogs"] = new[] { "Chainsaw_Offline", "Hayabusa_Offline", "EvtxECmd" },
         ["SRUM"] = new[] { "SrumECmd" },
         ["SUM"] = new[] { "SumECmd" },
         ["RegistryHivesSystem"] = new[] { "AppCompatCacheParser", "RECmd_DFIRBatch" },

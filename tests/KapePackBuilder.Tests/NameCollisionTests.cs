@@ -1,10 +1,20 @@
-using KapePackBuilder.Models;
-using KapePackBuilder.Services;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
 
 namespace KapePackBuilder.Tests;
 
 public class NameCollisionTests
 {
+    [Fact]
+    public void IsUnderDisabledFolder_DetectsDisabledSegments()
+    {
+        Assert.True(NameCollisionFixer.IsUnderDisabledFolder(@"D:\k\Targets\!Disabled\AppData.tkape"));
+        Assert.True(NameCollisionFixer.IsUnderDisabledFolder("Modules/!Disabled/Volatility/x.mkape"));
+        Assert.True(NameCollisionFixer.IsUnderDisabledFolder("Targets/_Disabled/Old.tkape"));
+        Assert.False(NameCollisionFixer.IsUnderDisabledFolder("Targets/Apps/AppData.tkape"));
+        Assert.False(NameCollisionFixer.IsUnderDisabledFolder("Modules/Compound/Foo.mkape"));
+    }
+
     [Fact]
     public void Prefer_LeafInApps_Over_LeafInCompound()
     {

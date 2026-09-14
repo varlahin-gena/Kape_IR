@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
 
 namespace KapePackBuilder;
 

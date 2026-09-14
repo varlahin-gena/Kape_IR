@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text;
 
-namespace KapePackBuilder.Services;
+namespace KapePack.Core.Services;
 
 /// <summary>
 /// Builds a single self-extracting EXE: [KapePackRunner stub][zip payload][footer].
@@ -17,14 +17,14 @@ public static class StandaloneExeBuilder
     public static string Build(string stubExePath, string zipPath, string outputExePath)
     {
         if (!File.Exists(stubExePath))
-            throw new FileNotFoundException("Не найден stub KapePackRunner.exe", stubExePath);
+            throw new FileNotFoundException("Не найден stub KapePackRunner (GUI)", stubExePath);
         if (!File.Exists(zipPath))
             throw new FileNotFoundException("Не найден ZIP пакета", zipPath);
         if (!IsGuiStub(stubExePath))
             throw new InvalidOperationException(
-                "Найден устаревший console-stub KapePackRunner.exe (две консоли).\n" +
+                "Найден устаревший console-stub (две консоли).\n" +
                 $"Файл: {stubExePath}\n" +
-                "Пересоберите через publish.ps1 или положите рядом GUI-stub (~70+ МБ, WinExe).");
+                "Пересоберите Pack Builder через publish.ps1 (stub встраивается в один EXE).");
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputExePath)!);
         if (File.Exists(outputExePath))
@@ -58,15 +58,29 @@ public static class StandaloneExeBuilder
     }
 
     /// <summary>
-    /// Resolve GUI stub: skip old console stubs next to the app.
-    /// Preference: tools\ / artifacts\, then beside app, then embedded resource.
+    /// Resolve GUI stub. Preference: under selected KapeRoot\PackBuilder\stub → LocalAppData → tools/.
     /// </summary>
-    public static string ResolveStubPath()
+    public static string ResolveStubPath(string? kapeRoot = null)
     {
+        if (!string.IsNullOrWhiteSpace(kapeRoot) && KapeRootPaths.LooksLikeKapeRoot(kapeRoot))
+        {
+            var underRoot = ExtractEmbeddedStub(KapeRootPaths.StubCacheDir(kapeRoot));
+            if (underRoot is not null && IsGuiStub(underRoot))
+                return underRoot;
+        }
+
         var baseDir = AppContext.BaseDirectory;
+
+        // Embedded resource inside single-file Builder
+        var embedded = ExtractEmbeddedStub(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "KapePackBuilder",
+            "stub"));
+        if (embedded is not null && IsGuiStub(embedded))
+            return embedded;
+
         var candidates = new[]
         {
-            // Prefer published GUI stub from repo tools/ (dev) and dist tools/
             Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "tools", "KapePackRunner.exe")),
             Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "artifacts", "runner", "KapePackRunner.exe")),
             Path.Combine(baseDir, "tools", "KapePackRunner.exe"),
@@ -83,18 +97,29 @@ public static class StandaloneExeBuilder
             consoleFallback ??= Path.GetFullPath(c);
         }
 
-        var embedded = ExtractEmbeddedStub(Path.Combine(baseDir, "tools"));
-        if (embedded is not null && IsGuiStub(embedded))
-            return embedded;
-
         if (consoleFallback is not null)
             throw new InvalidOperationException(
                 "Рядом лежит только старый console KapePackRunner.exe — из‑за него открываются две консоли.\n" +
-                $"Удалите или замените: {consoleFallback}\n" +
-                "Скопируйте GUI-stub из PackBuilder.Net\\dist\\KapePackRunner.exe (или запустите publish.ps1).");
+                $"Удалите: {consoleFallback}\n" +
+                "Нужен актуальный KapePackBuilder.exe из publish (stub встроен внутрь).");
 
         throw new FileNotFoundException(
-            "KapePackRunner.exe (GUI) не найден. Пересоберите через publish.ps1.");
+            "GUI-stub для автономного пакета не найден.\n" +
+            "Пересоберите KapePackBuilder через publish.ps1 — stub встраивается в один EXE.");
+    }
+
+    public static bool TryGetEmbeddedStubInfo(out long sizeBytes, out string? resourceName)
+    {
+        sizeBytes = 0;
+        resourceName = null;
+        var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+        resourceName = asm.GetManifestResourceNames()
+            .FirstOrDefault(n => n.EndsWith("KapePackRunner.exe", StringComparison.OrdinalIgnoreCase));
+        if (resourceName is null) return false;
+        using var stream = asm.GetManifestResourceStream(resourceName);
+        if (stream is null) return false;
+        sizeBytes = stream.Length;
+        return sizeBytes > 0;
     }
 
     /// <summary>True if PE subsystem is WINDOWS GUI (not console).</summary>
@@ -130,10 +155,27 @@ public static class StandaloneExeBuilder
 
         Directory.CreateDirectory(toolsDir);
         var dest = Path.Combine(toolsDir, "KapePackRunner.exe");
+        var marker = dest + ".embedsha256";
+
         using var stream = asm.GetManifestResourceStream(name);
         if (stream is null) return null;
-        using var fs = File.Create(dest);
-        stream.CopyTo(fs);
+
+        // Materialize once: embedded streams are often non-seekable, and size-only
+        // cache previously reused same-length but outdated stubs after UI fixes.
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        var payload = ms.ToArray();
+        var embedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload))
+            .ToLowerInvariant();
+
+        if (File.Exists(dest) &&
+            File.Exists(marker) &&
+            string.Equals(File.ReadAllText(marker).Trim(), embedHash, StringComparison.OrdinalIgnoreCase) &&
+            IsGuiStub(dest))
+            return dest;
+
+        File.WriteAllBytes(dest, payload);
+        File.WriteAllText(marker, embedHash + Environment.NewLine);
         return dest;
     }
 }

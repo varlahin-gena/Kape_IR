@@ -47,4 +47,4 @@ jobs:
           name: kapepackbuilder-dist
           path: |
             dist/KapePackBuilder.exe
-            dist/KapePackRunner.exe
+            dist/KapePackBuilder.exe.sha256

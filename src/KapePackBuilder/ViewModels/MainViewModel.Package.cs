@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
 using KapePackBuilder.Services;
 
 namespace KapePackBuilder.ViewModels;
@@ -22,7 +23,7 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private void SaveSession()
+    private async Task SaveSessionAsync()
     {
         PullFormToPackage();
         if (string.IsNullOrWhiteSpace(Package.Name))
@@ -31,17 +32,20 @@ public partial class MainViewModel
             return;
         }
 
-        var path = PackageSessionStore.SessionPath(KapeRoot, Package.Name);
+        var root = await EnsureCatalogBoundToUiRootAsync();
+        if (root is null) return;
+
+        var path = PackageSessionStore.SessionPath(root, Package.Name);
         if (File.Exists(path) &&
             !_dialogs.Confirm($"Перезаписать сессию «{PackageSessionStore.SafeSessionFileName(Package.Name)}»?", "Сессия"))
             return;
 
         try
         {
-            PackageSessionStore.Save(KapeRoot, Package.Name, Package);
-            StatusText = $"Сессия сохранена: {PackageSessionStore.SafeSessionFileName(Package.Name)}";
+            PackageSessionStore.Save(root, Package.Name, Package);
+            StatusText = $"Сессия сохранена (локальная): {PackageSessionStore.SafeSessionFileName(Package.Name)}";
             _dialogs.ShowMessage(
-                $"Сохранено:\n{path}\n\nТаргетов: {Package.Targets.Count}, модулей: {Package.Modules.Count}",
+                $"Локальная сессия Pack Builder:\n{path}\n\nТаргетов: {Package.Targets.Count}, модулей: {Package.Modules.Count}",
                 "Сессия");
         }
         catch (Exception ex)
@@ -51,11 +55,14 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private void LoadSession()
+    private async Task LoadSessionAsync()
     {
-        var dir = PackageSessionStore.SessionsDir(KapeRoot);
+        var root = await EnsureCatalogBoundToUiRootAsync();
+        if (root is null) return;
+
+        var dir = PackageSessionStore.SessionsDir(root);
         Directory.CreateDirectory(dir);
-        var names = PackageSessionStore.ListSessionNames(KapeRoot);
+        var names = PackageSessionStore.ListSessionNames(root);
         if (names.Count == 0)
         {
             _dialogs.ShowMessage(
@@ -78,7 +85,7 @@ public partial class MainViewModel
             TargetFilter = Package.Targets.Count > 0 ? "Только выбранные" : "Все";
             ModuleFilter = Package.Modules.Count > 0 ? "Только выбранные" : "Все";
             SyncAllViews();
-            StatusText = $"Загружена сессия: {Package.Name} ({Package.Targets.Count}t / {Package.Modules.Count}m)";
+            StatusText = $"Загружена локальная сессия: {Package.Name} ({Package.Targets.Count}t / {Package.Modules.Count}m)";
         }
         catch (Exception ex)
         {
@@ -175,14 +182,16 @@ public partial class MainViewModel
     private void PreviewCommand()
     {
         PullFormToPackage();
-        var text = KapeFileIo.RenderRunBat(Package);
-        _dialogs.ShowMessage(text, "Превью скрипта запуска");
+        var text = "=== _kape.cli / фазы ===\r\n" + KapeFileIo.RenderKapeCli(Package) +
+                   "\r\n=== run_collection.bat ===\r\n" + KapeFileIo.RenderRunBat(Package);
+        _dialogs.ShowMessage(text, "Превью запуска");
     }
 
     public void ShowItemInfo(CatalogItem item)
     {
         var text =
             $"{item.Name}\nПуть: {item.RelativePath}\nКатегория: {item.Category}\n" +
+            $"Источник: {item.OriginLabel} ({item.OriginTag})\n" +
             $"Автор: {item.Author} | Версия: {item.Version}\nCompound: {item.IsCompound}\n" +
             $"Описание: {item.Description}\n";
         if (item.FileMasks.Count > 0)
@@ -193,6 +202,8 @@ public partial class MainViewModel
             text += $"Документация ({item.DocumentationUrls.Count}): см. ссылки ниже\n";
         else
             text += "Документация: нет ссылок в файле\n";
+        if (item.Origin == CatalogOrigin.Unknown)
+            text += "Подсказка: «Обновить…» запишет список путей KapeFiles — метки GitHub/локальный станут точными.\n";
         DetailText = text;
 
         DocumentationLinks.Clear();
@@ -205,9 +216,19 @@ public partial class MainViewModel
     private void OpenDocumentationLink(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return;
+        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            _dialogs.ShowMessage(
+                "Разрешены только ссылки http/https.\nОтклонено: " + url,
+                "Небезопасная ссылка",
+                DialogIcon.Warning);
+            return;
+        }
+
         try
         {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
@@ -217,29 +238,31 @@ public partial class MainViewModel
 
     private void PushPackageToForm()
     {
-        PackageName = Package.Name;
-        PackageDescription = Package.Description;
-        PackageAuthor = Package.Author;
-        PackageVersion = Package.Version;
-        Tsource = Package.Tsource;
-        ZipOutput = Package.ZipOutput;
-        Flush = Package.Flush;
-        Vss = Package.Vss;
-        Notes = Package.Notes;
+        var s = PackageFormMapper.FromPackage(Package);
+        PackageName = s.Name;
+        PackageDescription = s.Description;
+        PackageAuthor = s.Author;
+        PackageVersion = s.Version;
+        Tsource = s.Tsource;
+        ZipOutput = s.ZipOutput;
+        Vss = s.Vss;
+        Notes = s.Notes;
+        TwoPhaseCollection = s.TwoPhase;
+        CaseId = s.CaseId;
     }
 
     private void PullFormToPackage()
     {
-        Package.Name = string.IsNullOrWhiteSpace(PackageName) ? "WindowsTriage" : PackageName.Trim();
-        Package.Description = PackageDescription.Trim();
-        Package.Author = PackageAuthor.Trim();
-        Package.Version = string.IsNullOrWhiteSpace(PackageVersion) ? "1.0" : PackageVersion.Trim();
-        Package.Tsource = string.IsNullOrWhiteSpace(Tsource) ? "C:" : Tsource.Trim();
-        Package.ZipOutput = ZipOutput;
-        Package.Flush = Flush;
-        Package.Vss = Vss;
-        Package.Notes = Notes.Trim();
-        if (string.IsNullOrWhiteSpace(Package.PackageId))
-            Package.PackageId = Guid.NewGuid().ToString();
+        PackageFormMapper.ApplyToPackage(Package, new PackageFormMapper.FormSnapshot(
+            PackageName,
+            PackageDescription,
+            PackageAuthor,
+            PackageVersion,
+            Tsource,
+            ZipOutput,
+            Vss,
+            Notes,
+            TwoPhaseCollection,
+            CaseId ?? ""));
     }
 }

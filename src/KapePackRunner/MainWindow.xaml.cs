@@ -1,11 +1,12 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
 using Microsoft.Win32;
 
 namespace KapePackRunner;
@@ -14,24 +15,19 @@ public partial class MainWindow : Window
 {
     private string? _resultsDir;
     private string? _packageDir;
-    private LaunchConfig? _cfg;
+    private CollectionPlan.LaunchManifest? _cfg;
     private Process? _kapeProcess;
-    private int _foundFiles;
-    private int _copiedFiles;
     private bool _running;
     private readonly StringBuilder _logBuffer = new();
+    private readonly CollectPackProgressParser _progressParser = new();
 
-    private static readonly Regex CopyProgress = new(
-        @"Copied\s+([\d\s,\u00A0]+)\s+out\s+of\s+([\d\s,\u00A0]+)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private static readonly Regex FoundFiles = new(
-        @"Found\s+([\d\s,\u00A0]+)\s+files?",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private static readonly Regex CopiedDeferred = new(
-        @"^Copied\s+(deferred\s+)?file\b",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    /// <summary>Overall progress floor/ceiling for the active IR phase (two_phase: P1=0–15, P2=15–99).</summary>
+    private double _phaseFloor;
+    private double _phaseCeil = 99;
+    private double _localProgress;
+    private bool _copyPulseActive;
+    private DispatcherTimer? _copyPulseTimer;
+    private string _selectedTsource = "C:";
 
     public MainWindow()
     {
@@ -51,267 +47,462 @@ public partial class MainWindow : Window
             var self = Environment.ProcessPath
                        ?? throw new InvalidOperationException("Не удалось определить путь к EXE.");
 
-            Log($"EXE: {self}");
             TitleText.Text = Path.GetFileNameWithoutExtension(self);
-
-            if (!PackPayload.TryReadPayload(self, out var zipStart, out var zipLen))
-            {
-                Fail("Это не автономный пакет KAPE (нет payload KAPEPACK).\nСоберите пакет через KAPE Pack Builder.");
-                return;
-            }
-
-            _packageDir = Path.Combine(
-                Path.GetDirectoryName(self)!,
-                Path.GetFileNameWithoutExtension(self));
-
             SetStatus("Распаковка пакета…", indeterminate: true);
-            await Task.Run(() => PackPayload.Extract(self, zipStart, zipLen, _packageDir, msg =>
-                Dispatcher.Invoke(() => Log(msg))));
 
-            var kape = Path.Combine(_packageDir, "kape.exe");
-            if (!File.Exists(kape))
+            if (File.Exists(self + ".sha256"))
             {
-                Fail($"В пакете нет kape.exe.\n{_packageDir}");
+                if (!FileHash.TryVerifySidecar(self, out var verifyMsg, requireSidecar: false))
+                {
+                    Fail(verifyMsg + "\n\nПоложите корректный CollectPack.exe.sha256 рядом с EXE или пересоберите пакет.");
+                    return;
+                }
+
+                Log(verifyMsg);
+            }
+
+            var prep = await Task.Run(() =>
+                CollectPackPrepare.Prepare(
+                    self,
+                    tsourceOverride: null,
+                    requireTsource: false,
+                    log: msg => Dispatcher.BeginInvoke(() => Log(msg))));
+
+            if (prep.ExitCode != 0)
+            {
+                Fail(prep.Message);
                 return;
             }
 
-            _cfg = PackPayload.ReadLaunchConfig(_packageDir);
-            if (_cfg is null || string.IsNullOrWhiteSpace(_cfg.Target))
-            {
-                Fail("Нет package.json или не указан target_compound.");
-                return;
-            }
+            _packageDir = prep.PackageDir;
+            _cfg = prep.Manifest;
 
-            Title = $"KAPE Pack — {_cfg.Name}";
+            Title = $"KAPE Pack — {_cfg!.Name}";
             TitleText.Text = _cfg.Name;
-            SubtitleText.Text = $"Target: {_cfg.Target}" +
-                                (string.IsNullOrWhiteSpace(_cfg.Module) ? "" : $"  ·  Module: {_cfg.Module}");
+            if (_cfg.CollectionMode == IrCollectionMode.TwoPhase)
+            {
+                SubtitleText.Text =
+                    $"two_phase: {_cfg.Phase1Module} → {_cfg.Target}" +
+                    (string.IsNullOrWhiteSpace(_cfg.Phase2Module) ? "" : $" + {_cfg.Phase2Module}");
+                TwoPhasePanel.Visibility = Visibility.Visible;
+                CaseIdBox.Text = _cfg.CaseId ?? "";
+            }
+            else
+            {
+                SubtitleText.Text = $"Target: {_cfg.Target}" +
+                                    (string.IsNullOrWhiteSpace(_cfg.Module) ? "" : $"  ·  Module: {_cfg.Module}");
+                TwoPhasePanel.Visibility = Visibility.Collapsed;
+            }
 
-            PopulateDrives(_cfg.Tsource);
-            TsourceBox.Text = _cfg.Tsource;
+            var initialTs = string.IsNullOrWhiteSpace(_cfg.Tsource) ? "C:" : _cfg.Tsource;
+            PopulateDrives(initialTs);
+            ResultsBox.Text = _packageDir ?? "";
             SourcePanel.Visibility = Visibility.Visible;
-            SetStatus("Выберите диск / tsource и нажмите «Начать сбор»", indeterminate: false, percent: 0);
+            SetStatus("Выберите диск и папку результатов, затем «Начать сбор» (или «Оценить»)", indeterminate: false, percent: 0);
             PercentText.Text = "";
             SaveLogBtn.IsEnabled = true;
             CloseBtn.IsEnabled = true;
-            Log("Пакет готов. Укажите источник (--tsource) и запустите сбор.");
+            Log("Пакет готов. Выберите диск и папку результатов. Можно сначала оценить объём (--sim).");
+            if (_cfg.CollectionMode == IrCollectionMode.TwoPhase)
+                Log("Режим two_phase: сначала volatile (Phase1), затем disk triage (Phase2).");
+            Log($"Результаты по умолчанию: {Path.Combine(_packageDir!, "RESULTS", Environment.MachineName)}");
         }
         catch (Exception ex)
         {
             Fail(ex.Message);
         }
+    }
+
+    private async void Sim_Click(object sender, RoutedEventArgs e)
+    {
+        if (_running || _cfg is null || _packageDir is null) return;
+        if (!TryApplyPaths()) return;
+
+        await RunCollectionAsync(simulateOnly: true);
     }
 
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
         if (_running || _cfg is null || _packageDir is null) return;
+        if (!TryApplyPaths()) return;
 
-        var tsource = (TsourceBox.Text ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(tsource))
+        if (SimBeforeCheck.IsChecked == true)
         {
-            MessageBox.Show("Укажите диск или путь для --tsource.", "KAPE Pack",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            var simOk = await RunCollectionAsync(simulateOnly: true);
+            if (!simOk) return;
+            var cont = MessageBox.Show(
+                "Оценка (--sim) завершена — см. журнал.\n\nЗапустить полный сбор с копированием файлов?",
+                "KAPE Pack",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (cont != MessageBoxResult.Yes)
+            {
+                Log("Полный сбор отменён после оценки.");
+                return;
+            }
         }
 
-        _cfg.Tsource = tsource;
+        await RunCollectionAsync(simulateOnly: false);
+    }
+
+    private string? _resultsRoot;
+
+    private bool TryApplyPaths()
+    {
+        var tsource = _selectedTsource.Trim();
+        if (DriveCombo.SelectedItem is DriveItem drive && !string.IsNullOrWhiteSpace(drive.Root))
+            tsource = drive.Root.Trim();
+
+        if (string.IsNullOrWhiteSpace(tsource))
+        {
+            MessageBox.Show("Выберите диск для сбора.", "KAPE Pack",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        var results = (ResultsBox.Text ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(results))
+        {
+            MessageBox.Show("Укажите папку для результатов (RESULTS).", "KAPE Pack",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        try
+        {
+            results = Path.GetFullPath(results);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Некорректный путь результатов: " + ex.Message, "KAPE Pack",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(results);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Не удалось создать папку результатов:\n" + ex.Message, "KAPE Pack",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        _cfg!.Tsource = tsource;
+        _selectedTsource = tsource;
+        _resultsRoot = results;
+        ResultsBox.Text = results;
+        return true;
+    }
+
+    private void BrowseResults_Click(object sender, RoutedEventArgs e)
+    {
+        var folder = PickFolder("Выберите папку для RESULTS",
+            GuessInitialDir(ResultsBox.Text) ?? _packageDir);
+        if (folder is null) return;
+        ResultsBox.Text = folder;
+    }
+
+    private static string? GuessInitialDir(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        try
+        {
+            var full = Path.GetFullPath(path.Trim());
+            if (Directory.Exists(full)) return full;
+            var parent = Path.GetDirectoryName(full);
+            return Directory.Exists(parent) ? parent : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? PickFolder(string title, string? initialDirectory)
+    {
+        var dlg = new OpenFolderDialog { Title = title };
+        if (!string.IsNullOrWhiteSpace(initialDirectory) && Directory.Exists(initialDirectory))
+            dlg.InitialDirectory = initialDirectory;
+        return dlg.ShowDialog() == true ? dlg.FolderName : null;
+    }
+
+    /// <returns>False if failed or cancelled mid-run setup; true if process finished (any exit code).</returns>
+    private async Task<bool> RunCollectionAsync(bool simulateOnly)
+    {
+        if (_running || _cfg is null || _packageDir is null) return false;
+
         SourcePanel.IsEnabled = false;
         StartBtn.IsEnabled = false;
+        SimBtn.IsEnabled = false;
         CancelRunBtn.IsEnabled = true;
         _running = true;
-        _foundFiles = 0;
-        _copiedFiles = 0;
+        _progressParser.ResetCounters();
+        StopCopyPulse();
+        var twoPhase = _cfg.CollectionMode == IrCollectionMode.TwoPhase
+                       && Phase1OnlyCheck.IsChecked != true
+                       && Phase2OnlyCheck.IsChecked != true;
+        if (twoPhase)
+            BeginPhaseRange(0, 15, "Фаза 1…");
+        else
+            BeginPhaseRange(0, 99, simulateOnly ? "Оценка…" : "Сбор…");
 
         try
         {
             var kape = Path.Combine(_packageDir, "kape.exe");
-            var args = PackPayload.BuildKapeArgs(_cfg);
-            Log($"Команда: kape.exe {string.Join(" ", args.Select(Quote))}");
-            SetStatus("Сбор артефактов (targets)…", indeterminate: true);
+            int? phaseFilter = null;
+            if (_cfg.CollectionMode == IrCollectionMode.TwoPhase)
+            {
+                if (Phase1OnlyCheck.IsChecked == true) phaseFilter = 1;
+                else if (Phase2OnlyCheck.IsChecked == true) phaseFilter = 2;
+            }
+
+            var rt = new CollectionPlan.RuntimeOptions(
+                _cfg.Tsource,
+                Simulate: simulateOnly,
+                PhaseFilter: phaseFilter,
+                SkipMemory: SkipMemoryCheck.IsChecked == true,
+                CaseIdOverride: string.IsNullOrWhiteSpace(CaseIdBox.Text) ? null : CaseIdBox.Text.Trim(),
+                ResultsRoot: _resultsRoot);
+
+            SetStatus(simulateOnly ? "Оценка объёма (--sim)…" : "Сбор артефактов…", indeterminate: true);
             PercentText.Text = "…";
 
-            var exit = await RunKapeAsync(kape, args, _packageDir);
-            _resultsDir = Path.Combine(_packageDir, "RESULTS", Environment.MachineName);
+            var self = Environment.ProcessPath;
+            var result = await CollectionRunner.RunAsync(
+                _packageDir,
+                kape,
+                _cfg,
+                rt,
+                self,
+                Log,
+                async (exe, args, wd) =>
+                {
+                    Log(simulateOnly
+                        ? $"Оценка: kape.exe {string.Join(" ", args.Select(Quote))}"
+                        : $"Команда: kape.exe {string.Join(" ", args.Select(Quote))}");
+                    return await RunKapeAsync(exe, args, wd);
+                });
 
-            if (Directory.Exists(_resultsDir))
+            _resultsDir = result.ResultsDir;
+
+            if (simulateOnly)
             {
-                SetStatus("Готово", indeterminate: false, percent: 100);
-                ProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));
+                SetStatus(result.ExitCode == 0 ? "Оценка завершена" : $"Оценка: код {result.ExitCode}",
+                    indeterminate: false, percent: 100);
+                ProgressBar.Foreground = new SolidColorBrush(
+                    result.ExitCode == 0 ? Color.FromRgb(0x3F, 0xB9, 0x50) : Color.FromRgb(0xF8, 0x51, 0x49));
+                Log(result.ExitCode == 0
+                    ? "Оценка (--sim) завершена. Файлы не копировались."
+                    : $"Оценка завершилась с кодом {result.ExitCode}.");
+                return result.ExitCode == 0;
+            }
+
+            if (_resultsDir is not null && Directory.Exists(_resultsDir))
+            {
+                SetStatus(result.ExitCode == 0 ? "Готово" : $"Готово с ошибками (код {result.ExitCode})",
+                    indeterminate: false, percent: 100);
+                ProgressBar.Foreground = new SolidColorBrush(
+                    result.ExitCode == 0 ? Color.FromRgb(0x3F, 0xB9, 0x50) : Color.FromRgb(0xF8, 0x51, 0x49));
                 Log($"Результаты: {_resultsDir}");
                 OpenResultsBtn.IsEnabled = true;
             }
             else
             {
-                SetStatus(exit == 0 ? "Сбор не создал RESULTS" : $"Ошибка (код {exit})", indeterminate: false);
+                SetStatus(result.ExitCode == 0 ? "Сбор не создал RESULTS" : $"Ошибка (код {result.ExitCode})",
+                    indeterminate: false);
                 ProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49));
                 ProgressBar.Value = 100;
                 Log("Папка RESULTS не создана — сбор не выполнен или упал.");
             }
+
+            return true;
         }
         catch (Exception ex)
         {
             Fail(ex.Message);
+            return false;
         }
         finally
         {
             _running = false;
             _kapeProcess = null;
+            StopCopyPulse();
             CancelRunBtn.IsEnabled = false;
             CloseBtn.IsEnabled = true;
             ProgressBar.IsIndeterminate = false;
             SourcePanel.IsEnabled = true;
             StartBtn.IsEnabled = true;
+            SimBtn.IsEnabled = true;
         }
     }
 
     private void PopulateDrives(string preferred)
     {
-        DriveCombo.Items.Clear();
-        string? preferredRoot = null;
+        DriveCombo.SelectionChanged -= DriveCombo_SelectionChanged;
         try
         {
-            preferredRoot = Path.GetPathRoot(preferred.EndsWith(':') ? preferred + "\\" : preferred);
-        }
-        catch { /* ignore */ }
-
-        var selected = -1;
-        try
-        {
-            foreach (var d in DriveInfo.GetDrives().Where(x => x.IsReady))
+            DriveCombo.Items.Clear();
+            string? preferredRoot = null;
+            try
             {
-                var label = string.IsNullOrWhiteSpace(d.VolumeLabel)
-                    ? $"{d.Name.TrimEnd('\\')}"
-                    : $"{d.Name.TrimEnd('\\')} ({d.VolumeLabel})";
-                var idx = DriveCombo.Items.Add(new DriveItem(d.Name.TrimEnd('\\'), label));
-                if (preferredRoot is not null &&
-                    d.Name.StartsWith(preferredRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
-                    selected = idx;
+                preferredRoot = Path.GetPathRoot(preferred.EndsWith(':') ? preferred + "\\" : preferred);
             }
+            catch { /* ignore */ }
+
+            var selected = -1;
+            try
+            {
+                foreach (var d in DriveInfo.GetDrives().Where(x => x.IsReady))
+                {
+                    var root = d.Name.TrimEnd('\\');
+                    string label;
+                    try
+                    {
+                        label = string.IsNullOrWhiteSpace(d.VolumeLabel)
+                            ? root
+                            : $"{root} ({d.VolumeLabel})";
+                    }
+                    catch
+                    {
+                        label = root;
+                    }
+
+                    // Plain data object + ItemTemplate (not ComboBoxItem): custom chrome + SelectionBoxItem stay readable.
+                    var idx = DriveCombo.Items.Add(new DriveItem(root, label));
+                    if (preferredRoot is not null &&
+                        d.Name.StartsWith(preferredRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                        selected = idx;
+                }
+            }
+            catch { /* ignore */ }
+
+            if (DriveCombo.Items.Count == 0)
+                DriveCombo.Items.Add(new DriveItem("C:", "C:"));
+
+            if (selected >= 0) DriveCombo.SelectedIndex = selected;
+            else DriveCombo.SelectedIndex = 0;
+
+            ApplySelectedDriveToTsource();
         }
-        catch { /* ignore */ }
-
-        if (DriveCombo.Items.Count == 0)
-            DriveCombo.Items.Add(new DriveItem("C:", "C:"));
-
-        DriveCombo.DisplayMemberPath = nameof(DriveItem.Label);
-        if (selected >= 0) DriveCombo.SelectedIndex = selected;
-        else DriveCombo.SelectedIndex = 0;
+        finally
+        {
+            DriveCombo.SelectionChanged += DriveCombo_SelectionChanged;
+        }
     }
 
     private void DriveCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (DriveCombo.SelectedItem is DriveItem item)
-            TsourceBox.Text = item.Root;
+        try
+        {
+            ApplySelectedDriveToTsource();
+        }
+        catch
+        {
+            /* never crash the pack UI on drive pick */
+        }
+    }
+
+    private void ApplySelectedDriveToTsource()
+    {
+        if (DriveCombo.SelectedItem is not DriveItem drive || string.IsNullOrWhiteSpace(drive.Root))
+            return;
+        _selectedTsource = drive.Root;
+        // Editable ComboBox: keep selection text explicit (Win11 theme sometimes leaves the box blank).
+        if (!string.Equals(DriveCombo.Text, drive.Label, StringComparison.Ordinal))
+            DriveCombo.Text = drive.Label;
+    }
+
+    private void PhaseOnly_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender == Phase1OnlyCheck && Phase1OnlyCheck.IsChecked == true)
+            Phase2OnlyCheck.IsChecked = false;
+        else if (sender == Phase2OnlyCheck && Phase2OnlyCheck.IsChecked == true)
+            Phase1OnlyCheck.IsChecked = false;
     }
 
     private Task<int> RunKapeAsync(string kape, List<string> args, string workDir)
     {
-        var enc = GetConsoleEncoding();
-        var tcs = new TaskCompletionSource<int>();
-        var psi = new ProcessStartInfo
-        {
-            FileName = kape,
-            WorkingDirectory = workDir,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            StandardOutputEncoding = enc,
-            StandardErrorEncoding = enc
-        };
-        foreach (var a in args)
-            psi.ArgumentList.Add(a);
-
-        var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        _kapeProcess = proc;
-        proc.OutputDataReceived += (_, e) =>
-        {
-            if (e.Data is null) return;
-            Dispatcher.Invoke(() =>
+        return KapeProcessHost.StartAsync(
+            kape,
+            args,
+            workDir,
+            onLine: line =>
             {
-                Log(e.Data);
-                TryUpdateProgress(e.Data);
-            });
-        };
-        proc.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is null) return;
-            Dispatcher.Invoke(() =>
-            {
-                Log(e.Data);
-                TryUpdateProgress(e.Data);
-            });
-        };
-        proc.Exited += (_, _) =>
-        {
-            try { tcs.TrySetResult(proc.ExitCode); }
-            finally { proc.Dispose(); }
-        };
-
-        if (!proc.Start())
-        {
-            tcs.TrySetResult(-1);
-            return tcs.Task;
-        }
-
-        proc.BeginOutputReadLine();
-        proc.BeginErrorReadLine();
-        return tcs.Task;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    Log(line);
+                    TryUpdateProgress(line);
+                });
+            },
+            onStarted: proc => _kapeProcess = proc);
     }
 
     private void TryUpdateProgress(string line)
     {
-        if (string.IsNullOrWhiteSpace(line)) return;
+        var update = _progressParser.TryParse(line);
+        if (update is null) return;
 
-        var found = FoundFiles.Match(line);
-        if (found.Success && TryParseCount(found.Groups[1].Value, out var nFound) && nFound > 0)
+        if (update.ResetPhase)
         {
-            _foundFiles = nFound;
-            _copiedFiles = 0;
-            ApplyProgress(0, $"Найдено файлов: {_foundFiles:N0}");
-            return;
+            StopCopyPulse();
+            _phaseFloor = update.PhaseFloor ?? _phaseFloor;
+            _phaseCeil = update.PhaseCeil ?? _phaseCeil;
+            _localProgress = 0;
         }
 
-        var copy = CopyProgress.Match(line);
-        if (copy.Success
-            && TryParseCount(copy.Groups[1].Value, out var done)
-            && TryParseCount(copy.Groups[2].Value, out var total)
-            && total > 0)
-        {
-            _copiedFiles = done;
-            _foundFiles = total;
-            var pct = 75.0 * done / total;
-            ApplyProgress(pct, $"Копирование… {done:N0} / {total:N0}");
-            return;
-        }
+        if (update.StopCopyPulse)
+            StopCopyPulse();
+        if (update.StartCopyPulse)
+            StartCopyPulse();
 
-        if (CopiedDeferred.IsMatch(line) && _foundFiles > 0)
-        {
-            _copiedFiles = Math.Min(_copiedFiles + 1, _foundFiles);
-            var pct = 75.0 * _copiedFiles / _foundFiles;
-            ApplyProgress(pct, $"Копирование… {_copiedFiles:N0} / {_foundFiles:N0}");
-            return;
-        }
+        SetLocalProgress(update.Local0to100, update.Status);
+    }
 
-        if (line.Contains("powershell.exe", StringComparison.OrdinalIgnoreCase)
-            || line.Contains("Running module", StringComparison.OrdinalIgnoreCase)
-            || (line.StartsWith("Running ", StringComparison.OrdinalIgnoreCase)
-                && line.Contains(".exe", StringComparison.OrdinalIgnoreCase)))
-        {
-            var tip = line.Contains("powershell", StringComparison.OrdinalIgnoreCase)
-                ? "Модуль PowerShell (может занять несколько минут)…"
-                : "Выполнение модулей…";
-            var basePct = Math.Max(ProgressBar.Value, 75);
-            if (basePct < 75) basePct = 75;
-            if (ProgressBar.IsIndeterminate || ProgressBar.Value < 75)
-                ApplyProgress(Math.Min(basePct + 1, 95), tip);
-            else
-            {
-                StatusText.Text = tip;
-                PercentText.Text = $"{ProgressBar.Value:0}%";
-                ProgressBar.IsIndeterminate = false;
-            }
-        }
+    private void BeginPhaseRange(double floor, double ceil, string status)
+    {
+        StopCopyPulse();
+        _progressParser.ResetCounters();
+        _phaseFloor = floor;
+        _phaseCeil = ceil;
+        _localProgress = 0;
+        SetLocalProgress(0, status);
+    }
+
+    private void SetLocalProgress(double local0to100, string status)
+    {
+        _progressParser.SetLocalProgress(local0to100);
+        _localProgress = Math.Clamp(local0to100, 0, 100);
+        var span = Math.Max(0.1, _phaseCeil - _phaseFloor);
+        var overall = _phaseFloor + span * _localProgress / 100.0;
+        ApplyProgress(overall, status);
+    }
+
+    private void StartCopyPulse()
+    {
+        _copyPulseActive = true;
+        _copyPulseTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
+        _copyPulseTimer.Tick -= CopyPulse_Tick;
+        _copyPulseTimer.Tick += CopyPulse_Tick;
+        _copyPulseTimer.Start();
+    }
+
+    private void StopCopyPulse()
+    {
+        _copyPulseActive = false;
+        if (_copyPulseTimer is null) return;
+        _copyPulseTimer.Stop();
+        _copyPulseTimer.Tick -= CopyPulse_Tick;
+    }
+
+    private void CopyPulse_Tick(object? sender, EventArgs e)
+    {
+        if (!_copyPulseActive || !_running) return;
+        var pulse = _progressParser.PulseCopy();
+        if (pulse is not null)
+            SetLocalProgress(pulse.Local0to100, pulse.Status);
     }
 
     private void ApplyProgress(double percent, string status)
@@ -351,6 +542,7 @@ public partial class MainWindow : Window
 
     private void Fail(string message)
     {
+        StopCopyPulse();
         SetStatus("Ошибка", indeterminate: false);
         ProgressBar.Value = 100;
         ProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49));
@@ -359,6 +551,9 @@ public partial class MainWindow : Window
         CloseBtn.IsEnabled = true;
         SaveLogBtn.IsEnabled = true;
         CancelRunBtn.IsEnabled = false;
+        StartBtn.IsEnabled = true;
+        SimBtn.IsEnabled = true;
+        SourcePanel.IsEnabled = true;
     }
 
     private void OpenResults_Click(object sender, RoutedEventArgs e)
@@ -419,25 +614,8 @@ public partial class MainWindow : Window
     private static string Quote(string s)
         => s.Contains(' ') || s.Contains('%') ? "\"" + s + "\"" : s;
 
-    private static Encoding GetConsoleEncoding()
+    private sealed record DriveItem(string Root, string Label)
     {
-        try
-        {
-            var oem = CultureInfo.CurrentCulture.TextInfo.OEMCodePage;
-            return Encoding.GetEncoding(oem);
-        }
-        catch
-        {
-            try { return Encoding.GetEncoding(866); }
-            catch { return Encoding.Default; }
-        }
+        public override string ToString() => Label;
     }
-
-    private static bool TryParseCount(string raw, out int value)
-    {
-        var digits = new string(raw.Where(char.IsDigit).ToArray());
-        return int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out value);
-    }
-
-    private sealed record DriveItem(string Root, string Label);
 }

@@ -1,6 +1,7 @@
 using System.Windows;
 using CommunityToolkit.Mvvm.Input;
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
 using KapePackBuilder.Services;
 
 namespace KapePackBuilder.ViewModels;
@@ -14,7 +15,8 @@ public partial class MainViewModel
             "Выберите корень KAPE",
             !string.IsNullOrWhiteSpace(KapeRoot) && Directory.Exists(KapeRoot) ? KapeRoot : null);
         if (folder is null) return;
-        KapeRoot = folder;
+        try { KapeRoot = KapeRootPaths.Normalize(folder); }
+        catch { KapeRoot = folder; }
         _ = ReloadCatalogAsync();
     }
 
@@ -22,10 +24,12 @@ public partial class MainViewModel
     private async Task ReloadCatalogAsync()
     {
         KapeRoot = (KapeRoot ?? "").Trim();
-        if (!Directory.Exists(Path.Combine(KapeRoot, "Targets")))
+        if (string.IsNullOrEmpty(KapeRoot) || !KapeRootPaths.LooksLikeKapeRoot(KapeRoot))
         {
             if (_dialogs.Confirm(
-                    $"Папка Targets не найдена в:\n{KapeRoot}\n\nВыбрать другую папку?",
+                    string.IsNullOrEmpty(KapeRoot)
+                        ? "Корень KAPE не задан.\n\nВыбрать папку?"
+                        : $"Папка Targets не найдена в:\n{KapeRoot}\n\nВыбрать другую папку?",
                     "Корень KAPE",
                     DialogIcon.Error))
             {
@@ -34,26 +38,43 @@ public partial class MainViewModel
             return;
         }
 
-        StatusText = "Сканирование каталога…";
-        var root = KapeRoot;
-        await Task.Run(() =>
+        string root;
+        try { root = KapeRootPaths.Normalize(KapeRoot); }
+        catch
         {
-            var cat = new KapeCatalog(root);
-            cat.Refresh();
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                _catalog = cat;
-                _settings.LastKapeRoot = root;
-                _settings.Save();
-                OnCatalogLoaded();
-            });
+            _dialogs.ShowMessage("Некорректный путь корня KAPE.", "Корень KAPE", DialogIcon.Error);
+            return;
+        }
+
+        if (!string.Equals(KapeRoot, root, StringComparison.OrdinalIgnoreCase))
+        {
+            _suppressKapeRootReload = true;
+            try { KapeRoot = root; }
+            finally { _suppressKapeRootReload = false; }
+        }
+
+        StatusText = "Сканирование каталога…";
+        var stats = await Task.Run(() => _catalogWs.Reload(root));
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            _settings.LastKapeRoot = root;
+            _settings.Save();
+            OnCatalogLoaded(stats);
         });
     }
 
-    private void OnCatalogLoaded()
+    private void OnCatalogLoaded(CatalogRefreshStats? stats = null)
     {
         var last = GitHubKapeFilesSync.ReadLastSync(KapeRoot);
         var syncNote = last is not null && last.TryGetValue("synced_at", out var at) ? $" | синхронизация GitHub: {at}" : "";
+        var localN = _catalog.Targets.Concat(_catalog.Modules).Count(i => i.Origin == CatalogOrigin.Local);
+        var ghN = _catalog.Targets.Concat(_catalog.Modules).Count(i => i.Origin == CatalogOrigin.GitHub);
+        var unkN = _catalog.Targets.Concat(_catalog.Modules).Count(i => i.Origin == CatalogOrigin.Unknown);
+        var originNote = _catalog.HasUpstreamInventory
+            ? $" | источник: GitHub {ghN}, локальных {localN}"
+            : unkN > 0
+                ? $" | источник: локальных (по Author) {localN}, ? {unkN} — нажмите «Обновить…» для меток GitHub"
+                : $" | источник: локальных {localN}";
         var tDup = NameCollisionFixer.FindCollisions(_catalog.Targets);
         var mDup = NameCollisionFixer.FindCollisions(_catalog.Modules);
         var dupNote = "";
@@ -61,17 +82,24 @@ public partial class MainViewModel
         {
             dupNote = $" | ⚠ дубликаты имён: Targets {tDup.Count}, Modules {mDup.Count} — KAPE упадёт при валидации. Нажмите «Убрать дубликаты».";
         }
-        StatusText = $"Загружено: {_catalog.Targets.Count} таргетов, {_catalog.Modules.Count} модулей{syncNote}{dupNote}";
+        var cacheNote = stats is { FilesSeen: > 0 }
+            ? $" | кеш файлов: {stats.CacheHits}/{stats.FilesSeen}"
+            : "";
+        StatusText = $"Загружено: {_catalog.Targets.Count} таргетов, {_catalog.Modules.Count} модулей{syncNote}{originNote}{dupNote}{cacheNote}";
         RefreshTargetRows();
         RefreshModuleRows();
         RefreshExisting();
         RebuildTree();
         SyncSelectionTexts();
+        _ = LoadBinariesAsync(updateStatus: false);
     }
 
     [RelayCommand]
     private async Task FixNameCollisionsAsync()
     {
+        var root = await EnsureCatalogBoundToUiRootAsync();
+        if (root is null) return;
+
         var tDup = NameCollisionFixer.FindCollisions(_catalog.Targets);
         var mDup = NameCollisionFixer.FindCollisions(_catalog.Modules);
         if (tDup.Count + mDup.Count == 0)
@@ -98,7 +126,6 @@ public partial class MainViewModel
             return;
 
         StatusText = "Устранение дубликатов имён…";
-        var root = KapeRoot;
         var targets = _catalog.Targets.ToList();
         var modules = _catalog.Modules.ToList();
         var (tFix, mFix) = await Task.Run(() =>
@@ -122,74 +149,44 @@ public partial class MainViewModel
 
     public void RefreshTargetRows()
     {
-        var compoundsOnly = ParseFilter(TargetFilter);
-        var selectedOnly = TargetFilter == "Только выбранные";
-        var keys = KapeCatalog.BuildSelectionKeys(Package.Targets);
-        var items = _catalog.FilterTargets(TargetSearch, selectedOnly ? null : compoundsOnly).ToList();
-        if (selectedOnly)
-            items = items.Where(i => KapeCatalog.IsSelected(i, keys)).ToList();
-
         var wasSuppressing = _suppressSelectionEvents;
         _suppressSelectionEvents = true;
-        TargetRows.Clear();
-        foreach (var item in items)
-            TargetRows.Add(new CatalogRowVm(item, KapeCatalog.IsSelected(item, keys)));
+        CatalogUiHelpers.FillObservable(
+            TargetRows,
+            CatalogUiHelpers.BuildFilteredRows(_catalog, ItemKind.Target, TargetSearch, TargetFilter, Package.Targets));
         if (!wasSuppressing)
             _suppressSelectionEvents = false;
     }
 
     public void RefreshModuleRows()
     {
-        var compoundsOnly = ParseFilter(ModuleFilter);
-        var selectedOnly = ModuleFilter == "Только выбранные";
-        var keys = KapeCatalog.BuildSelectionKeys(Package.Modules);
-        var items = _catalog.FilterModules(ModuleSearch, selectedOnly ? null : compoundsOnly).ToList();
-        if (selectedOnly)
-            items = items.Where(i => KapeCatalog.IsSelected(i, keys)).ToList();
-
         var wasSuppressing = _suppressSelectionEvents;
         _suppressSelectionEvents = true;
-        ModuleRows.Clear();
-        foreach (var item in items)
-            ModuleRows.Add(new CatalogRowVm(item, KapeCatalog.IsSelected(item, keys)));
+        CatalogUiHelpers.FillObservable(
+            ModuleRows,
+            CatalogUiHelpers.BuildFilteredRows(_catalog, ItemKind.Module, ModuleSearch, ModuleFilter, Package.Modules));
         if (!wasSuppressing)
             _suppressSelectionEvents = false;
     }
 
     private void RefreshExisting()
     {
-        ExistingPacks.Clear();
-        foreach (var c in _catalog.Compounds(ItemKind.Target).OrderBy(c => c.Name))
-            ExistingPacks.Add(new CatalogRowVm(c, false));
+        CatalogUiHelpers.FillObservable(ExistingPacks, CatalogUiHelpers.BuildExistingPackRows(_catalog));
     }
 
     public void RebuildTree()
     {
         var expandedPaths = CaptureExpandedPaths();
         var kind = TreeIsTargets ? ItemKind.Target : ItemKind.Module;
-        var compounds = _catalog.Compounds(kind).ToList();
-        var childNames = compounds
-            .SelectMany(c => c.Children)
-            .Select(c => Path.GetFileNameWithoutExtension(c).ToLowerInvariant())
-            .ToHashSet();
-
-        var roots = compounds.Where(c => !childNames.Contains(c.Name.ToLowerInvariant())).ToList();
-        foreach (var c in compounds.Where(c => c.Name.StartsWith('!') && !roots.Contains(c)))
-            roots.Add(c);
-
         var keys = KapeCatalog.BuildSelectionKeys(kind == ItemKind.Target ? Package.Targets : Package.Modules);
-        var query = TreeSearch.Trim().ToLowerInvariant();
-
-        TreeRoots.Clear();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var root in roots.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            if (!seen.Add(root.AbsolutePath)) continue;
-            var node = BuildTreeNode(root, kind, keys, query, TreeSharedOnly, 0, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-            if (node is not null)
-                TreeRoots.Add(node);
-        }
-
+        var roots = CatalogUiHelpers.BuildTreeRoots(
+            _catalog,
+            kind,
+            kind == ItemKind.Target ? Package.Targets : Package.Modules,
+            TreeSearch,
+            TreeSharedOnly,
+            BuildTreeNode);
+        CatalogUiHelpers.FillObservable(TreeRoots, roots);
         RestoreExpandedPaths(expandedPaths);
         UpdateTreeStats(kind, keys);
     }
@@ -401,13 +398,6 @@ public partial class MainViewModel
         SelectedModulesText = string.Join('\n', Package.Modules.Select(m => $"{m.Path}  |  {m.Name}  |  {m.Category}"));
     }
 
-    private static bool? ParseFilter(string filter) => filter switch
-    {
-        "Только compound" => true,
-        "Только leaf" => false,
-        _ => null
-    };
-
     [RelayCommand]
     private void CheckVisibleTargets()
     {
@@ -468,11 +458,11 @@ public partial class MainViewModel
             return;
         }
 
-        var dlg = new SuggestModulesWindow(suggestions) { Owner = Application.Current.MainWindow };
-        if (dlg.ShowDialog() != true || !dlg.Applied || dlg.Chosen.Count == 0)
+        var chosen = _dialogs.PickModuleSuggestions(suggestions);
+        if (chosen is null || chosen.Count == 0)
             return;
 
-        var incoming = dlg.Chosen.Select(m => new SelectionEntry
+        var incoming = chosen.Select(m => new SelectionEntry
         {
             Name = m.Name,
             Category = string.IsNullOrWhiteSpace(m.Category) ? "General" : m.Category,
@@ -481,7 +471,7 @@ public partial class MainViewModel
         Package.Modules = KapeCatalog.MergeEntries(Package.Modules, incoming);
         ModuleFilter = "Только выбранные";
         SyncAllViews();
-        StatusText = $"Добавлено модулей из подсказок: {dlg.Chosen.Count} (в пакете {Package.Modules.Count})";
+        StatusText = $"Добавлено модулей из подсказок: {chosen.Count} (в пакете {Package.Modules.Count})";
     }
 
     [RelayCommand]

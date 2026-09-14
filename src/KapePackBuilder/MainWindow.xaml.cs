@@ -13,7 +13,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainViewModel();
+        var app = (App)Application.Current;
+        DataContext = app.CreateMainViewModel();
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -24,13 +25,13 @@ public partial class MainWindow : Window
     private void TargetCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (sender is CheckBox { DataContext: CatalogRowVm row })
-            Vm.ToggleCatalogRow(row, Models.ItemKind.Target);
+            Vm.ToggleCatalogRow(row, KapePack.Core.Models.ItemKind.Target);
     }
 
     private void ModuleCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (sender is CheckBox { DataContext: CatalogRowVm row })
-            Vm.ToggleCatalogRow(row, Models.ItemKind.Module);
+            Vm.ToggleCatalogRow(row, KapePack.Core.Models.ItemKind.Module);
     }
 
     private void TreeCheck_Changed(object sender, RoutedEventArgs e)
@@ -40,12 +41,12 @@ public partial class MainWindow : Window
     }
 
     private void TargetList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        => TryToggleRowFromClick(e, Models.ItemKind.Target);
+        => TryToggleRowFromClick(e, KapePack.Core.Models.ItemKind.Target);
 
     private void ModuleList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        => TryToggleRowFromClick(e, Models.ItemKind.Module);
+        => TryToggleRowFromClick(e, KapePack.Core.Models.ItemKind.Module);
 
-    private void TryToggleRowFromClick(MouseButtonEventArgs e, Models.ItemKind kind)
+    private void TryToggleRowFromClick(MouseButtonEventArgs e, KapePack.Core.Models.ItemKind kind)
     {
         // Checkbox handles itself via Checked/Unchecked.
         if (FindVisualParent<CheckBox>(e.OriginalSource as DependencyObject) is not null)

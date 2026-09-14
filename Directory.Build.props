@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <KapePackVersion>1.8.3</KapePackVersion>
+    <Version>$(KapePackVersion)</Version>
+    <AssemblyVersion>1.8.3.0</AssemblyVersion>
+    <FileVersion>1.8.3.0</FileVersion>
+    <InformationalVersion>$(KapePackVersion)</InformationalVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

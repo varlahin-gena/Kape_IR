@@ -120,6 +120,8 @@
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <TextBlock Text="Корень KAPE:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
         <TextBox Grid.Column="1" Text="{Binding KapeRoot, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center"/>
@@ -127,11 +129,15 @@
         <Button Grid.Column="3" Content="Обновить" Command="{Binding ReloadCatalogCommand}"/>
         <Button Grid.Column="4" Content="Убрать дубликаты" Command="{Binding FixNameCollisionsCommand}"
                 ToolTip="KAPE требует уникальные имена .tkape/.mkape. Лишние копии → PackBuilder\name_collisions"/>
-        <Button Grid.Column="5" Content="Обновить с GitHub" Command="{Binding UpdateFromGitHubCommand}"
-                Background="#2d6a4f" Foreground="White"/>
-        <Button Grid.Column="6" Content="Отмена" Command="{Binding CancelSyncCommand}"
+        <Button Grid.Column="5" Content="Обновить…" Command="{Binding UpdateFromGitHubCommand}"
+                Background="#2d6a4f" Foreground="White"
+                ToolTip="Проверка и обновление: KapeFiles (Targets/Modules), EZ Tools (Modules\bin), Chainsaw (Modules\bin\chainsaw)"/>
+        <Button Grid.Column="6" Content="Журнал" Command="{Binding OpenAppLogFolderCommand}"
+                ToolTip="Открыть папку логов Pack Builder"/>
+        <Button Grid.Column="7" Content="О программе" Command="{Binding ShowAboutCommand}"/>
+        <Button Grid.Column="8" Content="Отмена" Command="{Binding CancelSyncCommand}"
                 Visibility="{Binding IsSyncing, Converter={StaticResource BoolToVis}}"
-                ToolTip="Отменить загрузку/синхронизацию с GitHub"/>
+                ToolTip="Отменить проверку/скачивание обновлений"/>
       </Grid>
     </Border>
 
@@ -205,8 +211,9 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="260"/>
-                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="320"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="220"/>
+                  <GridViewColumn Header="Источник" DisplayMemberBinding="{Binding OriginLabel}" Width="90"/>
+                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="280"/>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -271,8 +278,9 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="260"/>
-                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="320"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="220"/>
+                  <GridViewColumn Header="Источник" DisplayMemberBinding="{Binding OriginLabel}" Width="90"/>
+                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="280"/>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -294,7 +302,9 @@
               </Grid.ColumnDefinitions>
               <TextBox Text="{Binding TreeSearch, UpdateSourceTrigger=PropertyChanged}"
                        ToolTip="Поиск в дереве"/>
-              <CheckBox Grid.Column="1" Content="Только общие" IsChecked="{Binding TreeSharedOnly}" VerticalAlignment="Center" Margin="8,0"/>
+              <CheckBox Grid.Column="1" Content="Только общие" IsChecked="{Binding TreeSharedOnly}"
+                        VerticalAlignment="Center" Margin="8,0"
+                        ToolTip="Показать только leaf, которые входят в несколько compound-пакетов (⋆). Узлы без пересечений скрываются."/>
               <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
                 <RadioButton Content="Таргеты"
                              GroupName="TreeKind"
@@ -352,7 +362,7 @@
         <TabItem Header="Готовые пакеты">
           <DockPanel Margin="6">
             <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,8"
-                       Text="Загрузить один compound в пакет (галочки синхронизируются). Чтобы объединить несколько — используйте «Дерево compound»."/>
+                       Text="Compound-таргеты каталога. «Роль»: корневой = никуда не вложен; вложенный = входит в другой compound. «Используется в» — все родительские пакеты. «Детей» — прямые ссылки внутри. Загрузка одного compound в пакет; объединить несколько — «Дерево compound»."/>
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
               <Button Content="Загрузить выбранный" Command="{Binding LoadSelectedCompoundCommand}"/>
               <Button Content="Открыть package.json…" Command="{Binding OpenPackageJsonCommand}"/>
@@ -366,8 +376,59 @@
                       VirtualizingPanel.IsVirtualizing="True">
               <ListView.View>
                 <GridView>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="220"/>
-                  <GridViewColumn Header="Описание" DisplayMemberBinding="{Binding Item.Description}" Width="420"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="180"/>
+                  <GridViewColumn Header="Роль" DisplayMemberBinding="{Binding NestingRole}" Width="80"/>
+                  <GridViewColumn Header="Детей" DisplayMemberBinding="{Binding ChildCount}" Width="50"/>
+                  <GridViewColumn Header="Используется в" DisplayMemberBinding="{Binding UsedByDisplay}" Width="260"/>
+                  <GridViewColumn Header="Источник" DisplayMemberBinding="{Binding OriginLabel}" Width="80"/>
+                  <GridViewColumn Header="Описание" DisplayMemberBinding="{Binding Item.Description}" Width="280"/>
+                </GridView>
+              </ListView.View>
+            </ListView>
+          </DockPanel>
+        </TabItem>
+
+        <!-- Modules\bin utilities (parsers / live tools) -->
+        <TabItem Header="Утилиты">
+          <DockPanel Margin="6">
+            <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#aaa" Margin="0,0,0,6"
+                       Text="Утилиты из Modules\bin (EXE и корневые .ps1): парсеры EZ Tools, Chainsaw, winpmem и др. Нужны при сборке пакета с «Включить Modules\bin» и на цели при --module / Phase1. ★ — ключевой парсер triage. Правила Chainsaw .yml здесь не перечисляются."/>
+            <TextBlock DockPanel.Dock="Top" Text="{Binding BinariesSummary}" TextWrapping="Wrap" Margin="0,0,0,6"
+                       FontWeight="SemiBold"/>
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="160"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBox Text="{Binding BinarySearch, UpdateSourceTrigger=PropertyChanged}"
+                       ToolTip="Поиск по имени, пути, версии, product"/>
+              <ComboBox Grid.Column="1" Margin="6,0,0,0"
+                        ItemsSource="{Binding BinaryFilterOptions}"
+                        SelectedItem="{Binding BinaryFilter}"/>
+              <Button Grid.Column="2" Content="Обновить список" Command="{Binding ReloadBinariesCommand}"
+                      ToolTip="Пересканировать Modules\bin"/>
+              <Button Grid.Column="3" Content="Открыть папку" Command="{Binding OpenModulesBinFolderCommand}"/>
+              <Button Grid.Column="4" Content="Показать в Explorer" Command="{Binding OpenSelectedBinaryFolderCommand}"/>
+            </Grid>
+            <TextBox DockPanel.Dock="Bottom" Height="110" IsReadOnly="True" TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" Margin="0,6,0,0"
+                     Text="{Binding BinaryDetailText}"/>
+            <ListView ItemsSource="{Binding BinaryRows}"
+                      SelectedItem="{Binding SelectedBinary}"
+                      VirtualizingPanel.IsVirtualizing="True">
+              <ListView.View>
+                <GridView>
+                  <GridViewColumn Header="" DisplayMemberBinding="{Binding KeyMark}" Width="28"/>
+                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding Name}" Width="180"/>
+                  <GridViewColumn Header="Категория" DisplayMemberBinding="{Binding Category}" Width="100"/>
+                  <GridViewColumn Header="Группа" DisplayMemberBinding="{Binding Group}" Width="140"/>
+                  <GridViewColumn Header="Версия" DisplayMemberBinding="{Binding VersionDisplay}" Width="110"/>
+                  <GridViewColumn Header="Размер" DisplayMemberBinding="{Binding SizeDisplay}" Width="80"/>
+                  <GridViewColumn Header="Изменён" DisplayMemberBinding="{Binding ModifiedDisplay}" Width="120"/>
+                  <GridViewColumn Header="Путь" DisplayMemberBinding="{Binding RelativePath}" Width="220"/>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -393,11 +454,16 @@
             <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
               <CheckBox Content="Упаковать в ZIP" IsChecked="{Binding ZipOutput}"
                         ToolTip="Флаг KAPE --zip: архивировать собранные данные"/>
-              <CheckBox Content="Очистить вывод" IsChecked="{Binding Flush}"
-                        ToolTip="Флаг KAPE --flush: очистить папку назначения перед сбором"/>
               <CheckBox Content="Теневые копии (VSS)" IsChecked="{Binding Vss}"
+                        Margin="12,0,0,0"
                         ToolTip="Флаг KAPE --vss: сбор через Volume Shadow Copy"/>
             </StackPanel>
+            <CheckBox Content="Двухфазный IR (volatile → disk)" IsChecked="{Binding TwoPhaseCollection}"
+                      Margin="0,0,0,6"
+                      ToolTip="Фаза 1: VolatileFirst (добавляется автоматически; Modules\bin с winpmem/парсерами кладётся в EXE). Фаза 2: выбранные таргеты + остальные модули."/>
+            <TextBlock Text="Case ID (для CoC)" Opacity="0.85"/>
+            <TextBox Text="{Binding CaseId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"
+                     ToolTip="Идентификатор дела → chain_of_custody.txt на целевом хосте"/>
             <TextBlock Text="Выбранные таргеты" FontWeight="Bold"/>
             <TextBox Text="{Binding SelectedTargetsText}" IsReadOnly="True" Height="140" TextWrapping="NoWrap"
                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"/>
@@ -413,14 +479,8 @@
             <TextBlock Text="Заметки"/>
             <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" Height="60" TextWrapping="Wrap"
                      AcceptsReturn="True" Margin="0,0,0,8"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-              <CheckBox Content="Также установить в KAPE" IsChecked="{Binding InstallIntoKape}"
-                        ToolTip="Дополнительно скопировать compound в локальный KAPE"/>
-              <CheckBox Content="Оставить ZIP" IsChecked="{Binding MakeZip}"
-                        ToolTip="Помимо EXE сохранить ZIP-архив пакета"/>
-              <CheckBox Content="Включить Modules\bin" IsChecked="{Binding IncludeModuleBin}"
-                        ToolTip="Положить инструменты парсеров в автономный пакет (может быть большим)"/>
-            </StackPanel>
+            <CheckBox Content="Оставить ZIP" IsChecked="{Binding MakeZip}" Margin="0,0,0,10"
+                      ToolTip="Помимо EXE сохранить ZIP-архив пакета (папка пакета не сохраняется)"/>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>

@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using System.Text;
-using KapePackBuilder.Models;
-using KapePackBuilder.Services;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
 
 namespace KapePackBuilder.Tests;
 
@@ -136,6 +136,58 @@ Targets:
             Assert.True(File.Exists(Path.Combine(result.PackageDir, "Targets", "Apps", "DemoLeaf.tkape")));
             Assert.Contains("DemoLeaf", File.ReadAllText(result.TargetFile));
             Assert.Equal("UnitPack", pkg.TargetCompoundName);
+        }
+        finally
+        {
+            try { Directory.Delete(tmp, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public void Export_RefusesOverwrite_WithoutFlag()
+    {
+        var tmp = Path.Combine(Path.GetTempPath(), "kape_export_ow_" + Guid.NewGuid().ToString("N"));
+        var fakeRoot = Path.Combine(tmp, "kape");
+        Directory.CreateDirectory(Path.Combine(fakeRoot, "Targets", "Apps"));
+        Directory.CreateDirectory(Path.Combine(fakeRoot, "Modules"));
+        File.WriteAllText(Path.Combine(fakeRoot, "Targets", "Apps", "DemoLeaf.tkape"), """
+Description: demo
+Author: test
+Version: 1.0
+Id: 11111111-1111-1111-1111-111111111111
+RecreateDirectories: true
+Targets:
+    -
+        Name: Demo
+        Category: Apps
+        Path: C:\Windows\
+        FileMask: '*.log'
+""");
+        var outDir = Path.Combine(tmp, "out");
+        Directory.CreateDirectory(outDir);
+        try
+        {
+            var cat = new KapeCatalog(fakeRoot);
+            cat.Refresh();
+            var pkg = new PackageDefinition
+            {
+                Name = "OwPack",
+                Targets = { new SelectionEntry { Name = "DemoLeaf", Category = "Apps", Path = "DemoLeaf.tkape" } }
+            };
+            var exporter = new PackageExporter(cat);
+            var first = exporter.Export(pkg, outDir, copyDependencies: true, includeModuleBin: false, buildStandaloneExe: false);
+            Assert.True(Directory.Exists(first.PackageDir));
+            File.WriteAllText(Path.Combine(first.PackageDir, "marker.txt"), "keep");
+
+            var ex = Assert.Throws<IOException>(() =>
+                exporter.Export(pkg, outDir, copyDependencies: true, includeModuleBin: false, buildStandaloneExe: false,
+                    overwriteExisting: false));
+            Assert.Contains("уже существует", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.True(File.Exists(Path.Combine(first.PackageDir, "marker.txt")));
+
+            var second = exporter.Export(pkg, outDir, copyDependencies: true, includeModuleBin: false, buildStandaloneExe: false,
+                overwriteExisting: true);
+            Assert.False(File.Exists(Path.Combine(second.PackageDir, "marker.txt")));
         }
         finally
         {

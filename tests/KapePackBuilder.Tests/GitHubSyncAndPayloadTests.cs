@@ -3,14 +3,41 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using KapePackBuilder.Models;
-using KapePackBuilder.Services;
-using KapePackShared;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
+using KapePack.Core.Shared;
 
 namespace KapePackBuilder.Tests;
 
 public class GitHubSyncMockTests
 {
+    [Fact]
+    public async Task SyncAsync_RedirectsMisplacedTkapeFromModulesToTargets()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_sync_mis_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Targets", "Windows"));
+        Directory.CreateDirectory(Path.Combine(root, "Modules", "Windows"));
+        File.WriteAllText(Path.Combine(root, "Targets", "Windows", "Amcache.tkape"), "old-target");
+
+        var zipBytes = BuildKapeFilesZip(new Dictionary<string, string>
+        {
+            ["Targets/Windows/Amcache.tkape"] = "old-target",
+            // Upstream bug: updated target published under Modules
+            ["Modules/Windows/Amcache.tkape"] = "new-target-v1.1",
+            ["Modules/Windows/Ok.mkape"] = "module-ok"
+        });
+
+        using var handler = new FixedBytesHandler(zipBytes);
+        var result = await GitHubKapeFilesSync.SyncAsync(root, httpHandler: handler);
+
+        Assert.True(result.Ok, result.Message);
+        Assert.Equal("new-target-v1.1", File.ReadAllText(Path.Combine(root, "Targets", "Windows", "Amcache.tkape")));
+        Assert.False(File.Exists(Path.Combine(root, "Modules", "Windows", "Amcache.tkape")));
+        Assert.True(File.Exists(Path.Combine(root, "Modules", "Windows", "Ok.mkape")));
+        Assert.True(result.TargetsUpdated >= 1 || result.MisplacedSamples.Count >= 1, result.Message);
+        Assert.Contains(result.MisplacedSamples, s => s.Contains("Amcache.tkape", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public async Task SyncAsync_AddsAndSkipsEqual_WithMockedZip()
     {
@@ -45,6 +72,37 @@ public class GitHubSyncMockTests
         Assert.False(string.IsNullOrEmpty(result.ZipSha256));
         Assert.True(File.Exists(Path.Combine(root, "PackBuilder", GitHubKapeFilesSync.LastZipSha256FileName)));
         Assert.Equal(result.ZipSha256, GitHubKapeFilesSync.ReadLastZipSha256(root));
+
+        var upstream = GitHubKapeFilesSync.ReadUpstreamPathSet(root);
+        Assert.NotNull(upstream);
+        Assert.Contains("Targets/Apps/Old.tkape", upstream!);
+        Assert.Contains("Targets/Apps/NewOne.tkape", upstream!);
+        Assert.Contains("Modules/Compound/M1.mkape", upstream!);
+
+        // Replace mock placeholders with parseable KAPE YAML so catalog can load them.
+        const string leafYaml = """
+Description: leaf
+Author: test
+Version: 1.0
+Id: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+RecreateDirectories: true
+Targets:
+    -
+        Name: x
+        Category: x
+        Path: C:\Windows\x
+        FileMask: '*'
+""";
+        File.WriteAllText(Path.Combine(root, "Targets", "Apps", "NewOne.tkape"), leafYaml);
+        File.WriteAllText(Path.Combine(root, "Targets", "Apps", "LocalOnly.tkape"), leafYaml.Replace(
+            "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+
+        var cat = new KapeCatalog(root);
+        cat.Refresh();
+        Assert.True(cat.HasUpstreamInventory);
+        Assert.Equal(CatalogOrigin.GitHub, cat.FindTarget("NewOne")!.Origin);
+        Assert.Equal(CatalogOrigin.Local, cat.FindTarget("LocalOnly")!.Origin);
     }
 
     [Fact]
@@ -77,11 +135,68 @@ public class GitHubSyncMockTests
         Assert.False(File.Exists(Path.Combine(root, "Modules", "Compound", "M1.mkape")));
         Assert.False(Directory.Exists(Path.Combine(root, "PackBuilder", "sync_backup")));
         Assert.False(File.Exists(Path.Combine(root, "PackBuilder", GitHubKapeFilesSync.LastZipSha256FileName)));
+        // Dry-run still writes upstream path inventory for GitHub/local labels.
+        var upstream = GitHubKapeFilesSync.ReadUpstreamPathSet(root);
+        Assert.NotNull(upstream);
+        Assert.Contains("Targets/Apps/NewOne.tkape", upstream!);
+        Assert.Contains("Modules/Compound/M1.mkape", upstream!);
         Assert.True(result.TargetsAdded >= 1);
         Assert.True(result.TargetsUpdated >= 1);
         Assert.True(result.ModulesAdded >= 1);
         Assert.Contains(result.AddedSamples, s => s.Contains("NewOne", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.UpdatedSamples, s => s.Contains("Old", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task SyncAsync_PersistAndReuseZip_SkipsSecondDownload()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_sync_cache_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Targets", "Apps"));
+        Directory.CreateDirectory(Path.Combine(root, "Modules", "Compound"));
+        File.WriteAllText(Path.Combine(root, "Targets", "Apps", "Old.tkape"), "old");
+
+        var zipBytes = BuildKapeFilesZip(new Dictionary<string, string>
+        {
+            ["Targets/Apps/Old.tkape"] = "new",
+            ["Modules/Compound/M1.mkape"] = "mod"
+        });
+
+        var cacheZip = Path.Combine(Path.GetTempPath(), "kape_zip_cache_" + Guid.NewGuid().ToString("N") + ".zip");
+        using var handler = new CountingBytesHandler(zipBytes);
+        try
+        {
+            var dry = await GitHubKapeFilesSync.SyncAsync(
+                root,
+                httpHandler: handler,
+                options: new SyncOptions { DryRun = true, PersistZipTo = cacheZip });
+
+            Assert.True(dry.Ok, dry.Message);
+            Assert.Equal(1, handler.RequestCount);
+            Assert.True(File.Exists(cacheZip));
+            Assert.Equal(cacheZip, dry.CachedZipPath);
+            Assert.Equal("old", File.ReadAllText(Path.Combine(root, "Targets", "Apps", "Old.tkape")));
+
+            var apply = await GitHubKapeFilesSync.SyncAsync(
+                root,
+                httpHandler: handler,
+                options: new SyncOptions
+                {
+                    DryRun = false,
+                    ExistingZipPath = cacheZip,
+                    ExpectedZipSha256 = dry.ZipSha256,
+                    RememberZipSha256 = true
+                });
+
+            Assert.True(apply.Ok, apply.Message);
+            Assert.Equal(1, handler.RequestCount); // no second HTTP download
+            Assert.Equal("new", File.ReadAllText(Path.Combine(root, "Targets", "Apps", "Old.tkape")));
+            Assert.True(File.Exists(Path.Combine(root, "Modules", "Compound", "M1.mkape")));
+        }
+        finally
+        {
+            try { File.Delete(cacheZip); } catch { /* ignore */ }
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
     }
 
     [Fact]
@@ -169,6 +284,46 @@ public class GitHubSyncMockTests
         Assert.Contains("Ошибка загрузки", result.Message);
     }
 
+    [Fact]
+    public async Task SyncAsync_KeepsLocalOnlyFile_SecondPassUnchanged_WithMock()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_sync_local_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Targets", "Compound"));
+        Directory.CreateDirectory(Path.Combine(root, "Modules", "Compound"));
+        var custom = Path.Combine(root, "Targets", "Compound", "!LocalOnlyTest.tkape");
+        await File.WriteAllTextAsync(custom, "local-only-bytes");
+
+        var zipBytes = BuildKapeFilesZip(new Dictionary<string, string>
+        {
+            ["Targets/Apps/Prefetch.tkape"] = "prefetch-v1",
+            ["Targets/Apps/Amcache.tkape"] = "amcache-v1",
+            ["Modules/Compound/M1.mkape"] = "mod-v1"
+        });
+
+        using var handler = new FixedBytesHandler(zipBytes);
+        try
+        {
+            var first = await GitHubKapeFilesSync.SyncAsync(root, httpHandler: handler);
+            Assert.True(first.Ok, first.Message);
+            Assert.True(first.TargetsAdded + first.TargetsUpdated >= 2, first.Message);
+            Assert.True(File.Exists(custom));
+            Assert.Equal("local-only-bytes", await File.ReadAllTextAsync(custom));
+            Assert.True(File.Exists(Path.Combine(root, "Targets", "Apps", "Prefetch.tkape")));
+
+            var again = await GitHubKapeFilesSync.SyncAsync(root, httpHandler: handler);
+            Assert.True(again.Ok, again.Message);
+            Assert.Equal(0, again.TargetsAdded);
+            Assert.Equal(0, again.TargetsUpdated);
+            Assert.True(again.TargetsUnchanged >= 2, again.Message);
+            Assert.Contains("изменений нет", again.Message);
+            Assert.True(File.Exists(custom));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
     private static byte[] BuildKapeFilesZip(Dictionary<string, string> entries)
     {
         using var ms = new MemoryStream();
@@ -191,6 +346,25 @@ public class GitHubSyncMockTests
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var resp = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(_bytes)
+            };
+            resp.Content.Headers.ContentLength = _bytes.Length;
+            return Task.FromResult(resp);
+        }
+    }
+
+    private sealed class CountingBytesHandler : HttpMessageHandler
+    {
+        private readonly byte[] _bytes;
+        public int RequestCount { get; private set; }
+        public CountingBytesHandler(byte[] bytes) => _bytes = bytes;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestCount++;
             cancellationToken.ThrowIfCancellationRequested();
             var resp = new HttpResponseMessage(HttpStatusCode.OK)
             {

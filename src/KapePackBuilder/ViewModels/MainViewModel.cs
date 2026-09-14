@@ -1,8 +1,10 @@
 ﻿using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
 using KapePackBuilder.Services;
+using KapePackBuilder.Workspaces;
 
 namespace KapePackBuilder.ViewModels;
 
@@ -10,13 +12,18 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly IDialogService _dialogs;
     private readonly AppSettings _settings;
-    private KapeCatalog _catalog;
+    private readonly CatalogWorkspace _catalogWs;
+    private readonly ToolkitUpdateWorkspace _toolkitWs = new();
     private DispatcherTimer? _targetSearchTimer;
     private DispatcherTimer? _moduleSearchTimer;
     private DispatcherTimer? _treeSearchTimer;
     private bool _suppressSelectionEvents;
     private CancellationTokenSource? _syncCts;
     private CancellationTokenSource? _buildCts;
+    private DispatcherTimer? _kapeRootReloadTimer;
+    private bool _suppressKapeRootReload;
+
+    private KapeCatalog _catalog => _catalogWs.Catalog;
 
     [ObservableProperty] private string _kapeRoot = "";
     [ObservableProperty] private string _statusText = "Готово";
@@ -37,12 +44,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _tsource = "C:";
     [ObservableProperty] private string _notes = "";
     [ObservableProperty] private bool _zipOutput = true;
-    [ObservableProperty] private bool _flush;
     [ObservableProperty] private bool _vss;
-    [ObservableProperty] private bool _installIntoKape;
+    [ObservableProperty] private bool _twoPhaseCollection;
+    [ObservableProperty] private string _caseId = "";
     [ObservableProperty] private bool _makeZip;
     [ObservableProperty] private bool _copyDeps = true;
-    [ObservableProperty] private bool _includeModuleBin = true;
 
     [ObservableProperty] private string _selectedTargetsText = "";
     [ObservableProperty] private string _selectedModulesText = "";
@@ -67,12 +73,71 @@ public partial class MainViewModel : ObservableObject
         _dialogs = dialogs;
         _settings = AppSettings.Load();
         KapeRoot = AppSettings.ResolveDefaultKapeRoot(_settings);
-        _catalog = new KapeCatalog(string.IsNullOrWhiteSpace(KapeRoot) ? Environment.CurrentDirectory : KapeRoot);
+        // Catalog must track the UI root only — never Environment.CurrentDirectory.
+        _catalogWs = new CatalogWorkspace(string.IsNullOrWhiteSpace(KapeRoot) ? "" : KapeRoot);
     }
 
     public async Task InitializeAsync()
     {
         await ReloadCatalogAsync();
+    }
+
+    /// <summary>Normalize UI root and ensure <see cref="_catalog"/> is bound to it.</summary>
+    internal async Task<string?> EnsureCatalogBoundToUiRootAsync()
+    {
+        var raw = (KapeRoot ?? "").Trim();
+        if (string.IsNullOrEmpty(raw))
+        {
+            _dialogs.ShowMessage("Укажите корень KAPE в поле сверху.", "Корень KAPE", DialogIcon.Error);
+            return null;
+        }
+
+        string root;
+        try
+        {
+            root = KapeRootPaths.Normalize(raw);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowMessage("Некорректный путь корня KAPE:\n" + ex.Message, "Корень KAPE", DialogIcon.Error);
+            return null;
+        }
+
+        if (!KapeRootPaths.LooksLikeKapeRoot(root))
+        {
+            _dialogs.ShowMessage(
+                $"В указанной папке нет Targets:\n{root}\n\nВсе операции Builder идут только в этот корень.",
+                "Корень KAPE",
+                DialogIcon.Error);
+            return null;
+        }
+
+        if (!string.Equals(KapeRoot, root, StringComparison.OrdinalIgnoreCase))
+        {
+            _suppressKapeRootReload = true;
+            try { KapeRoot = root; }
+            finally { _suppressKapeRootReload = false; }
+        }
+
+        if (!_catalogWs.IsBoundTo(root))
+            await ReloadCatalogAsync();
+
+        if (!_catalogWs.IsBoundTo(root))
+        {
+            _dialogs.ShowMessage(
+                $"Каталог не привязан к выбранному корню.\nUI: {root}\nКаталог: {_catalog.KapeRoot}",
+                "Корень KAPE",
+                DialogIcon.Error);
+            return null;
+        }
+
+        return root;
+    }
+
+    partial void OnKapeRootChanged(string value)
+    {
+        if (_suppressKapeRootReload) return;
+        Debounce(ref _kapeRootReloadTimer, () => _ = ReloadCatalogAsync());
     }
 
     partial void OnTargetSearchChanged(string value) => Debounce(ref _targetSearchTimer, RefreshTargetRows);
@@ -96,6 +161,12 @@ public partial class MainViewModel : ObservableObject
             if (value)
                 TreeIsTargets = false;
         }
+    }
+
+    partial void OnTwoPhaseCollectionChanged(bool value)
+    {
+        if (value && string.IsNullOrWhiteSpace(Package.Phase1ModuleName))
+            Package.Phase1ModuleName = PackageDefinition.DefaultPhase1Module;
     }
 
     private void Debounce(ref DispatcherTimer? timer, Action action)

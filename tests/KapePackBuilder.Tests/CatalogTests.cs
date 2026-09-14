@@ -1,4 +1,4 @@
-using KapePackBuilder.Services;
+using KapePack.Core.Services;
 
 namespace KapePackBuilder.Tests;
 
@@ -11,6 +11,48 @@ public class CatalogTests
         var root = KapeRoot;
         Skip.If(root is null, "Set KAPE_ROOT to a KAPE install with Targets/, or place one discoverable by AppSettings.CandidateRoots.");
         return root!;
+    }
+
+    [SkippableFact]
+    public void Refresh_SkipsDisabledFolders()
+    {
+        var workspace = TestKapeRoot.TryGet();
+        Skip.If(workspace is null, "KAPE root with Targets/ not found.");
+        var sampleTarget = Directory.EnumerateFiles(Path.Combine(workspace!, "Targets"), "*.tkape", SearchOption.AllDirectories)
+            .First(p => !NameCollisionFixer.IsUnderDisabledFolder(p));
+        var sampleModule = Directory.EnumerateFiles(Path.Combine(workspace!, "Modules"), "*.mkape", SearchOption.AllDirectories)
+            .First();
+
+        var root = Path.Combine(Path.GetTempPath(), "kape_cat_" + Guid.NewGuid().ToString("N"));
+        var apps = Path.Combine(root, "Targets", "Apps");
+        var disabled = Path.Combine(root, "Targets", "!Disabled");
+        var modActive = Path.Combine(root, "Modules", "EZTools");
+        var modDisabled = Path.Combine(root, "Modules", "!Disabled");
+        Directory.CreateDirectory(apps);
+        Directory.CreateDirectory(disabled);
+        Directory.CreateDirectory(modActive);
+        Directory.CreateDirectory(modDisabled);
+
+        File.Copy(sampleTarget, Path.Combine(apps, "Active.tkape"));
+        File.Copy(sampleTarget, Path.Combine(disabled, "Hidden.tkape"));
+        File.Copy(sampleModule, Path.Combine(modActive, "Active.mkape"));
+        File.Copy(sampleModule, Path.Combine(modDisabled, "Hidden.mkape"));
+
+        try
+        {
+            var cat = new KapeCatalog(root);
+            cat.Refresh();
+            Assert.Contains(cat.Targets, t => t.Name == "Active");
+            Assert.DoesNotContain(cat.Targets, t => t.Name == "Hidden");
+            Assert.Contains(cat.Modules, m => m.Name == "Active");
+            Assert.DoesNotContain(cat.Modules, m => m.Name == "Hidden");
+            Assert.DoesNotContain(cat.Targets, t => t.RelativePath.Contains("!Disabled", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(cat.Modules, m => m.RelativePath.Contains("!Disabled", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
     }
 
     [SkippableFact]
@@ -36,7 +78,7 @@ public class CatalogTests
         }
         Assert.NotEmpty(refs);
 
-        var leaves = cat.FlattenToLeaves(refs, Models.ItemKind.Target);
+        var leaves = cat.FlattenToLeaves(refs, KapePack.Core.Models.ItemKind.Target);
         var paths = leaves.Select(l => Path.GetFileName(l.RelativePath).ToLowerInvariant()).ToList();
         Assert.Equal(paths.Count, paths.Distinct().Count());
         Assert.True(leaves.Count > 10);
@@ -48,21 +90,21 @@ public class CatalogTests
         var cat = new KapeCatalog(RequireRoot());
         cat.Refresh();
         Assert.NotNull(cat.FindTarget("Prefetch"));
-        var packs = cat.IncludingCompounds("Prefetch", Models.ItemKind.Target);
+        var packs = cat.IncludingCompounds("Prefetch", KapePack.Core.Models.ItemKind.Target);
         Assert.True(packs.Count >= 1);
     }
 
     [Fact]
     public void RenderCompoundTarget_ContainsRequiredFields()
     {
-        var pkg = new Models.PackageDefinition
+        var pkg = new KapePack.Core.Models.PackageDefinition
         {
             Name = "TestPack",
             Description = "desc",
             Author = "author",
             Targets =
             {
-                new Models.SelectionEntry { Name = "Prefetch", Category = "Prefetch", Path = "Prefetch.tkape" }
+                new KapePack.Core.Models.SelectionEntry { Name = "Prefetch", Category = "Prefetch", Path = "Prefetch.tkape" }
             }
         };
         var text = KapeFileIo.RenderCompoundTarget(pkg);
@@ -82,55 +124,67 @@ public class CatalogTests
     [Fact]
     public void RenderCompoundModule_SetsExportFormatCsv()
     {
-        var pkg = new Models.PackageDefinition
+        var pkg = new KapePack.Core.Models.PackageDefinition
         {
             Name = "T",
             Modules =
             {
-                new Models.SelectionEntry { Name = "AmcacheParser", Category = "EZTools", Path = "AmcacheParser.mkape" }
+                new KapePack.Core.Models.SelectionEntry { Name = "AmcacheParser", Category = "EZTools", Path = "AmcacheParser.mkape" }
             }
         };
         var yaml = KapeFileIo.RenderCompoundModule(pkg);
         Assert.Contains("ExportFormat: csv", yaml);
     }
 
-    [Fact]
-    public async Task GitHubSync_KeepsLocalOnlyFile()
-    {
-        var tmp = Path.Combine(Path.GetTempPath(), "kape_sync_test_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(tmp, "Targets", "Compound"));
-        Directory.CreateDirectory(Path.Combine(tmp, "Modules"));
-        var custom = Path.Combine(tmp, "Targets", "Compound", "!LocalOnlyTest.tkape");
-        await File.WriteAllTextAsync(custom, """
-Description: local
-Author: test
-Version: 1.0
-Id: 00000000-0000-0000-0000-000000000001
-RecreateDirectories: true
-Targets:
-    -
-        Name: x
-        Category: x
-        Path: Prefetch.tkape
-""");
-        try
-        {
-            var result = await GitHubKapeFilesSync.SyncAsync(tmp);
-            Assert.True(result.Ok);
-            Assert.True(result.TargetsAdded + result.TargetsUpdated > 100);
-            Assert.True(File.Exists(custom));
-            Assert.True(Directory.EnumerateFiles(Path.Combine(tmp, "Targets"), "Prefetch.tkape", SearchOption.AllDirectories).Any());
+    [Theory]
+    [InlineData("!!ToolSync.mkape", "'!!ToolSync.mkape'")]
+    [InlineData("!EZParser.mkape", "'!EZParser.mkape'")]
+    [InlineData("AmcacheParser.mkape", "AmcacheParser.mkape")]
+    [InlineData("true", "'true'")]
+    public void FormatYamlScalar_QuotesYamlTagLikeValues(string input, string expected)
+        => Assert.Equal(expected, KapeFileIo.FormatYamlScalar(input));
 
-            var again = await GitHubKapeFilesSync.SyncAsync(tmp);
-            Assert.True(again.Ok);
-            Assert.Equal(0, again.TargetsAdded);
-            Assert.Equal(0, again.TargetsUpdated);
-            Assert.True(again.TargetsUnchanged > 100);
-            Assert.Contains("изменений нет", again.Message);
-        }
-        finally
+    [Fact]
+    public void RenderCompoundModule_QuotesBangBangToolSyncPath()
+    {
+        var pkg = new KapePack.Core.Models.PackageDefinition
         {
-            try { Directory.Delete(tmp, true); } catch { /* ignore */ }
-        }
+            Name = "T",
+            Modules =
+            {
+                new KapePack.Core.Models.SelectionEntry
+                {
+                    Name = "!!ToolSync",
+                    Category = "Sync",
+                    Path = "!!ToolSync.mkape"
+                }
+            }
+        };
+        var yaml = KapeFileIo.RenderCompoundModule(pkg);
+        Assert.Contains("Executable: '!!ToolSync.mkape'", yaml);
+        Assert.DoesNotContain("Executable: !!ToolSync.mkape\n", yaml.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
+    public void IsSyncOrMaintenanceModule_DetectsToolSync()
+    {
+        Assert.True(ModuleBinGate.IsSyncOrMaintenanceModule(new KapePack.Core.Models.SelectionEntry
+        {
+            Name = "!!ToolSync",
+            Path = "!!ToolSync.mkape",
+            Category = "Sync"
+        }));
+        Assert.True(ModuleBinGate.IsSyncOrMaintenanceModule(new KapePack.Core.Models.SelectionEntry
+        {
+            Name = "Sync_KAPE",
+            Path = "Sync_KAPE.mkape",
+            Category = "KAPESync"
+        }));
+        Assert.False(ModuleBinGate.IsSyncOrMaintenanceModule(new KapePack.Core.Models.SelectionEntry
+        {
+            Name = "AmcacheParser",
+            Path = "AmcacheParser.mkape",
+            Category = "EZTools"
+        }));
     }
 }

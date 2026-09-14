@@ -1,7 +1,7 @@
 using System.Text;
-using KapePackShared;
+using KapePack.Core.Shared;
 
-namespace KapePackBuilder.Services;
+namespace KapePack.Core.Services;
 
 /// <summary>
 /// KAPEPACK payload appended after a stub EXE: [stub][zip][Int64 start][Int64 len][ASCII KAPEPACK].
@@ -40,7 +40,8 @@ public static class KapepackPayload
         CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var tmpZip = Path.Combine(Path.GetTempPath(), "kapepack_" + Guid.NewGuid().ToString("N") + ".zip");
+        // Stage on the same volume as outDir (USB / share), not %TEMP% on C:.
+        var tmpZip = CollectPackPaths.CreateSiblingTempFile(outDir, ".kapepack_extract_", ".zip");
         try
         {
             log?.Invoke($"Извлечение архива ({zipLen:N0} байт)…");

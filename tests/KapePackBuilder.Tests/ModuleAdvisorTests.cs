@@ -1,5 +1,5 @@
-using KapePackBuilder.Models;
-using KapePackBuilder.Services;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
 
 namespace KapePackBuilder.Tests;
 

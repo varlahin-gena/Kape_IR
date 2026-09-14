@@ -1,6 +1,6 @@
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
 
-namespace KapePackBuilder.Services;
+namespace KapePack.Core.Services;
 
 /// <summary>
 /// KAPE requires globally unique target/module file names (basename) across the whole tree.
@@ -87,12 +87,22 @@ public static class NameCollisionFixer
             .First();
 
     /// <summary>
-    /// When syncing from GitHub: skip writing a file if another path under destRoot already has this basename.
-    /// If the new path is preferred over the existing one, the existing file is moved aside and write is allowed.
-    /// Returns true if the file should be written to destPath.
+    /// Skip writing if another path under <paramref name="searchRoot"/> already has this basename.
+    /// If the new path is preferred, the existing file is moved aside and write is allowed.
     /// </summary>
     public static bool ShouldWriteUniqueBasename(
-        string destRoot,
+        string searchRoot,
+        string destPath,
+        string srcPath,
+        out string? skipReason)
+        => ShouldWriteUniqueBasename(new[] { searchRoot }, destPath, srcPath, out skipReason);
+
+    /// <summary>
+    /// KAPE requires globally unique .tkape/.mkape basenames across Targets and Modules.
+    /// Pass both trees as <paramref name="searchRoots"/> when syncing from GitHub.
+    /// </summary>
+    public static bool ShouldWriteUniqueBasename(
+        IEnumerable<string> searchRoots,
         string destPath,
         string srcPath,
         out string? skipReason)
@@ -101,51 +111,115 @@ public static class NameCollisionFixer
         var name = Path.GetFileName(destPath);
         if (string.IsNullOrEmpty(name)) return true;
 
+        var roots = searchRoots
+            .Where(r => !string.IsNullOrWhiteSpace(r) && Directory.Exists(r))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         string? existingOther = null;
-        if (Directory.Exists(destRoot))
+        foreach (var root in roots)
         {
-            foreach (var hit in Directory.EnumerateFiles(destRoot, name, SearchOption.AllDirectories))
+            foreach (var hit in Directory.EnumerateFiles(root, name, SearchOption.AllDirectories))
             {
+                if (IsUnderDisabledFolder(hit)) continue;
                 if (!PathsEqual(hit, destPath))
                 {
                     existingOther = hit;
                     break;
                 }
             }
+            if (existingOther is not null) break;
         }
 
         if (existingOther is null)
             return true;
 
+        var newRel = BestRelHint(roots, destPath);
+        var oldRel = BestRelHint(roots, existingOther);
+        var newScore = PathPreferScore(newRel);
+        var oldScore = PathPreferScore(oldRel);
+
         if (File.Exists(existingOther) && FilesContentEqual(srcPath, existingOther))
         {
-            skipReason = $"пропуск дубликата имени {name} (уже есть {RelHint(destRoot, existingOther)})";
+            // Identical bytes: keep the better-located copy; drop a misplaced duplicate.
+            if (newScore <= oldScore)
+            {
+                skipReason = $"пропуск дубликата имени {name} (уже есть {oldRel})";
+                return false;
+            }
+            // Prefer destPath — quarantine existingOther below.
+        }
+        else if (newScore <= oldScore)
+        {
+            skipReason =
+                $"пропуск {newRel}: имя {name} уже занято ({oldRel})";
             return false;
         }
 
-        var newScore = PathPreferScore(RelHint(destRoot, destPath));
-        var oldScore = PathPreferScore(RelHint(destRoot, existingOther));
-        if (newScore > oldScore)
+        try
         {
-            try
-            {
-                var quarantine = Path.Combine(Path.GetDirectoryName(destRoot) ?? destRoot, "PackBuilder", "name_collisions");
-                Directory.CreateDirectory(quarantine);
-                var dest = Path.Combine(quarantine,
-                    DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "__" +
-                    RelHint(destRoot, existingOther).Replace('/', '_').Replace('\\', '_'));
-                File.Move(existingOther, dest, overwrite: false);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                skipReason = $"не удалось заменить {RelHint(destRoot, existingOther)} на предпочтительный путь: {ex.Message}";
-                return false;
-            }
+            var quarantineBase = roots.Count > 0
+                ? Path.GetDirectoryName(roots[0]) ?? roots[0]
+                : Path.GetDirectoryName(destPath) ?? destPath;
+            var quarantine = Path.Combine(quarantineBase, "PackBuilder", "name_collisions");
+            Directory.CreateDirectory(quarantine);
+            var dest = Path.Combine(quarantine,
+                DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "__" +
+                oldRel.Replace('/', '_').Replace('\\', '_'));
+            File.Move(existingOther, dest, overwrite: false);
+            return true;
         }
+        catch (Exception ex)
+        {
+            skipReason =
+                $"не удалось заменить {oldRel} на предпочтительный путь: {ex.Message}";
+            return false;
+        }
+    }
 
-        skipReason =
-            $"пропуск {RelHint(destRoot, destPath)}: имя {name} уже занято ({RelHint(destRoot, existingOther)})";
+    /// <summary>
+    /// .tkape belong under Targets; .mkape under Modules. Upstream sometimes misplaces them.
+    /// </summary>
+    public static bool IsWrongTreeExtension(string relativeOrAbsolutePath, bool writingModules)
+    {
+        var name = Path.GetFileName(relativeOrAbsolutePath);
+        if (string.IsNullOrEmpty(name)) return false;
+        if (writingModules)
+            return name.EndsWith(".tkape", StringComparison.OrdinalIgnoreCase);
+        return name.EndsWith(".mkape", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>True when a .tkape sits under Modules or a .mkape under Targets.</summary>
+    public static bool IsMisplacedKapeFile(string relativeOrAbsolutePath)
+    {
+        var rel = relativeOrAbsolutePath.Replace('\\', '/');
+        var name = Path.GetFileName(rel);
+        if (string.IsNullOrEmpty(name)) return false;
+        var underModules = rel.Contains("/Modules/", StringComparison.OrdinalIgnoreCase) ||
+                           rel.StartsWith("Modules/", StringComparison.OrdinalIgnoreCase);
+        var underTargets = rel.Contains("/Targets/", StringComparison.OrdinalIgnoreCase) ||
+                           rel.StartsWith("Targets/", StringComparison.OrdinalIgnoreCase);
+        if (underModules && name.EndsWith(".tkape", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (underTargets && name.EndsWith(".mkape", StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
+    /// <summary>
+    /// KAPE keeps unused targets/modules under Targets\!Disabled and Modules\!Disabled
+    /// (also legacy _Disabled). These must not be treated as active catalog items.
+    /// </summary>
+    public static bool IsUnderDisabledFolder(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        foreach (var part in path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part.Equals("!Disabled", StringComparison.OrdinalIgnoreCase) ||
+                part.Equals("_Disabled", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
         return false;
     }
 
@@ -153,9 +227,10 @@ public static class NameCollisionFixer
     {
         var rel = relativePath.Replace('\\', '/');
         var score = 100;
-        if (rel.Contains("/!Disabled", StringComparison.OrdinalIgnoreCase) ||
-            rel.Contains("!Disabled/", StringComparison.OrdinalIgnoreCase))
+        if (IsUnderDisabledFolder(rel))
             score -= 80;
+        if (IsMisplacedKapeFile(rel))
+            score -= 90;
         if (rel.Contains("/Compound/", StringComparison.OrdinalIgnoreCase) ||
             rel.StartsWith("Compound/", StringComparison.OrdinalIgnoreCase))
             score -= 40;
@@ -167,9 +242,10 @@ public static class NameCollisionFixer
     {
         var rel = item.RelativePath.Replace('\\', '/');
         var score = 100;
-        if (rel.Contains("/!Disabled", StringComparison.OrdinalIgnoreCase) ||
-            rel.Contains("/_Disabled", StringComparison.OrdinalIgnoreCase))
+        if (IsUnderDisabledFolder(rel))
             score -= 80;
+        if (IsMisplacedKapeFile(rel))
+            score -= 90;
 
         var underCompound = rel.Contains("/Compound/", StringComparison.OrdinalIgnoreCase) ||
                             rel.StartsWith("Targets/Compound/", StringComparison.OrdinalIgnoreCase) ||
@@ -191,6 +267,44 @@ public static class NameCollisionFixer
         // Prefer shallower paths slightly
         score -= Math.Min(rel.Count(c => c == '/'), 5);
         return score;
+    }
+
+    private static string BestRelHint(IReadOnlyList<string> roots, string absolute)
+    {
+        foreach (var root in roots)
+        {
+            try
+            {
+                var rel = Path.GetRelativePath(root, absolute);
+                if (!rel.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(rel))
+                {
+                    var tree = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                    return string.IsNullOrEmpty(tree)
+                        ? rel.Replace('\\', '/')
+                        : tree + "/" + rel.Replace('\\', '/');
+                }
+            }
+            catch
+            {
+                /* try next */
+            }
+        }
+
+        try
+        {
+            if (roots.Count > 0)
+            {
+                var kape = Path.GetDirectoryName(roots[0]);
+                if (!string.IsNullOrEmpty(kape))
+                    return Path.GetRelativePath(kape, absolute).Replace('\\', '/');
+            }
+        }
+        catch
+        {
+            /* fall through */
+        }
+
+        return Path.GetFileName(absolute);
     }
 
     private static string RelHint(string root, string absolute)

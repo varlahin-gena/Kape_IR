@@ -1,7 +1,7 @@
 using System.Text.Json;
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
 
-namespace KapePackBuilder.Services;
+namespace KapePack.Core.Services;
 
 /// <summary>
 /// Persist builder sessions as package.json-shaped JSON under PackBuilder/sessions/.
@@ -49,7 +49,11 @@ public static class PackageSessionStore
             vss = pkg.Vss,
             notes = pkg.Notes,
             target_compound = pkg.TargetCompoundName,
-            module_compound = pkg.ModuleCompoundName
+            module_compound = pkg.ModuleCompoundName,
+            collection_mode = pkg.IsTwoPhase ? "two_phase" : "single",
+            case_id = pkg.CaseId ?? "",
+            phase1_module = pkg.Phase1ModuleName,
+            phase2_module = pkg.ResolvePhase2ModuleName()
         };
         File.WriteAllText(path, JsonSerializer.Serialize(payload, JsonOpts));
     }

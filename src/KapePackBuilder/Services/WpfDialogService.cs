@@ -1,4 +1,5 @@
 using System.Windows;
+using KapePack.Core.Models;
 using Microsoft.Win32;
 
 namespace KapePackBuilder.Services;
@@ -29,6 +30,14 @@ public sealed class WpfDialogService : IDialogService
         if (!string.IsNullOrWhiteSpace(initialDirectory) && Directory.Exists(initialDirectory))
             dlg.InitialDirectory = initialDirectory;
         return dlg.ShowDialog() == true ? dlg.FileName : null;
+    }
+
+    public IReadOnlyList<CatalogItem>? PickModuleSuggestions(IReadOnlyList<ModuleSuggestion> suggestions)
+    {
+        var dlg = new SuggestModulesWindow(suggestions) { Owner = Application.Current.MainWindow };
+        if (dlg.ShowDialog() != true || !dlg.Applied || dlg.Chosen.Count == 0)
+            return null;
+        return dlg.Chosen;
     }
 
     private static MessageBoxImage Map(DialogIcon icon) => icon switch

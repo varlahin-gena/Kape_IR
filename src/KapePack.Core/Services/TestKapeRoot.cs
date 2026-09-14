@@ -1,4 +1,4 @@
-namespace KapePackBuilder.Services;
+namespace KapePack.Core.Services;
 
 /// <summary>Resolves a KAPE root for tests (env KAPE_ROOT, then common candidates).</summary>
 public static class TestKapeRoot

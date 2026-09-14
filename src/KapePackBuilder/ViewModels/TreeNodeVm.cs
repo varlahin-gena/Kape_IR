@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using KapePackBuilder.Models;
+using KapePack.Core.Models;
 
 namespace KapePackBuilder.ViewModels;
 

@@ -1,5 +1,5 @@
 using System.IO.Compression;
-using KapePackShared;
+using KapePack.Core.Shared;
 
 namespace KapePackBuilder.Tests;
 

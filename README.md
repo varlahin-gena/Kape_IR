@@ -1,65 +1,136 @@
-﻿# KAPE Pack Builder
+﻿# Kape_IR — KAPE Pack Builder
 
-Десктопная GUI-утилита (C# / WPF) для сборки и доработки полных triage-пакетов KAPE:
-compound-таргеты + модули + скрипты запуска + **автономный EXE** для сбора на целевой системе.
+Десктопная GUI-утилита (C# / WPF) для сборки triage-пакетов на базе [KAPE](https://www.kroll.com/en/services/cyber-risk/incident-response-litigation-support/kroll-artifact-parser-extractor-kape): выбор Targets/Modules, подсказки парсеров, обновление каталога и **автономный CollectPack EXE** для сбора на целевой системе.
 
-Интерфейс на русском. Термины KAPE (`tsource`, `--zip`, compound, leaf, имена `.tkape`/`.mkape`) сохранены.
+Интерфейс на русском. Термины KAPE (`tsource`, `--zip`, `--sim`, compound, leaf, `.tkape` / `.mkape`) сохранены.
 
-**Текущая версия: 1.2.0**
+**Версия: 1.8.3**
 
-## Скачать (готовые EXE)
+> В этом репозитории **нет** дистрибутива KAPE (`kape.exe`, `Targets`, `Modules`). Нужна отдельная установка KAPE рядом с Builder.
 
-Берите сборку из раздела **[Releases](https://github.com/varlahin-gena/KapePackBuilder/releases/latest)** (релиз **v1.2.0**):
+---
+
+## Скачать
+
+Готовый файл — в разделе **[Releases](https://github.com/varlahin-gena/Kape_IR/releases/latest)**:
 
 | Файл | Назначение |
 |------|------------|
-| **`KapePackBuilder.exe`** | Запускайте это. Основная программа. |
-| **`KapePackRunner.exe`** | Кладите **рядом** с `KapePackBuilder.exe`. Нужен при «Собрать автономный EXE» (не запускать отдельно). |
+| **`KapePackBuilder.exe`** | Единственный нужный файл. Stub Runner встроен — отдельный `KapePackRunner.exe` не требуется. |
+| `KapePackBuilder.exe.sha256` | Контрольная сумма SHA-256 |
 
-Для повседневной работы достаточно этих двух файлов. Исходники в репозитории — для разработки и пересборки.
+Проверка: `Get-FileHash .\KapePackBuilder.exe -Algorithm SHA256`
+
+---
+
+## Что это за система
+
+**Pack Builder** — рабочее место аналитика IR / DFIR: из полного каталога KAPE собирается полевой пакет без ручной возни с CLI и копированием деревьев.
+
+```
+┌─────────────────────┐     export      ┌──────────────────────┐
+│  KapePackBuilder    │ ──────────────► │  CollectPack.exe     │
+│  (каталог, выбор,   │   один EXE      │  (на целевой системе)│
+│   sync, two-phase)  │                 │  GUI или --silent    │
+└─────────────────────┘                 └──────────────────────┘
+          ▲                                        │
+          │ указывает                              ▼
+┌─────────────────────┐                 ┌──────────────────────┐
+│  Локальный KAPE     │                 │  RESULTS\<host>\…    │
+│  Targets / Modules  │                 │  + манисты / CoC   │
+└─────────────────────┘                 └──────────────────────┘
+```
+
+| Компонент | Роль |
+|-----------|------|
+| **Builder** | Каталог Targets/Modules, фильтры, подсказки модулей, сессии, sync с GitHub KapeFiles, EZ Tools / Chainsaw |
+| **CollectPack** | Портативный сборщик: распаковка рядом с EXE, запуск `kape.exe`, GUI-прогресс или silent |
+| **Two-phase IR** | Phase 1 volatile → Phase 2 disk (RFC 3227), Case ID, манифесты |
+
+KAPE остаётся движком сбора; Builder — оболочка над каталогом и упаковкой.
+
+---
 
 ## Требования
+
 - Windows x64
-- Рядом должен быть каталог KAPE (`Targets`, `Modules`, желательно `kape.exe`)
-- Для сборки из исходников: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Установленный / распакованный **KAPE** (`Targets`, `Modules`, желательно `kape.exe`) — путь указывается в Builder
+- Права администратора на целевой системе для полного triage (UAC в CollectPack)
 
-## Сборка из исходников
-```powershell
-.\publish.ps1
+---
+
+## Быстрый старт
+
+1. Скачайте `KapePackBuilder.exe` из Releases
+2. Запустите, укажите корень KAPE
+3. Отметьте Targets и Modules (при необходимости — **Подсказать по таргетам**)
+4. Для IR: включите **Двухфазный IR**, задайте Case ID
+5. **Собрать автономный EXE** → на выходе `ИмяПакета.exe` (+ `.sha256`)
+6. На целевой: GUI («Оценить» / «Начать сбор») или `CollectPack.exe --silent --tsource C:`
+
+Выбор — из **полного** каталога Targets/Modules (Antivirus, Apps, Browsers, Compound, Logs, P2P, Windows, EZTools, custom), не из одного compound.
+
+---
+
+## CollectPack — режимы
+
+Пакет **портативен**: staging и `RESULTS` рядом с EXE (флешка / шара / диск), не в `%TEMP%` на C:.
+
+| Режим | Запуск |
+|------|--------|
+| GUI | `CollectPack.exe` → диск → «Оценить» / «Начать сбор» |
+| Silent | `CollectPack.exe --silent --tsource C:` |
+| Только оценка | `CollectPack.exe --sim-only --tsource C:` |
+| Two-phase IR | `CollectPack.exe --silent --tsource C: --case-id IR-001` |
+| Только volatile | `CollectPack.exe --silent --tsource C: --phase 1` |
+| Без RAM dump | `CollectPack.exe --silent --tsource C: --skip-memory` |
+
+**Не** оставляйте активный `_kape.cli` рядом с `kape.exe` при запуске CollectPack — KAPE тогда игнорирует CLI (в т.ч. `--sim`).
+
+### Двухфазный IR (VolatileFirst)
+
+1. **Фаза 1** — volatile → `RESULTS\<host>\Phase1_Volatile`
+2. **Фаза 2** — выбранные таргеты / модули → `Phase2_Disk`
+3. В конце: `collection_log.txt`, `evidence_manifest.sha256`, `chain_of_custody.txt`
+
+Для дампа памяти нужен signed **WinPmem** как `Modules\bin\winpmem.exe` (см. `Velocidex_WinPmem.mkape`). Без него — `--skip-memory` или код выхода 2.
+
+---
+
+## Возможности Builder
+
+- Виртуализированные списки Targets / Modules, поиск и фильтры
+- Подсказки модулей по таргетам (FileMask, алиасы, приоритет EZTools)
+- Сборка автономного CollectPack (GUI + silent)
+- Вкладка **«Утилиты»** — инвентаризация `Modules\bin`
+- Обновление Targets/Modules, EZ Tools и Chainsaw («Обновить…»)
+- Дерево compound, сессии, `package.json`
+- Опциональная Authenticode-подпись (`KAPEPACK_SIGN_CERT`)
+
+---
+
+## Структура исходников
+
 ```
-Результат: `dist\KapePackBuilder.exe` и `dist\KapePackRunner.exe`.
-
-## Возможности
-- Быстрые виртуализированные списки Targets / Modules с поиском и фильтрами
-- Клик по строке или галочка — включение в пакет; тёмная тема выделения
-- **Подсказки модулей по таргетам** — FileMask, Windows-алиасы, эвристики; приоритет EZTools
-- **Сборка автономного EXE** — один файл с GUI-окном (лог + прогресс + UAC), без двух консолей
-- Дерево compound с переключателем **Таргеты / Модули**, фильтр «Только общие»
-- Загрузка существующих compound / `package.json`
-- Обновление Targets/Modules с [EricZimmerman/KapeFiles](https://github.com/EricZimmerman/KapeFiles) — считаются только реально добавленные/изменённые файлы
-
-## Типичный сценарий
-1. Указать корень KAPE (каталог с `Targets`, `Modules` и желательно `kape.exe`)
-2. Отметить таргеты (или загрузить compound)
-3. При необходимости **Подсказать по таргетам**
-4. Нажать **Собрать автономный EXE** — один `.exe`: на целевой системе одно окно с логом (UAC)
-
-## Примечания
-- Локальные custom-таргеты сохраняются при синхронизации с GitHub
-- Имена compound без авто-префикса `!` (чтобы CMD/запуск не ломали `--target`)
-- `Modules\bin` подключается опцией при сборке автономного пакета
-- Stub для автономного пакета должен быть GUI (`KapePackRunner.exe` ~70 МБ). Старый console-stub сборщик отклонит
-
-## Структура репозитория
-```
-src/KapePack.Core/       — domain (catalog, export, sync, zip-safe)
-src/KapePackBuilder/     — WPF UI
-src/KapePackRunner/      — GUI-stub для автономных EXE (окно + лог)
+src/KapePack.Core/       — каталог, export, sync, CollectPack pipeline
+src/KapePackBuilder/     — WPF UI (deliverable)
+src/KapePackRunner/      — stub, вшивается в Builder при publish
 tests/                   — unit-тесты
-.github/workflows/ci.yml — CI: build, test, publish
-publish.ps1              — публикация single-file EXE
-CHANGELOG.md             — история изменений
+publish.ps1              — сборка одного EXE (для разработчиков)
 ```
+
+Исходники в репозитории для прозрачности и CI; для работы достаточно файла из Releases.
+
+---
+
+## Лицензия и стороннее ПО
+
+- **KAPE** — продукт Kroll; распространяется отдельно, в репозиторий не входит
+- Targets/Modules обычно из сообщества [Eric Zimmerman / KapeFiles](https://github.com/EricZimmerman/KapeFiles) и обновляются кнопкой sync в Builder
+- Этот инструмент — обёртка для IR-сборки пакетов; соблюдайте лицензии KAPE и сторонних бинарников в `Modules\bin`
+
+---
 
 ## История версий
-Кратко — в [CHANGELOG.md](CHANGELOG.md). Полные заметки к релизу — во вкладке Releases на GitHub.
+
+См. [CHANGELOG.md](CHANGELOG.md).

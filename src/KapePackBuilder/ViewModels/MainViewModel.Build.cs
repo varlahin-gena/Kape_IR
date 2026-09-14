@@ -1,4 +1,6 @@
 using CommunityToolkit.Mvvm.Input;
+using KapePack.Core.Models;
+using KapePack.Core.Services;
 using KapePackBuilder.Services;
 
 namespace KapePackBuilder.ViewModels;
@@ -9,22 +11,47 @@ public partial class MainViewModel
     private async Task BuildPackageAsync()
     {
         PullFormToPackage();
-        if (Package.Targets.Count == 0)
+        // Two-phase packs may ship Phase1-only (empty disk targets) for --phase 1.
+        if (Package.Targets.Count == 0 && !TwoPhaseCollection)
         {
-            _dialogs.ShowMessage("Добавьте хотя бы один таргет.", "Сборка", DialogIcon.Error);
+            _dialogs.ShowMessage("Добавьте хотя бы один таргет (или включите двухфазный IR для только-volatile).", "Сборка", DialogIcon.Error);
             return;
         }
 
-        var initial = Path.Combine(KapeRoot, "PackBuilder", "exports");
+        var root = await EnsureCatalogBoundToUiRootAsync();
+        if (root is null) return;
+
+        var initial = KapeRootPaths.ExportsDir(root);
         Directory.CreateDirectory(initial);
         var outputDir = _dialogs.PickFolder("Выберите папку для сохранения автономного EXE", initial);
         if (outputDir is null) return;
 
         var pkg = Package;
+        var packageDirPreview = Path.Combine(outputDir, PackageDefinition.SafeDir(pkg.Name));
+        var overwriteExisting = false;
+        if (Directory.Exists(packageDirPreview))
+        {
+            if (!_dialogs.Confirm(
+                    $"Папка пакета уже существует и будет полностью удалена:\n{packageDirPreview}\n\nПродолжить?",
+                    "Перезапись пакета",
+                    DialogIcon.Warning))
+                return;
+            overwriteExisting = true;
+        }
+
         var catalog = _catalog;
-        var installIntoKape = InstallIntoKape;
+        if (!_catalogWs.IsBoundTo(root))
+        {
+            _dialogs.ShowMessage(
+                "Каталог не совпадает с корнем KAPE вверху окна. Обновите каталог и повторите сборку.",
+                "Сборка",
+                DialogIcon.Error);
+            return;
+        }
+
         var makeZip = MakeZip;
-        var includeModuleBin = IncludeModuleBin;
+        // Modules\bin: auto for two_phase (Phase1 needs winpmem/live tools) or any selected modules (parsers).
+        var includeModuleBin = TwoPhaseCollection || pkg.Modules.Count > 0;
 
         _buildCts?.Cancel();
         _buildCts?.Dispose();
@@ -42,11 +69,12 @@ public partial class MainViewModel
                 return exporter.Export(
                     pkg,
                     outputDir,
-                    installIntoKape: installIntoKape,
+                    installIntoKape: false,
                     makeZip: makeZip,
                     copyDependencies: true,
                     includeModuleBin: includeModuleBin,
                     buildStandaloneExe: true,
+                    overwriteExisting: overwriteExisting,
                     progress: progress,
                     cancellationToken: ct);
             }, ct);
@@ -54,22 +82,27 @@ public partial class MainViewModel
             var stubInfo = "";
             try
             {
-                var stub = StandaloneExeBuilder.ResolveStubPath();
-                stubInfo = $"\nStub: {stub} ({new FileInfo(stub).Length / (1024 * 1024)} МБ, GUI)";
+                if (StandaloneExeBuilder.TryGetEmbeddedStubInfo(out var embSize, out _))
+                    stubInfo = $"\nStub: встроен в Pack Builder ({embSize / (1024 * 1024)} МБ, GUI)";
+                else
+                {
+                    var stub = StandaloneExeBuilder.ResolveStubPath(root);
+                    stubInfo = $"\nStub: {stub} ({new FileInfo(stub).Length / (1024 * 1024)} МБ, GUI)";
+                }
             }
             catch { /* ignore */ }
 
             var msg = result.StandaloneExe is not null
-                ? $"Автономный EXE:\n{result.StandaloneExe}{stubInfo}\n\n"
+                ? $"Автономный EXE:\n{result.StandaloneExe}{stubInfo}\n"
                 : "";
             if (result.StandaloneExe is not null && File.Exists(result.StandaloneExe + ".sha256"))
-                msg += $"SHA256: {result.StandaloneExe}.sha256\n\n";
-            msg += $"Папка пакета:\n{result.PackageDir}";
+                msg += $"\nSHA256: {result.StandaloneExe}.sha256\n";
+            if (!string.IsNullOrEmpty(result.PackageDir))
+                msg += $"\nПапка пакета:\n{result.PackageDir}";
             if (result.ZipFile is not null) msg += $"\nZIP: {result.ZipFile}";
-            if (result.InstalledTarget is not null) msg += $"\nТакже установлено в KAPE: {result.InstalledTarget}";
             if (result.Warnings.Count > 0)
                 msg += "\n\nПредупреждения:\n - " + string.Join("\n - ", result.Warnings.Take(12));
-            _dialogs.ShowMessage(msg, "Сборка завершена");
+            _dialogs.ShowMessage(msg.Trim(), "Сборка завершена");
             StatusText = result.StandaloneExe is not null
                 ? $"Собран EXE: {Path.GetFileName(result.StandaloneExe)}"
                 : $"Собран пакет: {Package.Name}";
@@ -78,16 +111,47 @@ public partial class MainViewModel
         catch (OperationCanceledException)
         {
             StatusText = "Сборка отменена";
-            _dialogs.ShowMessage("Сборка отменена. Неполная папка/EXE в выбранном каталоге может остаться — удалите вручную при необходимости.", "Сборка", DialogIcon.Warning);
+            TryCleanupPartialExport(packageDirPreview);
+            _dialogs.ShowMessage(
+                "Сборка отменена. Неполная папка/EXE удалена (если не была занята).",
+                "Сборка",
+                DialogIcon.Warning);
         }
         catch (Exception ex)
         {
+            AppLog.Error("Build failed", ex);
             _dialogs.ShowMessage(ex.Message, "Ошибка сборки", DialogIcon.Error);
             StatusText = "Ошибка сборки";
         }
         finally
         {
             IsBuilding = false;
+        }
+    }
+
+    private static void TryCleanupPartialExport(string packageDir)
+    {
+        try
+        {
+            if (Directory.Exists(packageDir))
+                Directory.Delete(packageDir, true);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Partial export cleanup failed: " + ex.Message);
+        }
+
+        try
+        {
+            var exe = packageDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + ".exe";
+            if (File.Exists(exe))
+                File.Delete(exe);
+            if (File.Exists(exe + ".sha256"))
+                File.Delete(exe + ".sha256");
+        }
+        catch (Exception ex)
+        {
+            AppLog.Warn("Partial EXE cleanup failed: " + ex.Message);
         }
     }
 
