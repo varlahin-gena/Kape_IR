@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KapePack.Core.Models;
@@ -8,7 +9,7 @@ using KapePackBuilder.Workspaces;
 
 namespace KapePackBuilder.ViewModels;
 
-public partial class MainViewModel : ObservableObject
+public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IDialogService _dialogs;
     private readonly AppSettings _settings;
@@ -20,8 +21,10 @@ public partial class MainViewModel : ObservableObject
     private bool _suppressSelectionEvents;
     private CancellationTokenSource? _syncCts;
     private CancellationTokenSource? _buildCts;
+    private CancellationTokenSource? _catalogReloadCts;
     private DispatcherTimer? _kapeRootReloadTimer;
     private bool _suppressKapeRootReload;
+    private bool _disposed;
 
     private KapeCatalog _catalog => _catalogWs.Catalog;
 
@@ -137,7 +140,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnKapeRootChanged(string value)
     {
         if (_suppressKapeRootReload) return;
-        Debounce(ref _kapeRootReloadTimer, () => _ = ReloadCatalogAsync());
+        Debounce(ref _kapeRootReloadTimer, ScheduleReloadCatalog);
     }
 
     partial void OnTargetSearchChanged(string value) => Debounce(ref _targetSearchTimer, RefreshTargetRows);
@@ -182,22 +185,78 @@ public partial class MainViewModel : ObservableObject
         t.Start();
     }
 
+    /// <summary>Fire-and-forget reload with exception logging (UI triggers).</summary>
+    private void ScheduleReloadCatalog()
+    {
+        _ = ReloadCatalogSafeAsync();
+    }
+
+    private async Task ReloadCatalogSafeAsync()
+    {
+        try
+        {
+            await ReloadCatalogAsync();
+        }
+        catch (Exception ex)
+        {
+            AppLog.Error("Catalog reload failed", ex);
+            StatusText = "Ошибка загрузки каталога";
+        }
+    }
+
+    /// <summary>Marshal to WPF dispatcher when present; run inline in unit tests (no Application).</summary>
+    private static Task InvokeOnUiAsync(Action action)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        return dispatcher.InvokeAsync(action).Task;
+    }
+
     private bool CanBuildPackage() => !IsBuilding && !IsSyncing;
 
     private bool CanCancelBuild() => IsBuilding;
 
     private bool CanUpdateFromGitHub() => !IsSyncing && !IsBuilding;
 
+    private bool CanReloadCatalog() => !IsBuilding && !IsSyncing;
+
     partial void OnIsBuildingChanged(bool value)
     {
         BuildPackageCommand.NotifyCanExecuteChanged();
         CancelBuildCommand.NotifyCanExecuteChanged();
         UpdateFromGitHubCommand.NotifyCanExecuteChanged();
+        ReloadCatalogCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsSyncingChanged(bool value)
     {
         BuildPackageCommand.NotifyCanExecuteChanged();
         UpdateFromGitHubCommand.NotifyCanExecuteChanged();
+        ReloadCatalogCommand.NotifyCanExecuteChanged();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _syncCts?.Cancel();
+        _syncCts?.Dispose();
+        _syncCts = null;
+        _buildCts?.Cancel();
+        _buildCts?.Dispose();
+        _buildCts = null;
+        _catalogReloadCts?.Cancel();
+        _catalogReloadCts?.Dispose();
+        _catalogReloadCts = null;
+        _targetSearchTimer?.Stop();
+        _moduleSearchTimer?.Stop();
+        _treeSearchTimer?.Stop();
+        _kapeRootReloadTimer?.Stop();
+        GC.SuppressFinalize(this);
     }
 }

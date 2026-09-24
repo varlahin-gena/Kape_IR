@@ -36,6 +36,9 @@ public partial class MainViewModel
         _syncCts = new CancellationTokenSource();
         var ct = _syncCts.Token;
 
+        // Freeze catalog for the duration of sync (reload blocked while IsSyncing).
+        _catalogReloadCts?.Cancel();
+
         IsSyncing = true;
         StatusText = "Проверка обновлений…";
         var progress = new Progress<string>(m => StatusText = m);
@@ -123,6 +126,8 @@ public partial class MainViewModel
         finally
         {
             IsSyncing = false;
+            _syncCts?.Dispose();
+            _syncCts = null;
         }
     }
 

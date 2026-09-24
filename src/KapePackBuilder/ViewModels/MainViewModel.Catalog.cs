@@ -1,4 +1,3 @@
-using System.Windows;
 using CommunityToolkit.Mvvm.Input;
 using KapePack.Core.Models;
 using KapePack.Core.Services;
@@ -17,12 +16,20 @@ public partial class MainViewModel
         if (folder is null) return;
         try { KapeRoot = KapeRootPaths.Normalize(folder); }
         catch { KapeRoot = folder; }
-        _ = ReloadCatalogAsync();
+        ScheduleReloadCatalog();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanReloadCatalog))]
     private async Task ReloadCatalogAsync()
     {
+        if (IsBuilding || IsSyncing)
+        {
+            StatusText = IsBuilding
+                ? "Каталог не перезагружается во время сборки"
+                : "Каталог не перезагружается во время обновления";
+            return;
+        }
+
         KapeRoot = (KapeRoot ?? "").Trim();
         if (string.IsNullOrEmpty(KapeRoot) || !KapeRootPaths.LooksLikeKapeRoot(KapeRoot))
         {
@@ -53,14 +60,35 @@ public partial class MainViewModel
             finally { _suppressKapeRootReload = false; }
         }
 
+        _catalogReloadCts?.Cancel();
+        _catalogReloadCts?.Dispose();
+        _catalogReloadCts = new CancellationTokenSource();
+        var ct = _catalogReloadCts.Token;
+
         StatusText = "Сканирование каталога…";
-        var stats = await Task.Run(() => _catalogWs.Reload(root));
-        await Application.Current.Dispatcher.InvokeAsync(() =>
+        try
         {
-            _settings.LastKapeRoot = root;
-            _settings.Save();
-            OnCatalogLoaded(stats);
-        });
+            var stats = await Task.Run(() =>
+            {
+                ct.ThrowIfCancellationRequested();
+                return _catalogWs.Reload(root);
+            }, ct);
+
+            if (ct.IsCancellationRequested)
+                return;
+
+            await InvokeOnUiAsync(() =>
+            {
+                if (ct.IsCancellationRequested) return;
+                _settings.LastKapeRoot = root;
+                _settings.Save();
+                OnCatalogLoaded(stats);
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer reload or Dispose.
+        }
     }
 
     private void OnCatalogLoaded(CatalogRefreshStats? stats = null)

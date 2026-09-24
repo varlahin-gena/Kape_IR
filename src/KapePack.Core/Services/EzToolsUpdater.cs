@@ -13,8 +13,6 @@ public static class EzToolsUpdater
     public const string GetZimmermanToolsZipUrl =
         "https://download.ericzimmermanstools.com/Get-ZimmermanTools.zip";
 
-    private const string UserAgent = "Kape_IR/1.8.4 (+EZ Tools via Get-ZimmermanTools)";
-
     /// <summary>Common parsers expected for !EZParser-style workflows.</summary>
     public static readonly string[] KeyBinaries =
     {
@@ -96,7 +94,8 @@ public static class EzToolsUpdater
         {
             progress?.Report("Скачивание Get-ZimmermanTools…");
             var zipPath = Path.Combine(tmp, "Get-ZimmermanTools.zip");
-            await DownloadAsync(GetZimmermanToolsZipUrl, zipPath, progress, ct, httpHandler);
+            await DownloadAsync(GetZimmermanToolsZipUrl, zipPath, progress, ct, httpHandler)
+                .ConfigureAwait(false);
 
             progress?.Report("Распаковка Get-ZimmermanTools…");
             var scriptDir = Path.Combine(tmp, "script");
@@ -164,7 +163,7 @@ public static class EzToolsUpdater
 
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
-            await proc.WaitForExitAsync(ct);
+            await proc.WaitForExitAsync(ct).ConfigureAwait(false);
 
             var promoted = EzToolsLayout.PromoteNetFolderToBinRoot(bin, progress);
             // Keep netN as Get-ZimmermanTools cache; packages strip it on export.
@@ -231,20 +230,17 @@ public static class EzToolsUpdater
     private static async Task DownloadAsync(
         string url, string destPath, IProgress<string>? progress, CancellationToken ct, HttpMessageHandler? handler)
     {
-        using var client = handler is null
-            ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = true })
-            : new HttpClient(handler, disposeHandler: false);
-        client.Timeout = TimeSpan.FromMinutes(30);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
-
-        await using var resp = await client.GetStreamAsync(url, ct);
+        using var lease = SharedHttp.Acquire(handler);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        linked.CancelAfter(TimeSpan.FromMinutes(30));
+        await using var resp = await lease.Client.GetStreamAsync(url, linked.Token).ConfigureAwait(false);
         await using var fs = File.Create(destPath);
         var buffer = new byte[81920];
         long total = 0;
         int read;
-        while ((read = await resp.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
+        while ((read = await resp.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
         {
-            await fs.WriteAsync(buffer.AsMemory(0, read), ct);
+            await fs.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
             total += read;
             if (total % (2 * 1024 * 1024) < buffer.Length)
                 progress?.Report($"Get-ZimmermanTools: {total / 1024} КБ…");

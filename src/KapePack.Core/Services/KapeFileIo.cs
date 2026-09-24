@@ -141,6 +141,44 @@ public static class KapeFileIo
         return list;
     }
 
+    private static readonly Regex ModulesBinRefRe = new(
+        @"(?i)(?:%kapeDirectory%\\)?(?:\.\\)?Modules\\bin\\(?<rel>[^\s""'<>|]+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Relative paths under Modules\bin referenced from processor CommandLine
+    /// (scripts wrappers, nested tools: Invoke-Utf8Capture.ps1, CrowdResponse\…, …).
+    /// </summary>
+    public static List<string> ExtractModuleBinCommandLineRefs(Dictionary<string, object?> data)
+    {
+        var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in EnumMaps(GetList(data, "Processors")))
+        {
+            foreach (var rel in ExtractBinRefsFromCommandLine(GetString(entry, "CommandLine")))
+                found.Add(rel);
+        }
+
+        return found.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Parse Modules\bin\… fragments out of a single CommandLine string.</summary>
+    public static IEnumerable<string> ExtractBinRefsFromCommandLine(string? commandLine)
+    {
+        if (string.IsNullOrWhiteSpace(commandLine))
+            yield break;
+
+        foreach (Match m in ModulesBinRefRe.Matches(commandLine))
+        {
+            var rel = m.Groups["rel"].Value
+                .Replace('/', '\\')
+                .Trim()
+                .TrimEnd('\\', '/', '.', ',', ';', '`');
+            if (string.IsNullOrWhiteSpace(rel))
+                continue;
+            yield return rel.TrimStart('\\');
+        }
+    }
+
     /// <summary>Collect FileMask values from a target (.tkape) Targets: entries.</summary>
     public static List<string> ExtractTargetFileMasks(Dictionary<string, object?> data)
     {

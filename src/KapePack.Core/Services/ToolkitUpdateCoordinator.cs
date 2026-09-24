@@ -23,7 +23,7 @@ public static class ToolkitUpdateCoordinator
         progress?.Report("Проверка KapeFiles (Targets/Modules)…");
         var kapefiles = await GitHubKapeFilesSync.SyncAsync(
             kapeRoot, progress, ct, httpHandler,
-            new SyncOptions { DryRun = true, PersistZipTo = cacheZip });
+            new SyncOptions { DryRun = true, PersistZipTo = cacheZip }).ConfigureAwait(false);
 
         progress?.Report("Проверка EZ Tools (Modules\\bin)…");
         var ez = EzToolsUpdater.Check(kapeRoot);
@@ -96,7 +96,7 @@ public static class ToolkitUpdateCoordinator
                     RememberZipSha256 = true,
                     ExistingZipPath = existingZip,
                     ExpectedZipSha256 = options.ExpectedZipSha256
-                });
+                }).ConfigureAwait(false);
             messages.Add(sync.Message);
             if (!string.IsNullOrEmpty(sync.BackupDir))
                 messages.Add("Backup: " + sync.BackupDir);
@@ -114,7 +114,8 @@ public static class ToolkitUpdateCoordinator
         if (options.UpdateEzTools)
         {
             progress?.Report("Обновление EZ Tools…");
-            ez = await EzToolsUpdater.UpdateAsync(kapeRoot, progress, ct, httpHandler, options.EzNetVersion);
+            ez = await EzToolsUpdater.UpdateAsync(kapeRoot, progress, ct, httpHandler, options.EzNetVersion)
+                .ConfigureAwait(false);
             messages.Add(ez.Message);
             ok &= ez.Ok;
         }
@@ -122,7 +123,8 @@ public static class ToolkitUpdateCoordinator
         if (options.UpdateChainsaw)
         {
             progress?.Report("Установка Chainsaw…");
-            chainsaw = await ChainsawInstaller.InstallAsync(kapeRoot, progress, ct, httpHandler);
+            chainsaw = await ChainsawInstaller.InstallAsync(kapeRoot, progress, ct, httpHandler)
+                .ConfigureAwait(false);
             messages.Add(chainsaw.Message);
             ok &= chainsaw.Ok;
         }

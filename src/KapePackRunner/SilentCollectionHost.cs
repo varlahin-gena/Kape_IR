@@ -28,6 +28,14 @@ internal static class SilentCollectionHost
                 return 2;
             }
 
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
+            {
+                e.Cancel = true;
+                Write("Отмена (Ctrl+C)…");
+                try { cts.Cancel(); } catch { /* disposed */ }
+            };
+
             var self = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(self))
             {
@@ -86,7 +94,15 @@ internal static class SilentCollectionHost
                 rt,
                 self,
                 Write,
-                (exe, args, wd) => CollectionRunner.StartKapeProcessAsync(exe, args, wd, Write));
+                (exe, args, wd, ct) => CollectionRunner.StartKapeProcessAsync(exe, args, wd, Write, cancellationToken: ct),
+                cancellationToken: cts.Token);
+
+            if (cts.IsCancellationRequested)
+            {
+                Write("Сбор отменён.");
+                FlushLog(logPath, log);
+                return 130;
+            }
 
             if (opt.SimOnly)
             {
@@ -106,6 +122,12 @@ internal static class SilentCollectionHost
 
             FlushLog(logPath, log);
             return result.ExitCode;
+        }
+        catch (OperationCanceledException)
+        {
+            Write("Сбор отменён.");
+            FlushLog(logPath, log);
+            return 130;
         }
         catch (Exception ex)
         {

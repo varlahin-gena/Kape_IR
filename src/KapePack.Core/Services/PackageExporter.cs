@@ -4,7 +4,7 @@ using KapePack.Core.Models;
 
 namespace KapePack.Core.Services;
 
-public sealed class PackageExporter
+public sealed class PackageExporter : IPackageExporter
 {
     private readonly KapeCatalog _catalog;
     private readonly PackageDependencyCopier _deps;
@@ -29,6 +29,8 @@ public sealed class PackageExporter
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        // Work on a clone — Export mutates Phase2 names / VolatileFirst inject / PackageId.
+        pkg = pkg.Clone();
         var warnings = new List<string>();
         pkg.PackageId = KapeFileIo.EnsureGuid(pkg.PackageId);
         void Report(string msg) => progress?.Report(msg);
@@ -175,6 +177,9 @@ public sealed class PackageExporter
             Check();
             Report("Установка в локальный KAPE…");
             (installedTarget, installedModule) = InstallIntoKape(pkg, targetFile, moduleFile, phase2ModuleFile);
+            warnings.Add(
+                "В корень KAPE записан _kape.cli.example (не активный _kape.cli). " +
+                "Для fleet: переименуйте в _kape.cli перед запуском kape.exe без аргументов.");
         }
 
         // Always build zip when making standalone EXE (payload); optional keep zip for user.
@@ -359,17 +364,17 @@ public sealed class PackageExporter
         return gated.Kept;
     }
 
-    /// <summary>Single-phase module compound: drop Sync/ToolSync before render.</summary>
+    /// <summary>Single-phase module compound: drop Sync/ToolSync and modules missing Modules\bin.</summary>
     private List<SelectionEntry> FilterSinglePhaseModules(PackageDefinition pkg, List<string> warnings)
     {
-        var kept = new List<SelectionEntry>();
+        var withoutSync = new List<SelectionEntry>();
         var syncSkipped = new List<string>();
         foreach (var e in pkg.Modules)
         {
             if (ModuleBinGate.IsSyncOrMaintenanceModule(e))
                 syncSkipped.Add(e.Name);
             else
-                kept.Add(e);
+                withoutSync.Add(e);
         }
 
         if (syncSkipped.Count > 0)
@@ -379,7 +384,15 @@ public sealed class PackageExporter
                 $"(например: {string.Join(", ", syncSkipped.Take(5))}{(syncSkipped.Count > 5 ? "…" : "")})");
         }
 
-        return kept;
+        var gated = ModuleBinGate.FilterByAvailableBinaries(_catalog, withoutSync);
+        if (gated.Skipped.Count > 0)
+        {
+            warnings.Add(
+                $"Пропущено {gated.Skipped.Count} модулей без бинарников в Modules\\bin " +
+                $"(например: {string.Join(", ", gated.Skipped.Take(5))}{(gated.Skipped.Count > 5 ? "…" : "")})");
+        }
+
+        return gated.Kept;
     }
 
     private (string, string?) InstallIntoKape(
@@ -410,7 +423,11 @@ public sealed class PackageExporter
         var safe = PackageDefinition.SafeDir(pkg.Name);
         File.WriteAllText(Path.Combine(_catalog.KapeRoot, $"run_{safe}.bat"), KapeFileIo.RenderRunBat(pkg), KapeFileIo.BatEncoding);
         File.WriteAllText(Path.Combine(_catalog.KapeRoot, $"run_{safe}.ps1"), KapeFileIo.RenderRunPs1(pkg), KapeFileIo.BatEncoding);
-        File.WriteAllText(Path.Combine(_catalog.KapeRoot, "_kape.cli"), KapeFileIo.RenderKapeCli(pkg), KapeFileIo.BatEncoding);
+        // Example only — same rule as package export: active _kape.cli forces batch mode.
+        File.WriteAllText(
+            Path.Combine(_catalog.KapeRoot, "_kape.cli.example"),
+            KapeFileIo.RenderKapeCli(pkg),
+            KapeFileIo.BatEncoding);
         return (destT, destM);
     }
 

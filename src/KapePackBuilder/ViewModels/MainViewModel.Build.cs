@@ -39,7 +39,6 @@ public partial class MainViewModel
             overwriteExisting = true;
         }
 
-        var catalog = _catalog;
         if (!_catalogWs.IsBoundTo(root))
         {
             _dialogs.ShowMessage(
@@ -49,9 +48,16 @@ public partial class MainViewModel
             return;
         }
 
+        // Cancel any in-flight catalog reload so Export reads a stable catalog instance.
+        _catalogReloadCts?.Cancel();
+
         var makeZip = MakeZip;
         // Modules\bin: auto for two_phase (Phase1 needs winpmem/live tools) or any selected modules (parsers).
         var includeModuleBin = TwoPhaseCollection || pkg.Modules.Count > 0;
+
+        // Snapshot: Export must not see mid-reload mutations (reload blocked while IsBuilding).
+        var catalogSnapshot = _catalog;
+        var pkgSnapshot = pkg.Clone();
 
         _buildCts?.Cancel();
         _buildCts?.Dispose();
@@ -65,9 +71,9 @@ public partial class MainViewModel
         {
             var result = await Task.Run(() =>
             {
-                var exporter = new PackageExporter(catalog);
+                var exporter = new PackageExporter(catalogSnapshot);
                 return exporter.Export(
-                    pkg,
+                    pkgSnapshot,
                     outputDir,
                     installIntoKape: false,
                     makeZip: makeZip,
@@ -126,6 +132,8 @@ public partial class MainViewModel
         finally
         {
             IsBuilding = false;
+            _buildCts?.Dispose();
+            _buildCts = null;
         }
     }
 

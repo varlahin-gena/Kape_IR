@@ -167,6 +167,39 @@ public sealed class PackageDefinition
         var cleaned = SafeName(name).TrimStart('!');
         return string.IsNullOrEmpty(cleaned) ? "CustomPackage" : cleaned;
     }
+
+    /// <summary>Shallow metadata + deep-copied selection lists (Export mutates modules/names).</summary>
+    public PackageDefinition Clone()
+    {
+        return new PackageDefinition
+        {
+            Name = Name,
+            Description = Description,
+            Author = Author,
+            Version = Version,
+            PackageId = PackageId,
+            RecreateDirectories = RecreateDirectories,
+            Targets = Targets.Select(CloneEntry).ToList(),
+            Modules = Modules.Select(CloneEntry).ToList(),
+            Tsource = Tsource,
+            ZipOutput = ZipOutput,
+            Flush = Flush,
+            Vss = Vss,
+            Notes = Notes,
+            CollectionMode = CollectionMode,
+            CaseId = CaseId,
+            Phase1ModuleName = Phase1ModuleName,
+            Phase2ModuleName = Phase2ModuleName
+        };
+    }
+
+    private static SelectionEntry CloneEntry(SelectionEntry e) => new()
+    {
+        Name = e.Name,
+        Category = e.Category,
+        Path = e.Path,
+        Comments = e.Comments
+    };
 }
 
 public sealed class ExportResult

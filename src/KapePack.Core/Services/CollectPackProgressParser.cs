@@ -5,7 +5,7 @@ namespace KapePack.Core.Services;
 
 /// <summary>
 /// Maps KAPE / CollectPack log lines to local phase progress (0–100) and status text.
-/// Overall bar mapping (phase floor/ceil) stays in the UI host.
+/// Overall bar mapping (phase floor/ceil) lives in <see cref="CollectionProgressState"/>.
 /// </summary>
 public sealed class CollectPackProgressParser
 {

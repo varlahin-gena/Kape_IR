@@ -9,8 +9,14 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\KapePack.Core\KapePack.Core.csproj" />
     <Resource Include="app.ico" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="KapePackBuilder.Tests" />
   </ItemGroup>
 </Project>

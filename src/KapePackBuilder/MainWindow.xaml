@@ -402,7 +402,6 @@
                 <ColumnDefinition Width="160"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
               <TextBox Text="{Binding BinarySearch, UpdateSourceTrigger=PropertyChanged}"
                        ToolTip="Поиск по имени, пути, версии, product"/>
@@ -411,8 +410,8 @@
                         SelectedItem="{Binding BinaryFilter}"/>
               <Button Grid.Column="2" Content="Обновить список" Command="{Binding ReloadBinariesCommand}"
                       ToolTip="Пересканировать Modules\bin"/>
-              <Button Grid.Column="3" Content="Открыть папку" Command="{Binding OpenModulesBinFolderCommand}"/>
-              <Button Grid.Column="4" Content="Показать в Explorer" Command="{Binding OpenSelectedBinaryFolderCommand}"/>
+              <Button Grid.Column="3" Content="Открыть папку" Command="{Binding OpenModulesBinFolderCommand}"
+                      ToolTip="Открыть Modules\bin в Explorer"/>
             </Grid>
             <TextBox DockPanel.Dock="Bottom" Height="110" IsReadOnly="True" TextWrapping="Wrap"
                      VerticalScrollBarVisibility="Auto" Margin="0,6,0,0"

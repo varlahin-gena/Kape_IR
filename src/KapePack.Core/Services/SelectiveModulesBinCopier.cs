@@ -8,20 +8,22 @@ namespace KapePack.Core.Services;
 /// </summary>
 public static class SelectiveModulesBinCopier
 {
-    public sealed class CopyResult
+    public sealed record CopyResult
     {
         public int FilesCopied { get; init; }
         public IReadOnlyList<string> RequiredExecutables { get; init; } = Array.Empty<string>();
         public IReadOnlyList<string> Missing { get; init; } = Array.Empty<string>();
         public IReadOnlyList<string> NestedFolders { get; init; } = Array.Empty<string>();
         public IReadOnlyList<string> RootStems { get; init; } = Array.Empty<string>();
+        public IReadOnlyList<string> ExplicitRootFiles { get; init; } = Array.Empty<string>();
         public List<string> Warnings { get; init; } = new();
     }
 
     /// <summary>
-    /// Resolve leaf-module Executable values and copy matching files into package Modules\bin.
+    /// Resolve leaf-module Executable values + CommandLine Modules\bin refs and copy matching
+    /// files into package Modules\bin.
     /// Nested tools (chainsaw\, hayabusa\) copy the whole top-level folder; root EZ tools copy
-    /// stem companions + shared runtime DLLs (everything not exclusive to other tools).
+    /// stem companions + shared runtime DLLs; scripts/helpers from CommandLine copy explicitly.
     /// Sources under net{N}\ are promoted to bin root (KAPE-visible layout).
     /// </summary>
     public static CopyResult Copy(
@@ -55,10 +57,11 @@ public static class SelectiveModulesBinCopier
             };
         }
 
-        progress?.Report($"Modules\\bin (selective): разбор {required.Count} Executable…");
+        progress?.Report($"Modules\\bin (selective): разбор {required.Count} зависимостей…");
 
         var nestedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var rootStems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var explicitRootFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var missing = new List<string>();
 
         foreach (var exe in required)
@@ -79,8 +82,7 @@ public static class SelectiveModulesBinCopier
             }
 
             var fileName = parts[0];
-            var stem = Path.GetFileNameWithoutExtension(fileName);
-            if (string.IsNullOrEmpty(stem))
+            if (string.IsNullOrEmpty(fileName))
                 continue;
 
             if (LocateFile(binSrc, rel) is null &&
@@ -90,7 +92,18 @@ public static class SelectiveModulesBinCopier
                 continue;
             }
 
-            rootStems.Add(stem);
+            explicitRootFiles.Add(fileName);
+            var stem = Path.GetFileNameWithoutExtension(fileName);
+            var ext = Path.GetExtension(fileName);
+            // Tool companions (PECmd.*) only for native/PE payloads — scripts stay explicit-only.
+            if (!string.IsNullOrEmpty(stem) &&
+                (ext.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
+                 ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
+                 ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                 ext.Equals(".bat", StringComparison.OrdinalIgnoreCase)))
+            {
+                rootStems.Add(stem);
+            }
         }
 
         // RECmd / related batch modules expect Maps\ next to the EXE.
@@ -121,12 +134,16 @@ public static class SelectiveModulesBinCopier
             copied += CopyDirectoryFlat(srcDir, Path.Combine(binDst, folder), ct, seenDest);
         }
 
-        if (rootStems.Count > 0)
+        if (rootStems.Count > 0 || explicitRootFiles.Count > 0)
         {
             progress?.Report(
                 $"Modules\\bin: инструменты {string.Join(", ", rootStems.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).Take(8))}" +
-                (rootStems.Count > 8 ? $" +{rootStems.Count - 8}" : "") + "…");
-            copied += CopyRootSelective(binSrc, binDst, rootStems, ct, seenDest);
+                (rootStems.Count > 8 ? $" +{rootStems.Count - 8}" : "") +
+                (explicitRootFiles.Count > 0
+                    ? $"; +{explicitRootFiles.Count} явных файлов"
+                    : "") + "…");
+            copied += CopyRootSelective(
+                binSrc, binDst, rootStems, explicitRootFiles, ct, seenDest);
         }
 
         foreach (var m in missing.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x))
@@ -134,7 +151,7 @@ public static class SelectiveModulesBinCopier
 
         progress?.Report(
             $"Modules\\bin (selective): скопировано {copied:N0} файлов " +
-            $"({rootStems.Count} root, {nestedFolders.Count} папок)");
+            $"({rootStems.Count} root, {explicitRootFiles.Count} явных, {nestedFolders.Count} папок)");
 
         if (copied == 0 && required.Count > 0)
         {
@@ -149,11 +166,15 @@ public static class SelectiveModulesBinCopier
             Missing = missing.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToList(),
             NestedFolders = nestedFolders.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
             RootStems = rootStems.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            ExplicitRootFiles = explicitRootFiles.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
             Warnings = warnings
         };
     }
 
-    /// <summary>Leaf Executable values (non-builtin) for the package module closure.</summary>
+    /// <summary>
+    /// Leaf Executable values (non-builtin) plus Modules\bin paths from CommandLine
+    /// for the package module closure.
+    /// </summary>
     public static List<string> CollectRequiredExecutables(KapeCatalog catalog, PackageDefinition pkg)
     {
         var refs = pkg.Modules
@@ -171,11 +192,11 @@ public static class SelectiveModulesBinCopier
         {
             if (ModuleBinGate.IsSyncOrMaintenanceModule(leaf))
                 continue;
-            foreach (var exe in ModuleBinGate.ExtractLeafExecutables(leaf.AbsolutePath))
+            foreach (var payload in ModuleBinGate.ExtractLeafBinPayloads(leaf.AbsolutePath))
             {
-                if (string.IsNullOrWhiteSpace(exe) || ModuleBinGate.IsHostBuiltin(exe))
+                if (string.IsNullOrWhiteSpace(payload) || ModuleBinGate.IsHostBuiltin(payload))
                     continue;
-                exes.Add(exe.Trim().Trim('"', '\''));
+                exes.Add(payload.Trim().Trim('"', '\''));
             }
         }
 
@@ -209,10 +230,59 @@ public static class SelectiveModulesBinCopier
         return false;
     }
 
+    /// <summary>
+    /// Shared .NET / framework libs that EZ Tools need beside tool-specific stem.* files.
+    /// Orphan scripts and unrelated helpers are not included — those must be explicit.
+    /// </summary>
+    public static bool IsSharedDotNetRuntime(string fileName)
+    {
+        if (string.IsNullOrEmpty(fileName))
+            return false;
+
+        if (fileName.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+            fileName.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase) ||
+            fileName.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase) ||
+            fileName.StartsWith("WindowsBase", StringComparison.OrdinalIgnoreCase) ||
+            fileName.StartsWith("Presentation", StringComparison.OrdinalIgnoreCase) ||
+            fileName.StartsWith("WindowsForms", StringComparison.OrdinalIgnoreCase) ||
+            fileName.StartsWith("DirectWriteForwarder", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return fileName.Equals("hostfxr.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("hostpolicy.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("coreclr.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("clrjit.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("clretwrc.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("clrcompression.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("mscordaccore.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("mscordbi.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("msquic.dll", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("createdump.exe", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Allowlist: required stem companions, explicit CommandLine files, shared runtime.</summary>
+    public static bool ShouldCopyRootFile(
+        string fileName,
+        IReadOnlySet<string> requiredStems,
+        IReadOnlySet<string> explicitRootFiles)
+    {
+        if (explicitRootFiles.Contains(fileName))
+            return true;
+
+        foreach (var stem in requiredStems)
+        {
+            if (BelongsToStem(fileName, stem))
+                return true;
+        }
+
+        return IsSharedDotNetRuntime(fileName);
+    }
+
     private static int CopyRootSelective(
         string binSrc,
         string binDst,
         HashSet<string> requiredStems,
+        HashSet<string> explicitRootFiles,
         CancellationToken ct,
         HashSet<string> seenDest)
     {
@@ -220,22 +290,6 @@ public static class SelectiveModulesBinCopier
         var net = EzToolsLayout.FindPreferredNetDir(binSrc);
         if (net is not null)
             searchRoots.Add(net);
-
-        var allToolStems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var root in searchRoots)
-        {
-            if (!Directory.Exists(root)) continue;
-            foreach (var exePath in Directory.EnumerateFiles(root, "*.exe", SearchOption.TopDirectoryOnly))
-            {
-                var stem = Path.GetFileNameWithoutExtension(exePath);
-                if (!string.IsNullOrEmpty(stem))
-                    allToolStems.Add(stem);
-            }
-        }
-
-        // Also treat required stems as tools even if .exe is missing (copy whatever companions exist).
-        foreach (var s in requiredStems)
-            allToolStems.Add(s);
 
         var copied = 0;
         foreach (var root in searchRoots)
@@ -245,9 +299,7 @@ public static class SelectiveModulesBinCopier
             {
                 ct.ThrowIfCancellationRequested();
                 var name = Path.GetFileName(file);
-                // Keep required stem.* and shared runtime (System.*, Microsoft.*, …).
-                // Drop files that belong only to other tools (MFTECmd.* when only PECmd is selected).
-                if (IsExclusiveToForeignStem(name, requiredStems, allToolStems))
+                if (!ShouldCopyRootFile(name, requiredStems, explicitRootFiles))
                     continue;
 
                 var dest = Path.Combine(binDst, name);

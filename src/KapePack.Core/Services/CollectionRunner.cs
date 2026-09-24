@@ -15,7 +15,7 @@ public static class CollectionRunner
         CollectionPlan.RuntimeOptions rt,
         string? collectorExe,
         Action<string> log,
-        Func<string, List<string>, string, Task<int>> runKape,
+        Func<string, List<string>, string, CancellationToken, Task<int>> runKape,
         CancellationToken cancellationToken = default)
     {
         var started = DateTimeOffset.UtcNow;
@@ -81,7 +81,7 @@ public static class CollectionRunner
             log(phase.Label);
             var args = KapeCliArgs.Build(phase.Options);
             log($"kape.exe {string.Join(" ", args)}");
-            var exit = await runKape(kapeExe, args, packageDir);
+            var exit = await runKape(kapeExe, args, packageDir, cancellationToken).ConfigureAwait(false);
             var summary = $"{phase.Name}: exit={exit} — {phase.Label}";
             summaries.Add(summary);
             log(summary);
@@ -129,6 +129,7 @@ public static class CollectionRunner
         List<string> args,
         string workDir,
         Action<string> onLine,
-        Action<Process>? onStarted = null)
-        => KapeProcessHost.StartAsync(kape, args, workDir, onLine, onStarted);
+        Action<Process>? onStarted = null,
+        CancellationToken cancellationToken = default)
+        => KapeProcessHost.StartAsync(kape, args, workDir, onLine, onStarted, cancellationToken);
 }

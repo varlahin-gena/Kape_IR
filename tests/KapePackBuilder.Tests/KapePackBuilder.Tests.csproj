@@ -6,7 +6,13 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
@@ -22,6 +28,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\KapePack.Core\KapePack.Core.csproj" />
+    <ProjectReference Include="..\..\src\KapePackBuilder\KapePackBuilder.csproj" />
+    <ProjectReference Include="..\..\src\KapePackRunner\KapePackRunner.csproj" />
   </ItemGroup>
 
 </Project>

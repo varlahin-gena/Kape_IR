@@ -28,6 +28,33 @@ public class SelectiveModulesBinCopierTests
         Assert.True(SelectiveModulesBinCopier.IsExclusiveToForeignStem("AmcacheParser.dll", required, all));
     }
 
+    [Theory]
+    [InlineData("System.Runtime.dll", true)]
+    [InlineData("Microsoft.Win32.Registry.dll", true)]
+    [InlineData("hostfxr.dll", true)]
+    [InlineData("Invoke-Utf8Capture.ps1", false)]
+    [InlineData("winpmem.exe", false)]
+    [InlineData("readme.txt", false)]
+    public void IsSharedDotNetRuntime_OnlyFrameworkLibs(string fileName, bool expected)
+        => Assert.Equal(expected, SelectiveModulesBinCopier.IsSharedDotNetRuntime(fileName));
+
+    [Fact]
+    public void ShouldCopyRootFile_Allowlist_StemSharedExplicit()
+    {
+        var stems = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "PECmd" };
+        var explicitFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Invoke-Utf8Capture.ps1"
+        };
+
+        Assert.True(SelectiveModulesBinCopier.ShouldCopyRootFile("PECmd.exe", stems, explicitFiles));
+        Assert.True(SelectiveModulesBinCopier.ShouldCopyRootFile("System.Runtime.dll", stems, explicitFiles));
+        Assert.True(SelectiveModulesBinCopier.ShouldCopyRootFile("Invoke-Utf8Capture.ps1", stems, explicitFiles));
+        Assert.False(SelectiveModulesBinCopier.ShouldCopyRootFile("winpmem.exe", stems, explicitFiles));
+        Assert.False(SelectiveModulesBinCopier.ShouldCopyRootFile("Get-InjectedThread.ps1", stems, explicitFiles));
+        Assert.False(SelectiveModulesBinCopier.ShouldCopyRootFile("MFTECmd.exe", stems, explicitFiles));
+    }
+
     [Fact]
     public void Copy_SelectsRootToolSharedDlls_NestedFolder_AndSkipsForeignTools()
     {
@@ -193,6 +220,101 @@ Processors:
         {
             try { Directory.Delete(tmp, true); } catch { /* ignore */ }
         }
+    }
+
+    [Fact]
+    public void Copy_IncludesCommandLineScripts_SkipsUnrelatedOrphans()
+    {
+        var tmp = Path.Combine(Path.GetTempPath(), "kape_selbin_cmd_" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(tmp, "kape");
+        var bin = Path.Combine(root, "Modules", "bin");
+        var win = Path.Combine(root, "Modules", "Windows");
+        Directory.CreateDirectory(bin);
+        Directory.CreateDirectory(win);
+        Directory.CreateDirectory(Path.Combine(root, "Targets"));
+
+        File.WriteAllText(Path.Combine(bin, "Invoke-Utf8Capture.ps1"), "utf8");
+        File.WriteAllText(Path.Combine(bin, "Run-Hindsight.ps1"), "hs");
+        File.WriteAllText(Path.Combine(bin, "orphan-readme.txt"), "nope");
+        File.WriteAllText(Path.Combine(bin, "winpmem.exe"), "mem");
+
+        File.WriteAllText(Path.Combine(win, "Windows_IPConfig.mkape"), """
+Description: demo
+Author: test
+Version: 1.0
+Id: 88888888-8888-8888-8888-888888888888
+ExportFormat: txt
+Processors:
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -File "%kapeDirectory%\Modules\bin\Invoke-Utf8Capture.ps1" -Exe "ipconfig.exe"
+        ExportFormat: txt
+""");
+        File.WriteAllText(Path.Combine(win, "Hindsight_Demo.mkape"), """
+Description: demo
+Author: test
+Version: 1.0
+Id: 99999999-9999-9999-9999-999999999999
+ExportFormat: xlsx
+Processors:
+    -
+        Executable: powershell.exe
+        CommandLine: -File "%kapeDirectory%\Modules\bin\Run-Hindsight.ps1" -InputPath "%sourceDirectory%"
+        ExportFormat: xlsx
+""");
+
+        var packageDir = Path.Combine(tmp, "pack");
+        Directory.CreateDirectory(Path.Combine(packageDir, "Modules"));
+
+        try
+        {
+            var cat = new KapeCatalog(root);
+            cat.Refresh();
+            var pkg = new PackageDefinition
+            {
+                Name = "CmdLineBin",
+                Modules =
+                {
+                    new SelectionEntry { Name = "Windows_IPConfig", Path = "Windows_IPConfig.mkape", Category = "Windows" },
+                    new SelectionEntry { Name = "Hindsight_Demo", Path = "Hindsight_Demo.mkape", Category = "Windows" }
+                }
+            };
+
+            var required = SelectiveModulesBinCopier.CollectRequiredExecutables(cat, pkg);
+            Assert.Contains("Invoke-Utf8Capture.ps1", required, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("Run-Hindsight.ps1", required, StringComparer.OrdinalIgnoreCase);
+            Assert.DoesNotContain(required, e => e.Contains("powershell", StringComparison.OrdinalIgnoreCase));
+
+            var result = SelectiveModulesBinCopier.Copy(cat, pkg, packageDir);
+            Assert.Contains("Invoke-Utf8Capture.ps1", result.ExplicitRootFiles, StringComparer.OrdinalIgnoreCase);
+            Assert.Contains("Run-Hindsight.ps1", result.ExplicitRootFiles, StringComparer.OrdinalIgnoreCase);
+
+            var outBin = Path.Combine(packageDir, "Modules", "bin");
+            Assert.True(File.Exists(Path.Combine(outBin, "Invoke-Utf8Capture.ps1")));
+            Assert.True(File.Exists(Path.Combine(outBin, "Run-Hindsight.ps1")));
+            Assert.False(File.Exists(Path.Combine(outBin, "winpmem.exe")));
+            Assert.False(File.Exists(Path.Combine(outBin, "orphan-readme.txt")));
+        }
+        finally
+        {
+            try { Directory.Delete(tmp, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Theory]
+    [InlineData(
+        @"-File ""%kapeDirectory%\Modules\bin\Invoke-Utf8Capture.ps1"" -Exe ipconfig",
+        "Invoke-Utf8Capture.ps1")]
+    [InlineData(
+        @"Import-Module '%kapedirectory%\Modules\bin\Get-InjectedThread.ps1' -Force",
+        "Get-InjectedThread.ps1")]
+    [InlineData(
+        @"& '%kapedirectory%\Modules\bin\CrowdResponse\CrowdResponse.exe' -i x",
+        @"CrowdResponse\CrowdResponse.exe")]
+    public void ExtractBinRefsFromCommandLine_ParsesKapeBinPaths(string cmd, string expected)
+    {
+        var refs = KapeFileIo.ExtractBinRefsFromCommandLine(cmd).ToList();
+        Assert.Contains(expected, refs, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]

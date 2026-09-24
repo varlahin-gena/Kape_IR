@@ -17,14 +17,11 @@ public partial class MainWindow : Window
     private string? _packageDir;
     private CollectionPlan.LaunchManifest? _cfg;
     private Process? _kapeProcess;
+    private CancellationTokenSource? _runCts;
     private bool _running;
     private readonly StringBuilder _logBuffer = new();
     private readonly CollectPackProgressParser _progressParser = new();
-
-    /// <summary>Overall progress floor/ceiling for the active IR phase (two_phase: P1=0–15, P2=15–99).</summary>
-    private double _phaseFloor;
-    private double _phaseCeil = 99;
-    private double _localProgress;
+    private readonly CollectionProgressState _progressState = new();
     private bool _copyPulseActive;
     private DispatcherTimer? _copyPulseTimer;
     private string _selectedTsource = "C:";
@@ -150,7 +147,7 @@ public partial class MainWindow : Window
     private bool TryApplyPaths()
     {
         var tsource = _selectedTsource.Trim();
-        if (DriveCombo.SelectedItem is DriveItem drive && !string.IsNullOrWhiteSpace(drive.Root))
+        if (DriveCombo.SelectedItem is DriveInventory.DriveItem drive && !string.IsNullOrWhiteSpace(drive.Root))
             tsource = drive.Root.Trim();
 
         if (string.IsNullOrWhiteSpace(tsource))
@@ -239,6 +236,9 @@ public partial class MainWindow : Window
         SimBtn.IsEnabled = false;
         CancelRunBtn.IsEnabled = true;
         _running = true;
+        _runCts?.Dispose();
+        _runCts = new CancellationTokenSource();
+        var ct = _runCts.Token;
         _progressParser.ResetCounters();
         StopCopyPulse();
         var twoPhase = _cfg.CollectionMode == IrCollectionMode.TwoPhase
@@ -278,13 +278,14 @@ public partial class MainWindow : Window
                 rt,
                 self,
                 Log,
-                async (exe, args, wd) =>
+                async (exe, args, wd, token) =>
                 {
                     Log(simulateOnly
                         ? $"Оценка: kape.exe {string.Join(" ", args.Select(Quote))}"
                         : $"Команда: kape.exe {string.Join(" ", args.Select(Quote))}");
-                    return await RunKapeAsync(exe, args, wd);
-                });
+                    return await RunKapeAsync(exe, args, wd, token);
+                },
+                ct);
 
             _resultsDir = result.ResultsDir;
 
@@ -320,6 +321,12 @@ public partial class MainWindow : Window
 
             return true;
         }
+        catch (OperationCanceledException)
+        {
+            Log("Сбор остановлен пользователем.");
+            SetStatus("Остановлено", indeterminate: false);
+            return false;
+        }
         catch (Exception ex)
         {
             Fail(ex.Message);
@@ -329,6 +336,8 @@ public partial class MainWindow : Window
         {
             _running = false;
             _kapeProcess = null;
+            _runCts?.Dispose();
+            _runCts = null;
             StopCopyPulse();
             CancelRunBtn.IsEnabled = false;
             CloseBtn.IsEnabled = true;
@@ -345,46 +354,11 @@ public partial class MainWindow : Window
         try
         {
             DriveCombo.Items.Clear();
-            string? preferredRoot = null;
-            try
-            {
-                preferredRoot = Path.GetPathRoot(preferred.EndsWith(':') ? preferred + "\\" : preferred);
-            }
-            catch { /* ignore */ }
+            var drives = DriveInventory.ListReady(preferred);
+            foreach (var d in drives)
+                DriveCombo.Items.Add(d);
 
-            var selected = -1;
-            try
-            {
-                foreach (var d in DriveInfo.GetDrives().Where(x => x.IsReady))
-                {
-                    var root = d.Name.TrimEnd('\\');
-                    string label;
-                    try
-                    {
-                        label = string.IsNullOrWhiteSpace(d.VolumeLabel)
-                            ? root
-                            : $"{root} ({d.VolumeLabel})";
-                    }
-                    catch
-                    {
-                        label = root;
-                    }
-
-                    // Plain data object + ItemTemplate (not ComboBoxItem): custom chrome + SelectionBoxItem stay readable.
-                    var idx = DriveCombo.Items.Add(new DriveItem(root, label));
-                    if (preferredRoot is not null &&
-                        d.Name.StartsWith(preferredRoot.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
-                        selected = idx;
-                }
-            }
-            catch { /* ignore */ }
-
-            if (DriveCombo.Items.Count == 0)
-                DriveCombo.Items.Add(new DriveItem("C:", "C:"));
-
-            if (selected >= 0) DriveCombo.SelectedIndex = selected;
-            else DriveCombo.SelectedIndex = 0;
-
+            DriveCombo.SelectedIndex = DriveInventory.IndexOfPreferred(drives, preferred);
             ApplySelectedDriveToTsource();
         }
         finally
@@ -407,7 +381,7 @@ public partial class MainWindow : Window
 
     private void ApplySelectedDriveToTsource()
     {
-        if (DriveCombo.SelectedItem is not DriveItem drive || string.IsNullOrWhiteSpace(drive.Root))
+        if (DriveCombo.SelectedItem is not DriveInventory.DriveItem drive || string.IsNullOrWhiteSpace(drive.Root))
             return;
         _selectedTsource = drive.Root;
         // Editable ComboBox: keep selection text explicit (Win11 theme sometimes leaves the box blank).
@@ -423,7 +397,7 @@ public partial class MainWindow : Window
             Phase1OnlyCheck.IsChecked = false;
     }
 
-    private Task<int> RunKapeAsync(string kape, List<string> args, string workDir)
+    private Task<int> RunKapeAsync(string kape, List<string> args, string workDir, CancellationToken ct)
     {
         return KapeProcessHost.StartAsync(
             kape,
@@ -437,7 +411,8 @@ public partial class MainWindow : Window
                     TryUpdateProgress(line);
                 });
             },
-            onStarted: proc => _kapeProcess = proc);
+            onStarted: proc => _kapeProcess = proc,
+            cancellationToken: ct);
     }
 
     private void TryUpdateProgress(string line)
@@ -445,39 +420,29 @@ public partial class MainWindow : Window
         var update = _progressParser.TryParse(line);
         if (update is null) return;
 
-        if (update.ResetPhase)
-        {
-            StopCopyPulse();
-            _phaseFloor = update.PhaseFloor ?? _phaseFloor;
-            _phaseCeil = update.PhaseCeil ?? _phaseCeil;
-            _localProgress = 0;
-        }
-
-        if (update.StopCopyPulse)
+        if (update.ResetPhase || update.StopCopyPulse)
             StopCopyPulse();
         if (update.StartCopyPulse)
             StartCopyPulse();
 
-        SetLocalProgress(update.Local0to100, update.Status);
+        _progressState.ApplyUpdate(update);
+        _progressParser.SetLocalProgress(update.Local0to100);
+        ApplyProgress(_progressState.OverallPercent, update.Status);
     }
 
     private void BeginPhaseRange(double floor, double ceil, string status)
     {
         StopCopyPulse();
         _progressParser.ResetCounters();
-        _phaseFloor = floor;
-        _phaseCeil = ceil;
-        _localProgress = 0;
-        SetLocalProgress(0, status);
+        _progressState.BeginPhase(floor, ceil);
+        ApplyProgress(_progressState.OverallPercent, status);
     }
 
     private void SetLocalProgress(double local0to100, string status)
     {
         _progressParser.SetLocalProgress(local0to100);
-        _localProgress = Math.Clamp(local0to100, 0, 100);
-        var span = Math.Max(0.1, _phaseCeil - _phaseFloor);
-        var overall = _phaseFloor + span * _localProgress / 100.0;
-        ApplyProgress(overall, status);
+        _progressState.SetLocal(local0to100);
+        ApplyProgress(_progressState.OverallPercent, status);
     }
 
     private void StartCopyPulse()
@@ -592,16 +557,15 @@ public partial class MainWindow : Window
 
     private void CancelRun_Click(object sender, RoutedEventArgs e)
     {
-        var proc = _kapeProcess;
-        if (proc is null || proc.HasExited) return;
+        if (_runCts is null || _runCts.IsCancellationRequested) return;
         if (MessageBox.Show("Остановить kape.exe? Сбор будет прерван.", "KAPE Pack",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
         try
         {
-            proc.Kill(entireProcessTree: true);
-            Log("Сбор остановлен пользователем.");
-            SetStatus("Остановлено", indeterminate: false);
+            _runCts.Cancel();
+            Log("Остановка…");
+            SetStatus("Остановка…", indeterminate: true);
         }
         catch (Exception ex)
         {
@@ -613,9 +577,4 @@ public partial class MainWindow : Window
 
     private static string Quote(string s)
         => s.Contains(' ') || s.Contains('%') ? "\"" + s + "\"" : s;
-
-    private sealed record DriveItem(string Root, string Label)
-    {
-        public override string ToString() => Label;
-    }
 }

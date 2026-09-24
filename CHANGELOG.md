@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.5] — 2026-09-24
+
+### Fix — selective Modules\bin
+- CollectPack: зависимости из `CommandLine` (`%kapeDirectory%\Modules\bin\…`) — скрипты `Invoke-Utf8Capture.ps1`, `Run-Hindsight.ps1`, `Get-*.ps1`, вложенные пути CrowdResponse и т.п.
+- `ModuleBinGate`: builtin PowerShell больше не «зелёнит» модуль без реального bin-файла из CommandLine
+- Selective copy: allowlist (stem.* + явные файлы + shared .NET), без orphan-скриптов/readme при выборе одного EZ-инструмента
+
 ## [1.8.4] — 2026-09-14
 
 ### Changed

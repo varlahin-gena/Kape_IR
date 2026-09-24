@@ -6,12 +6,19 @@ namespace KapePackBuilder.Workspaces;
 /// <summary>Check/apply toolkit updates for a bound KAPE root.</summary>
 public sealed class ToolkitUpdateWorkspace
 {
+    private readonly IToolkitUpdateService _toolkit;
+
+    public ToolkitUpdateWorkspace(IToolkitUpdateService? toolkit = null)
+    {
+        _toolkit = toolkit ?? new ToolkitUpdateService();
+    }
+
     public Task<ToolkitCheckReport> CheckAsync(
         string kapeRoot,
         IProgress<string>? progress = null,
         CancellationToken ct = default,
         HttpMessageHandler? httpHandler = null)
-        => ToolkitUpdateCoordinator.CheckAsync(kapeRoot, progress, ct, httpHandler);
+        => _toolkit.CheckAsync(kapeRoot, progress, ct, httpHandler);
 
     public Task<ToolkitApplyResult> ApplyAsync(
         string kapeRoot,
@@ -19,5 +26,5 @@ public sealed class ToolkitUpdateWorkspace
         IProgress<string>? progress = null,
         CancellationToken ct = default,
         HttpMessageHandler? httpHandler = null)
-        => ToolkitUpdateCoordinator.ApplyAsync(kapeRoot, options, progress, ct, httpHandler);
+        => _toolkit.ApplyAsync(kapeRoot, options, progress, ct, httpHandler);
 }

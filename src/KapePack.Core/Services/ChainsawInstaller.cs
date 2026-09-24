@@ -14,7 +14,6 @@ public static class ChainsawInstaller
         "https://github.com/WithSecureLabs/chainsaw/releases/latest/download/chainsaw_all_platforms+rules+examples.zip";
 
     public const string RelativeExe = @"Modules\bin\chainsaw\Chainsaw.exe";
-    private const string UserAgent = "Kape_IR/1.8.4 (+Chainsaw nest for KAPE Modules\\bin\\chainsaw)";
 
     public static string GetInstallDir(string kapeRoot)
         => Path.Combine(kapeRoot, "Modules", "bin", "chainsaw");
@@ -83,12 +82,12 @@ public static class ChainsawInstaller
             {
                 progress?.Report("Распаковка Chainsaw (тест)…");
                 await using (var fs = File.Create(zipPath))
-                    await zipStreamOverride.CopyToAsync(fs, ct);
+                    await zipStreamOverride.CopyToAsync(fs, ct).ConfigureAwait(false);
             }
             else
             {
                 progress?.Report("Скачивание Chainsaw (WithSecureLabs)…");
-                await DownloadAsync(BinaryUrl, zipPath, progress, ct, httpHandler);
+                await DownloadAsync(BinaryUrl, zipPath, progress, ct, httpHandler).ConfigureAwait(false);
             }
 
             progress?.Report("Распаковка Chainsaw…");
@@ -158,20 +157,17 @@ public static class ChainsawInstaller
     private static async Task DownloadAsync(
         string url, string destPath, IProgress<string>? progress, CancellationToken ct, HttpMessageHandler? handler)
     {
-        using var client = handler is null
-            ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = true })
-            : new HttpClient(handler, disposeHandler: false);
-        client.Timeout = TimeSpan.FromMinutes(15);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
-
-        await using var resp = await client.GetStreamAsync(url, ct);
+        using var lease = SharedHttp.Acquire(handler);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        linked.CancelAfter(TimeSpan.FromMinutes(15));
+        await using var resp = await lease.Client.GetStreamAsync(url, linked.Token).ConfigureAwait(false);
         await using var fs = File.Create(destPath);
         var buffer = new byte[81920];
         long total = 0;
         int read;
-        while ((read = await resp.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
+        while ((read = await resp.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
         {
-            await fs.WriteAsync(buffer.AsMemory(0, read), ct);
+            await fs.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
             total += read;
             if (total % (5 * 1024 * 1024) < buffer.Length)
                 progress?.Report($"Chainsaw: скачано {total / (1024 * 1024):N0} МБ…");

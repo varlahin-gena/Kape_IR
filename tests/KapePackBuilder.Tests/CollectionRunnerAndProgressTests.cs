@@ -79,7 +79,7 @@ public class CollectionRunnerTests
                 new CollectionPlan.RuntimeOptions("C:", Simulate: true),
                 collectorExe: null,
                 log: _ => { },
-                runKape: (_, args, _) =>
+                runKape: (_, args, _, _) =>
                 {
                     calls.Add(string.Join(' ', args));
                     return Task.FromResult(0);
@@ -112,7 +112,7 @@ public class CollectionRunnerTests
                 new CollectionPlan.RuntimeOptions("C:", Simulate: false, SkipMemory: false),
                 collectorExe: null,
                 log: _ => { },
-                runKape: (_, _, _) =>
+                runKape: (_, _, _, _) =>
                 {
                     kapeCalls++;
                     return Task.FromResult(0);
@@ -148,7 +148,7 @@ public class CollectionRunnerTests
                 new CollectionPlan.RuntimeOptions("C:", Simulate: false, SkipMemory: true),
                 collectorExe: null,
                 log: _ => { },
-                runKape: (_, _, _) =>
+                runKape: (_, _, _, _) =>
                 {
                     called++;
                     return Task.FromResult(0);

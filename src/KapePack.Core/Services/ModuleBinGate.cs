@@ -37,15 +37,11 @@ public static class ModuleBinGate
             Category = item.Category
         });
 
-    public sealed class FilterResult
-    {
-        public List<SelectionEntry> Kept { get; init; } = new();
-        public List<string> Skipped { get; init; } = new();
-    }
+    public sealed record FilterResult(List<SelectionEntry> Kept, List<string> Skipped);
 
     /// <summary>
-    /// Keep modules that either use built-in OS tools (powershell/cmd/…) or have
-    /// their primary Executable present under Modules\bin (KAPE-visible layout).
+    /// Keep modules that have at least one runnable leaf: OS builtins with no bin deps,
+    /// or any required Modules\bin payload (Executable and/or CommandLine refs) present.
     /// </summary>
     public static FilterResult FilterByAvailableBinaries(
         KapeCatalog catalog,
@@ -72,22 +68,23 @@ public static class ModuleBinGate
             string? missingHint = null;
             foreach (var leaf in leaves)
             {
-                var exes = ExtractLeafExecutables(leaf.AbsolutePath);
-                if (exes.Count == 0)
+                var payloads = ExtractLeafBinPayloads(leaf.AbsolutePath);
+                if (payloads.Count == 0)
                 {
+                    // No Modules\bin deps (builtins-only or empty processors).
                     anyRunnable = true;
                     break;
                 }
 
-                foreach (var exe in exes)
+                foreach (var payload in payloads)
                 {
-                    if (IsHostBuiltin(exe) || BinaryExists(bin, exe))
+                    if (BinaryExists(bin, payload))
                     {
                         anyRunnable = true;
                         break;
                     }
 
-                    missingHint ??= exe;
+                    missingHint ??= payload;
                 }
 
                 if (anyRunnable)
@@ -100,7 +97,7 @@ public static class ModuleBinGate
                 skipped.Add($"{entry.Name} (нет {missingHint ?? "?"})");
         }
 
-        return new FilterResult { Kept = kept, Skipped = skipped };
+        return new FilterResult(kept, skipped);
     }
 
     public static List<string> ExtractLeafExecutables(string mkapePath)
@@ -110,6 +107,35 @@ public static class ModuleBinGate
         if (KapeFileIo.IsCompoundModule(data))
             return new List<string>();
         return KapeFileIo.ExtractModuleExecutables(data);
+    }
+
+    /// <summary>
+    /// Non-builtin Executable values plus Modules\bin paths from CommandLine.
+    /// Compounds return empty (children are resolved via FlattenToLeaves).
+    /// </summary>
+    public static List<string> ExtractLeafBinPayloads(string mkapePath)
+    {
+        if (!KapeFileIo.TryLoadKapeFile(mkapePath, out var data))
+            return new List<string>();
+        if (KapeFileIo.IsCompoundModule(data))
+            return new List<string>();
+
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var exe in KapeFileIo.ExtractModuleExecutables(data))
+        {
+            if (string.IsNullOrWhiteSpace(exe) || IsHostBuiltin(exe))
+                continue;
+            set.Add(exe.Trim().Trim('"', '\''));
+        }
+
+        foreach (var rel in KapeFileIo.ExtractModuleBinCommandLineRefs(data))
+        {
+            if (string.IsNullOrWhiteSpace(rel) || IsHostBuiltin(rel))
+                continue;
+            set.Add(rel.Trim().Trim('"', '\''));
+        }
+
+        return set.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public static bool IsHostBuiltin(string executable)

@@ -87,24 +87,6 @@ public partial class MainViewModel
         });
     }
 
-    [RelayCommand]
-    private void OpenSelectedBinaryFolder()
-    {
-        var path = SelectedBinary?.Item.AbsolutePath;
-        if (string.IsNullOrEmpty(path) || !File.Exists(path))
-        {
-            _dialogs.ShowMessage("Сначала выберите файл в списке.", "Modules\\bin", DialogIcon.Warning);
-            return;
-        }
-
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = "explorer.exe",
-            Arguments = "/select,\"" + path + "\"",
-            UseShellExecute = true
-        });
-    }
-
     private async Task LoadBinariesAsync(bool updateStatus)
     {
         var root = (KapeRoot ?? "").Trim();
