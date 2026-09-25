@@ -19,8 +19,42 @@ public static class EvidenceWrapUp
     {
         Directory.CreateDirectory(ctx.ResultsDir);
         WriteCollectionLog(ctx, log);
+        WriteFindingsTemplate(ctx.ResultsDir, log);
         var manifestPath = WriteManifest(ctx.ResultsDir, log);
         WriteChainOfCustody(ctx, manifestPath, log);
+    }
+
+    public const string FindingsTemplateFileName = "findings_template.csv";
+
+    /// <summary>digital-forensics P2-9 — post-collection checklist (RU), shared with package README.</summary>
+    public static IReadOnlyList<string> PostCollectionChecklistRu { get; } = new[]
+    {
+        "□ Case ID задан; есть collection_log.txt и chain_of_custody.txt",
+        "□ TimeZone Id / Display / UTC offset / DST записаны (для таймлайна)",
+        "□ evidence_manifest.sha256 сверен; для RAM — memory_hash.sha256 (дамп не дублируется в манифесте)",
+        "□ CopyLog / SkipLog / ConsoleLog без критичных пропусков",
+        "□ Phase1 (volatile) до тяжёлого диска; при --skip-memory это осознанно",
+        "□ findings_template.csv → findings.csv; EXAMPLE-строки заменены",
+        "□ Lab: Volatility3_Triage / Hayabusa_Offline / hayabusa_IocCandidates по необходимости (IOC = unverified)",
+        "□ Передача evidence: заполнить Transfer / Storage в chain_of_custody.txt",
+    };
+
+    /// <summary>
+    /// digital-forensics P2-7: analyst worksheet (header + EXAMPLE rows). Copy to findings.csv for the case.
+    /// </summary>
+    public static string FindingsTemplateCsv { get; } =
+        "Time,Host,Artifact,Finding,Confidence,Evidence path\r\n" +
+        "2026-09-24T00:00:00Z,EXAMPLE-HOST,Prefetch,\"EXAMPLE — replace me: suspicious binary executed\",unverified,Phase2_Disk\\C\\Windows\\Prefetch\\EXAMPLE.EXE-XXXXXXXX.pf\r\n" +
+        "2026-09-24T00:00:00Z,EXAMPLE-HOST,EventLog,\"EXAMPLE — replace me: anomalous logon or PowerShell activity\",unverified,Phase2_Disk\\C\\Windows\\System32\\winevt\\Logs\\Security.evtx\r\n" +
+        "2026-09-24T00:00:00Z,EXAMPLE-HOST,Netstat,\"EXAMPLE — replace me: unusual outbound connection\",unverified,Phase1_Volatile\\network_connections.txt\r\n";
+
+    public static string WriteFindingsTemplate(string directory, Action<string>? log = null)
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, FindingsTemplateFileName);
+        File.WriteAllText(path, FindingsTemplateCsv, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        log?.Invoke($"Записан {FindingsTemplateFileName}");
+        return path;
     }
 
     public static string WriteCollectionLog(Context ctx, Action<string>? log = null)
@@ -37,6 +71,7 @@ public static class EvidenceWrapUp
         sb.AppendLine($"Started (UTC): {ctx.StartedUtc:o}");
         sb.AppendLine($"Ended (UTC): {ctx.EndedUtc:o}");
         sb.AppendLine($"Duration: {ctx.EndedUtc - ctx.StartedUtc}");
+        AppendHostTimeZone(sb, ctx.EndedUtc);
         sb.AppendLine($"Collector EXE: {ctx.CollectorExe}");
         try
         {
@@ -49,6 +84,11 @@ public static class EvidenceWrapUp
         sb.AppendLine("Phases:");
         foreach (var line in ctx.PhaseSummaries)
             sb.AppendLine("  " + line);
+
+        sb.AppendLine();
+        sb.AppendLine("Findings worksheet:");
+        sb.AppendLine($"  {FindingsTemplateFileName} — copy to findings.csv; replace EXAMPLE rows (Confidence: unverified).");
+        sb.AppendLine("  Columns: Time | Host | Artifact | Finding | Confidence | Evidence path");
 
         sb.AppendLine();
         sb.AppendLine($"Local time at write: {DateTimeOffset.Now:o}");
@@ -142,6 +182,7 @@ public static class EvidenceWrapUp
         sb.AppendLine("========================");
         sb.AppendLine($"Case ID: {NullDash(ctx.CaseId)}");
         sb.AppendLine($"Collection Date (UTC): {ctx.StartedUtc:o} — {ctx.EndedUtc:o}");
+        AppendHostTimeZone(sb, ctx.EndedUtc);
         sb.AppendLine($"Collected By: {Environment.UserDomainName}\\{Environment.UserName}");
         sb.AppendLine($"System: {Environment.MachineName}");
         sb.AppendLine($"Collection Method: KAPE Pack CollectPack ({ctx.CollectionMode})");
@@ -161,6 +202,25 @@ public static class EvidenceWrapUp
         File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
         log?.Invoke("Записан chain_of_custody.txt");
         return path;
+    }
+
+    /// <summary>
+    /// Host timezone at collection (TimeZoneInfo.Local on the CollectPack machine).
+    /// digital-forensics P0-2: Id, Display, UTC offset, DST — for defensible timelines.
+    /// </summary>
+    public static void AppendHostTimeZone(StringBuilder sb, DateTimeOffset at)
+    {
+        var tz = TimeZoneInfo.Local;
+        var offset = tz.GetUtcOffset(at);
+        var sign = offset < TimeSpan.Zero ? "-" : "+";
+        var abs = offset.Duration();
+        var offsetStr = $"{sign}{abs.Hours:D2}:{abs.Minutes:D2}";
+        var localAt = TimeZoneInfo.ConvertTime(at, tz);
+
+        sb.AppendLine($"TimeZone Id: {tz.Id}");
+        sb.AppendLine($"TimeZone Display: {tz.DisplayName}");
+        sb.AppendLine($"UTC offset at collection: {offsetStr}");
+        sb.AppendLine($"Daylight saving: {tz.IsDaylightSavingTime(localAt.DateTime)}");
     }
 
     private static string NullDash(string? s) => string.IsNullOrWhiteSpace(s) ? "[NOT SET]" : s.Trim();

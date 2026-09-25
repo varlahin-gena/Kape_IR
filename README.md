@@ -96,10 +96,10 @@ KAPE остаётся движком сбора; Builder — оболочка н
 | Шаг | Модуль | Что снимает |
 |-----|--------|-------------|
 | 1 | `Velocidex_WinPmem` | RAM-дамп (`memory.raw` / aff4) + `memory_hash.sha256` |
-| 2 | `LiveResponse_NetworkDetails` | IP/DNS/ARP/маршрут, netstat, NetBIOS |
+| 2 | `LiveResponse_NetworkDetails` | IP/DNS/ARP/маршрут, netstat, TCP/UDP CSV, firewall, portproxy, NetBIOS |
 | 3 | `LiveResponse_ProcessDetails` | Процессы, дерево, сервисы, handles, injected threads |
 | 4 | `LiveResponse_NetSystemInfo` | `net user` / groups / sessions / shares / started services |
-| 5 | `LiveResponse_SystemSnapshot` | Время, env, firewall, quser/session, schtasks, Run-keys, services |
+| 5 | `LiveResponse_SystemSnapshot` | Время, env, quser/session, schtasks, Run-keys, services |
 
 Без RAM: модуль `VolatileFirst_NoMemory` или CollectPack `--skip-memory`.  
 Для дампа нужен signed **WinPmem** как `Modules\bin\winpmem.exe` (см. `Velocidex_WinPmem.mkape`). Без него — `--skip-memory` или код выхода 2.

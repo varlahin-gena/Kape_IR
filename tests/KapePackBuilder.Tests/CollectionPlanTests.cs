@@ -137,11 +137,17 @@ public class CollectionPlanTests
             Assert.True(File.Exists(Path.Combine(dir, "collection_log.txt")));
             Assert.True(File.Exists(Path.Combine(dir, "evidence_manifest.sha256")));
             Assert.True(File.Exists(Path.Combine(dir, "chain_of_custody.txt")));
+            Assert.True(File.Exists(Path.Combine(dir, EvidenceWrapUp.FindingsTemplateFileName)));
             var manifest = File.ReadAllText(Path.Combine(dir, "evidence_manifest.sha256"));
             Assert.Contains("sample.txt", manifest);
             Assert.Contains("collection_log.txt", manifest);
+            Assert.Contains(EvidenceWrapUp.FindingsTemplateFileName, manifest);
             var coc = File.ReadAllText(Path.Combine(dir, "chain_of_custody.txt"));
             Assert.Contains("IR-TEST", coc);
+            Assert.Contains("TimeZone Id:", coc);
+            var log = File.ReadAllText(Path.Combine(dir, "collection_log.txt"));
+            Assert.Contains("TimeZone Display:", log);
+            Assert.Contains(EvidenceWrapUp.FindingsTemplateFileName, log);
         }
         finally
         {

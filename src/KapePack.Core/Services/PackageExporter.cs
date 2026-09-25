@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using KapePack.Core.Models;
 
@@ -169,6 +170,10 @@ public sealed class PackageExporter : IPackageExporter
         File.WriteAllText(manifestFile, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
 
         File.WriteAllText(Path.Combine(packageDir, "README.txt"), ReadmeText(pkg, installIntoKape, buildStandaloneExe));
+        File.WriteAllText(
+            Path.Combine(packageDir, EvidenceWrapUp.FindingsTemplateFileName),
+            EvidenceWrapUp.FindingsTemplateCsv,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
 
         string? installedTarget = null;
         string? installedModule = null;
@@ -489,6 +494,7 @@ public sealed class PackageExporter : IPackageExporter
             "  - _kape.cli.example (fleet: переименуйте в _kape.cli рядом с kape.exe и запустите kape.exe без аргументов;",
             "    не держите активный _kape.cli при запуске CollectPack / run_collection — KAPE тогда игнорирует CLI)",
             "  - манифест package.json",
+            $"  - {EvidenceWrapUp.FindingsTemplateFileName} (скопируйте в findings.csv после сбора)",
             "  - зависимые Targets/Modules",
             ""
         });
@@ -519,6 +525,13 @@ public sealed class PackageExporter : IPackageExporter
         lines.AddRange(new[]
         {
             "  3. Запускайте от имени администратора.",
+            "",
+            "Чеклист после сбора:",
+        });
+        foreach (var item in EvidenceWrapUp.PostCollectionChecklistRu)
+            lines.Add("  " + item);
+        lines.AddRange(new[]
+        {
             "",
             "Сгенерировано KAPE Pack Builder",
             ""
