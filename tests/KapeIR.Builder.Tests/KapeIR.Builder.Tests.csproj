@@ -29,9 +29,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\KapePack.Core\KapePack.Core.csproj" />
-    <ProjectReference Include="..\..\src\KapePackBuilder\KapePackBuilder.csproj" />
-    <ProjectReference Include="..\..\src\KapePackRunner\KapePackRunner.csproj" />
+    <ProjectReference Include="..\..\src\KapeIR.Core\KapeIR.Core.csproj" />
+    <ProjectReference Include="..\..\src\KapeIR.Builder\KapeIR.Builder.csproj" />
+    <ProjectReference Include="..\..\src\KapeIR.Triage\KapeIR.Triage.csproj" />
   </ItemGroup>
 
 </Project>

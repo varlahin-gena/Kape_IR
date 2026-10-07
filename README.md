@@ -129,11 +129,12 @@ KAPE остаётся движком сбора; KapeIR — оболочка н�
 ## Структура исходников
 
 ```
-src/KapePack.Core/       — каталог, export, sync, Triage pipeline
-src/KapePackBuilder/     — WPF UI → KapeIR.exe
-src/KapePackRunner/      — stub → KapeIR.Triage.exe (вшивается в Builder)
-tests/                   — unit-тесты
-publish.ps1              — сборка одного EXE (для разработчиков)
+src/KapeIR.Core/         — каталог, export, sync, Triage pipeline
+src/KapeIR.Builder/      — WPF UI → KapeIR.exe
+src/KapeIR.Triage/       — stub → KapeIR.Triage.exe (вшивается в Builder)
+src/KapeIR.Ui/           — общая WPF-тема
+tests/KapeIR.Builder.Tests/
+publish.ps1 / KapeIR.sln — сборка одного EXE
 ```
 
 Исходники в репозитории для прозрачности и CI; для работы достаточно файла из Releases.

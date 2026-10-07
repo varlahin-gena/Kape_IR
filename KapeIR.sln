@@ -1,21 +1,21 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{821F37F2-A814-44BE-8840-D5B4D336CD64}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapePackBuilder", "src\KapePackBuilder\KapePackBuilder.csproj", "{DC76AA2A-05D1-4D81-A0C5-7D47D29DC5B8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapeIR.Builder", "src\KapeIR.Builder\KapeIR.Builder.csproj", "{DC76AA2A-05D1-4D81-A0C5-7D47D29DC5B8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapePackRunner", "src\KapePackRunner\KapePackRunner.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapeIR.Triage", "src\KapeIR.Triage\KapeIR.Triage.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{13594737-73FF-4628-9E5A-4E6DCB31DC45}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapePackBuilder.Tests", "tests\KapePackBuilder.Tests\KapePackBuilder.Tests.csproj", "{DB5DAD65-8689-4A87-887B-7E4AC1F2BFA8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapeIR.Builder.Tests", "tests\KapeIR.Builder.Tests\KapeIR.Builder.Tests.csproj", "{DB5DAD65-8689-4A87-887B-7E4AC1F2BFA8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapePack.Core", "src\KapePack.Core\KapePack.Core.csproj", "{B03EF55A-0D4C-4200-AA72-844220371D6E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapeIR.Core", "src\KapeIR.Core\KapeIR.Core.csproj", "{B03EF55A-0D4C-4200-AA72-844220371D6E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapePack.Ui", "src\KapePack.Ui\KapePack.Ui.csproj", "{C1D2E3F4-A5B6-7890-CDEF-123456789ABC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KapeIR.Ui", "src\KapeIR.Ui\KapeIR.Ui.csproj", "{C1D2E3F4-A5B6-7890-CDEF-123456789ABC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

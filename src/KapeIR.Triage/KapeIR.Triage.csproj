@@ -14,8 +14,8 @@
     <Using Include="System.IO" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\KapePack.Core\KapePack.Core.csproj" />
-    <ProjectReference Include="..\KapePack.Ui\KapePack.Ui.csproj" />
+    <ProjectReference Include="..\KapeIR.Core\KapeIR.Core.csproj" />
+    <ProjectReference Include="..\KapeIR.Ui\KapeIR.Ui.csproj" />
     <Resource Include="app.ico" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>

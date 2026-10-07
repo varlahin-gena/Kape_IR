@@ -22,15 +22,15 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Restore
-        run: dotnet restore KapePackBuilder.sln
+        run: dotnet restore KapeIR.sln
         working-directory: .
 
       - name: Build
-        run: dotnet build KapePackBuilder.sln -c Release --no-restore
+        run: dotnet build KapeIR.sln -c Release --no-restore
         working-directory: .
 
       - name: Test (unit + skippable lab)
-        run: dotnet test tests/KapePackBuilder.Tests/KapePackBuilder.Tests.csproj -c Release --no-build --filter "FullyQualifiedName!~GitHubSync"
+        run: dotnet test tests/KapeIR.Builder.Tests/KapeIR.Builder.Tests.csproj -c Release --no-build --filter "FullyQualifiedName!~GitHubSync"
         working-directory: .
         env:
           # Optional: set repository variable/secret KAPE_ROOT on a self-hosted runner with a full tree.

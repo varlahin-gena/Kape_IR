@@ -70,7 +70,7 @@ function Invoke-OptionalSign([string]$ExePath) {
 # Framework-dependent Builder: cannot EnableCompressionInSingleFile — publish stub compressed.
 $compressStub = [bool]$FrameworkDependent
 Write-Host "[*] Publishing KapeIR.Triage stub (embedded into Builder, compress=$compressStub)..."
-dotnet publish .\src\KapePackRunner\KapePackRunner.csproj `
+dotnet publish .\src\KapeIR.Triage\KapeIR.Triage.csproj `
   -c Release `
   -r win-x64 `
   --self-contained true `
@@ -99,7 +99,7 @@ $builderSelfContained = -not $FrameworkDependent
 $compressBuilder = $builderSelfContained
 $modeLabel = if ($FrameworkDependent) { "framework-dependent (needs .NET 8 Desktop Runtime)" } else { "self-contained" }
 Write-Host "[*] Publishing KapeIR ($modeLabel)..."
-dotnet publish .\src\KapePackBuilder\KapePackBuilder.csproj `
+dotnet publish .\src\KapeIR.Builder\KapeIR.Builder.csproj `
   -c Release `
   -r win-x64 `
   --self-contained $builderSelfContained `
