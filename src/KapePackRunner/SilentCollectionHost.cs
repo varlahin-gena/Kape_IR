@@ -1,10 +1,10 @@
 using System.IO;
 using System.Text;
-using KapePack.Core.Services;
+using KapeIR.Core.Services;
 
-namespace KapePackRunner;
+namespace KapeIR.Triage;
 
-/// <summary>Headless collect path for EDR / automation.</summary>
+/// <summary>Headless collect path for EDR / automation — thin host over <see cref="TriageRunCoordinator"/>.</summary>
 internal static class SilentCollectionHost
 {
     public static async Task<int> RunAsync(RunnerCliOptions opt)
@@ -46,56 +46,36 @@ internal static class SilentCollectionHost
 
             Write($"Log: {logPath}");
 
-            if (opt.VerifySha256 || File.Exists(self + ".sha256"))
-            {
-                var require = opt.VerifySha256;
-                if (!FileHash.TryVerifySidecar(self, out var verifyMsg, requireSidecar: require))
-                {
-                    Write(verifyMsg);
-                    FlushLog(logPath, log);
-                    return 2;
-                }
+            var coord = new TriageRunCoordinator();
+            var prep = coord.Prepare(
+                new TriageRunCoordinator.PrepareOptions(
+                    self,
+                    TsourceOverride: opt.Tsource,
+                    RequireTsource: true,
+                    RequireSha256: opt.VerifySha256,
+                    VerifyIfSidecarPresent: true),
+                log: Write,
+                cancellationToken: cts.Token);
 
-                Write(verifyMsg);
-            }
-
-            var prep = CollectPackPrepare.Prepare(
-                self,
-                tsourceOverride: opt.Tsource,
-                requireTsource: true,
-                log: Write);
-
-            if (prep.ExitCode != 0)
+            if (prep.ExitCode != 0 || prep.Session is null)
             {
                 Write(prep.Message);
                 FlushLog(logPath, log);
                 return prep.ExitCode;
             }
 
-            var cfg = prep.Manifest!;
-            var packageDir = prep.PackageDir!;
-            var kape = prep.KapeExe!;
+            var session = prep.Session;
+            var rt = TriageRunCoordinator.BuildRuntime(
+                session.Manifest.Tsource,
+                simulate: opt.SimOnly,
+                phaseFilter: opt.Phase,
+                skipMemory: opt.SkipMemory,
+                caseIdOverride: opt.CaseId);
 
-            var rt = new CollectionPlan.RuntimeOptions(
-                cfg.Tsource,
-                Simulate: opt.SimOnly,
-                PhaseFilter: opt.Phase,
-                SkipMemory: opt.SkipMemory,
-                CaseIdOverride: opt.CaseId);
-
-            Write(opt.SimOnly ? "Режим: оценка (--sim)" : "Режим: сбор");
-            if (cfg.CollectionMode == KapePack.Core.Models.IrCollectionMode.TwoPhase)
-                Write($"Двухфазный IR (phase={opt.Phase?.ToString() ?? "all"}, skip_memory={opt.SkipMemory})");
-
-            var result = await CollectionRunner.RunAsync(
-                packageDir,
-                kape,
-                cfg,
-                rt,
-                self,
+            var result = await coord.RunAsync(
+                new TriageRunCoordinator.RunOptions(session, rt),
                 Write,
-                (exe, args, wd, ct) => CollectionRunner.StartKapeProcessAsync(exe, args, wd, Write, cancellationToken: ct),
-                cancellationToken: cts.Token);
+                cts.Token);
 
             if (cts.IsCancellationRequested)
             {
@@ -104,22 +84,7 @@ internal static class SilentCollectionHost
                 return 130;
             }
 
-            if (opt.SimOnly)
-            {
-                Write(result.ExitCode == 0
-                    ? "Оценка (--sim) завершена. Файлы не копировались."
-                    : $"Оценка завершилась с кодом {result.ExitCode}.");
-                FlushLog(logPath, log);
-                return result.ExitCode == 0 ? 0 : result.ExitCode;
-            }
-
-            if (result.ResultsDir is not null && Directory.Exists(result.ResultsDir))
-                Write($"Готово. RESULTS: {result.ResultsDir}");
-            else
-                Write(result.ExitCode == 0
-                    ? "Папка RESULTS не создана — сбор не выполнен."
-                    : $"Ошибка kape.exe (код {result.ExitCode}).");
-
+            Write(result.StatusMessage);
             FlushLog(logPath, log);
             return result.ExitCode;
         }

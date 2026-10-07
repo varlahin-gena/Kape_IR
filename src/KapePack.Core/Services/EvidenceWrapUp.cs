@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>collection_log, SHA256 manifest, chain-of-custody for IR packs.</summary>
 public static class EvidenceWrapUp

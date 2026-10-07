@@ -1,4 +1,4 @@
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// KAPE batch mode: if <c>_kape.cli</c> sits next to kape.exe, CLI args are ignored and

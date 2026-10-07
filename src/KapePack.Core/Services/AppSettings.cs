@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 public sealed class AppSettings
 {

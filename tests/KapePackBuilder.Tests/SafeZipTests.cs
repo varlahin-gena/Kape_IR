@@ -1,7 +1,7 @@
 using System.IO.Compression;
-using KapePack.Core.Shared;
+using KapeIR.Core.Shared;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 public class SafeZipTests
 {

@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Reflection;
 using CommunityToolkit.Mvvm.Input;
-using KapePack.Core.Services;
-using KapePackBuilder.Services;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Services;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 public partial class MainViewModel
 {
@@ -22,7 +22,11 @@ public partial class MainViewModel
         if (plus >= 0)
             ver = ver[..plus];
 
-        _dialogs.ShowMessage($"{ProductName}\nВерсия: {ver}", "О программе", DialogIcon.Info);
+        var logPath = AppLog.LogFilePath;
+        _dialogs.ShowMessage(
+            $"{ProductName}\nВерсия: {ver}\n\nЖурнал:\n{logPath}",
+            "О программе",
+            DialogIcon.Info);
     }
 
     [RelayCommand]
@@ -39,7 +43,10 @@ public partial class MainViewModel
         }
         catch (Exception ex)
         {
-            _dialogs.ShowMessage(ex.Message, "Журнал", DialogIcon.Warning);
+            _dialogs.ShowMessage(
+                ex.Message + "\n\n" + AppLog.LogFilePath,
+                "Журнал",
+                DialogIcon.Warning);
         }
     }
 }

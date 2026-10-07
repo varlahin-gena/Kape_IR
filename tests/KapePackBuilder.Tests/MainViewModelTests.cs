@@ -1,7 +1,7 @@
-using KapePackBuilder.Services;
-using KapePackBuilder.ViewModels;
+using KapeIR.Builder.Services;
+using KapeIR.Builder.ViewModels;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 public class MainViewModelTests
 {

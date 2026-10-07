@@ -1,6 +1,6 @@
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Drops leaf modules whose required executables are missing from Modules\bin

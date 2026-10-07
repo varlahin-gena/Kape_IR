@@ -1,8 +1,8 @@
 using System.IO.Compression;
 using System.Net.Http;
-using KapePack.Core.Shared;
+using KapeIR.Core.Shared;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Installs WithSecure Chainsaw into Modules\bin\chainsaw\ as required by Chainsaw.mkape:

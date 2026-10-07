@@ -2,8 +2,8 @@
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <RootNamespace>KapePack.Ui</RootNamespace>
-    <AssemblyName>KapePack.Ui</AssemblyName>
+    <RootNamespace>KapeIR.Ui</RootNamespace>
+    <AssemblyName>KapeIR.Ui</AssemblyName>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 </Project>

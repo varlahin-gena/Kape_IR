@@ -1,6 +1,6 @@
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Shared argv / _kape.cli line builder for packages and PackRunner.</summary>
 public static class KapeCliArgs

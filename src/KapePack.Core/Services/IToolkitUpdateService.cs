@@ -1,7 +1,7 @@
 using System.Net.Http;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Check/apply KapeFiles + EZ Tools + Chainsaw updates for a KAPE root.</summary>
 public interface IToolkitUpdateService

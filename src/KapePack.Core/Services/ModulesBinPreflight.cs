@@ -1,7 +1,7 @@
 using System.Text;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Pre-export check: missing Modules\bin payloads for the selected module set

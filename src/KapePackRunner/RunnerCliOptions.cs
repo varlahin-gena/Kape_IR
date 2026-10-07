@@ -1,6 +1,6 @@
-using KapePack.Core.Services;
+using KapeIR.Core.Services;
 
-namespace KapePackRunner;
+namespace KapeIR.Triage;
 
 /// <summary>Thin alias kept for Runner call sites; parsing lives in Core.</summary>
 internal sealed class RunnerCliOptions

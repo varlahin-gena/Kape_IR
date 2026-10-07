@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 public static class FileHash
 {

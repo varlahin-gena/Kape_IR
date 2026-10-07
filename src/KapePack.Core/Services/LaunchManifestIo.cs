@@ -1,7 +1,7 @@
 using System.Text.Json;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Shared package.json → <see cref="CollectionPlan.LaunchManifest"/> parsing for Builder and Runner.</summary>
 public static class LaunchManifestIo

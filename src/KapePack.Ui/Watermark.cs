@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 
-namespace KapePack.Ui;
+namespace KapeIR.Ui;
 
 /// <summary>Shows <see cref="TextProperty"/> inside an empty TextBox as a dim hint.</summary>
 public static class Watermark

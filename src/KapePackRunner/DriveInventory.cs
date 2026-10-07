@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace KapePackRunner;
+namespace KapeIR.Triage;
 
 /// <summary>Ready fixed/removable drives for CollectPack source picker.</summary>
 public static class DriveInventory

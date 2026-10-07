@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Shared kape.exe process host (ArgumentList, redirected OEM console).</summary>
 public static class KapeProcessHost

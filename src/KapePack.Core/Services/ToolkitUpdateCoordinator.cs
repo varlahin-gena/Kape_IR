@@ -1,8 +1,8 @@
 using System.Net.Http;
 using System.Text;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// One-shot check/apply: KapeFiles (Targets/Modules) + EZ Tools + Chainsaw nest.

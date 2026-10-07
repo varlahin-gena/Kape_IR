@@ -1,8 +1,8 @@
 using System.Windows;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 using Microsoft.Win32;
 
-namespace KapePackBuilder.Services;
+namespace KapeIR.Builder.Services;
 
 public sealed class WpfDialogService : IDialogService
 {

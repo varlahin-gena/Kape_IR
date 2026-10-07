@@ -44,7 +44,7 @@ jobs:
       - name: Upload dist artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kapepackbuilder-dist
+          name: kapeir-dist
           path: |
-            dist/KapePackBuilder.exe
-            dist/KapePackBuilder.exe.sha256
+            dist/KapeIR.exe
+            dist/KapeIR.exe.sha256

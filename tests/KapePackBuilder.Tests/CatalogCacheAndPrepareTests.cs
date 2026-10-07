@@ -1,14 +1,16 @@
 using System.IO.Compression;
 using System.Text;
-using KapePack.Core.Services;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Tests.Fixtures;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 public class CatalogCacheTests
 {
     [Fact]
     public void Refresh_SecondPass_UsesFileCache()
     {
+        // Self-contained tree: avoid racing FakeKapeRoot.Dispose → ClearFileCache from parallel tests.
         KapeCatalog.ClearFileCache();
         var root = Path.Combine(Path.GetTempPath(), "kape_cache_" + Guid.NewGuid().ToString("N"));
         var apps = Path.Combine(root, "Targets", "Apps");
@@ -224,20 +226,20 @@ public class PackageFormMapperTests
     [Fact]
     public void RoundTrip_PreservesTwoPhase()
     {
-        var pkg = new KapePack.Core.Models.PackageDefinition
+        var pkg = new KapeIR.Core.Models.PackageDefinition
         {
             Name = "IR",
-            CollectionMode = KapePack.Core.Models.IrCollectionMode.TwoPhase,
+            CollectionMode = KapeIR.Core.Models.IrCollectionMode.TwoPhase,
             CaseId = "C-1",
             Phase1ModuleName = "VolatileFirst"
         };
         var form = PackageFormMapper.FromPackage(pkg);
         Assert.True(form.TwoPhase);
-        var again = new KapePack.Core.Models.PackageDefinition();
+        var again = new KapeIR.Core.Models.PackageDefinition();
         PackageFormMapper.ApplyToPackage(again, form with { Name = "IR2", TwoPhase = true, CaseId = "C-2" });
         Assert.Equal("IR2", again.Name);
         Assert.True(again.IsTwoPhase);
         Assert.Equal("C-2", again.CaseId);
-        Assert.Equal(KapePack.Core.Models.PackageDefinition.DefaultPhase1Module, again.Phase1ModuleName);
+        Assert.Equal(KapeIR.Core.Models.PackageDefinition.DefaultPhase1Module, again.Phase1ModuleName);
     }
 }

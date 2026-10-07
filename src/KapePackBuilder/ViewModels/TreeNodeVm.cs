@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 public partial class TreeNodeVm : ObservableObject
 {

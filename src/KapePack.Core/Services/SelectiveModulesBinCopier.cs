@@ -1,6 +1,6 @@
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Copies only Modules\bin payloads required by selected modules (plus .NET shared DLLs),

@@ -1,9 +1,9 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 public static class KapeFileIo
 {

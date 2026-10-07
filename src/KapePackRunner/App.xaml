@@ -1,10 +1,10 @@
-<Application x:Class="KapePackRunner.App"
+<Application x:Class="KapeIR.Triage.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="pack://application:,,,/KapePack.Ui;component/Themes/Theme.xaml"/>
+        <ResourceDictionary Source="pack://application:,,,/KapeIR.Ui;component/Themes/Theme.xaml"/>
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>

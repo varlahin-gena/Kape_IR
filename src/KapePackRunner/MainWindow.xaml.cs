@@ -5,17 +5,17 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
 using Microsoft.Win32;
 
-namespace KapePackRunner;
+namespace KapeIR.Triage;
 
 public partial class MainWindow : Window
 {
+    private readonly TriageRunCoordinator _coord = new();
+    private TriageRunCoordinator.Session? _session;
     private string? _resultsDir;
-    private string? _packageDir;
-    private CollectionPlan.LaunchManifest? _cfg;
     private Process? _kapeProcess;
     private CancellationTokenSource? _runCts;
     private bool _running;
@@ -25,6 +25,10 @@ public partial class MainWindow : Window
     private bool _copyPulseActive;
     private DispatcherTimer? _copyPulseTimer;
     private string _selectedTsource = "C:";
+    private string? _resultsRoot;
+
+    private string? PackageDir => _session?.PackageDir;
+    private CollectionPlan.LaunchManifest? Cfg => _session?.Manifest;
 
     public MainWindow()
     {
@@ -47,64 +51,59 @@ public partial class MainWindow : Window
             TitleText.Text = Path.GetFileNameWithoutExtension(self);
             SetStatus("Распаковка пакета…", indeterminate: true);
 
-            if (File.Exists(self + ".sha256"))
-            {
-                if (!FileHash.TryVerifySidecar(self, out var verifyMsg, requireSidecar: false))
-                {
-                    Fail(verifyMsg + "\n\nПоложите корректный KapeIR.Triage.exe.sha256 рядом с EXE или пересоберите пакет.");
-                    return;
-                }
-
-                Log(verifyMsg);
-            }
-
             var prep = await Task.Run(() =>
-                CollectPackPrepare.Prepare(
-                    self,
-                    tsourceOverride: null,
-                    requireTsource: false,
+                _coord.Prepare(
+                    new TriageRunCoordinator.PrepareOptions(
+                        self,
+                        TsourceOverride: null,
+                        RequireTsource: false,
+                        RequireSha256: false,
+                        VerifyIfSidecarPresent: true),
                     log: msg => Dispatcher.BeginInvoke(() => Log(msg))));
 
-            if (prep.ExitCode != 0)
+            if (prep.ExitCode != 0 || prep.Session is null)
             {
-                Fail(prep.Message);
+                var msg = prep.Message;
+                if (prep.ExitCode == 2 && msg.Contains("sha256", StringComparison.OrdinalIgnoreCase))
+                    msg += "\n\nПоложите корректный KapeIR.Triage.exe.sha256 рядом с EXE или пересоберите пакет.";
+                Fail(msg);
                 return;
             }
 
-            _packageDir = prep.PackageDir;
-            _cfg = prep.Manifest;
+            _session = prep.Session;
+            var cfg = _session.Manifest;
 
-            Title = $"KapeIR.Triage — {_cfg!.Name}";
-            TitleText.Text = _cfg.Name;
-            if (_cfg.CollectionMode == IrCollectionMode.TwoPhase)
+            Title = $"KapeIR.Triage — {cfg.Name}";
+            TitleText.Text = cfg.Name;
+            if (cfg.CollectionMode == IrCollectionMode.TwoPhase)
             {
                 SubtitleText.Text =
-                    $"two_phase: {_cfg.Phase1Module} → {_cfg.Target}" +
-                    (string.IsNullOrWhiteSpace(_cfg.Phase2Module) ? "" : $" + {_cfg.Phase2Module}");
+                    $"two_phase: {cfg.Phase1Module} → {cfg.Target}" +
+                    (string.IsNullOrWhiteSpace(cfg.Phase2Module) ? "" : $" + {cfg.Phase2Module}");
                 TwoPhasePanel.Visibility = Visibility.Visible;
                 AdvancedExpander.IsExpanded = true;
-                CaseIdBox.Text = _cfg.CaseId ?? "";
+                CaseIdBox.Text = cfg.CaseId ?? "";
             }
             else
             {
-                SubtitleText.Text = $"Target: {_cfg.Target}" +
-                                    (string.IsNullOrWhiteSpace(_cfg.Module) ? "" : $"  ·  Module: {_cfg.Module}");
+                SubtitleText.Text = $"Target: {cfg.Target}" +
+                                    (string.IsNullOrWhiteSpace(cfg.Module) ? "" : $"  ·  Module: {cfg.Module}");
                 TwoPhasePanel.Visibility = Visibility.Collapsed;
                 AdvancedExpander.IsExpanded = false;
             }
 
-            var initialTs = string.IsNullOrWhiteSpace(_cfg.Tsource) ? "C:" : _cfg.Tsource;
+            var initialTs = string.IsNullOrWhiteSpace(cfg.Tsource) ? "C:" : cfg.Tsource;
             PopulateDrives(initialTs);
-            ResultsBox.Text = _packageDir ?? "";
+            ResultsBox.Text = PackageDir ?? "";
             SourcePanel.Visibility = Visibility.Visible;
             SetStatus("Выберите диск и папку результатов, затем «Начать сбор» (или «Оценить»)", indeterminate: false, percent: 0);
             PercentText.Text = "";
             SaveLogBtn.IsEnabled = true;
             CloseBtn.IsEnabled = true;
             Log("Пакет готов. Выберите диск и папку результатов. Можно сначала оценить объём (--sim).");
-            if (_cfg.CollectionMode == IrCollectionMode.TwoPhase)
+            if (cfg.CollectionMode == IrCollectionMode.TwoPhase)
                 Log("Режим two_phase: сначала volatile (Phase1), затем disk triage (Phase2).");
-            Log($"Результаты по умолчанию: {Path.Combine(_packageDir!, "RESULTS", Environment.MachineName)}");
+            Log($"Результаты по умолчанию: {TriageRunCoordinator.DefaultResultsRoot(PackageDir!)}");
         }
         catch (Exception ex)
         {
@@ -114,7 +113,7 @@ public partial class MainWindow : Window
 
     private async void Sim_Click(object sender, RoutedEventArgs e)
     {
-        if (_running || _cfg is null || _packageDir is null) return;
+        if (_running || _session is null) return;
         if (!TryApplyPaths()) return;
 
         await RunCollectionAsync(simulateOnly: true);
@@ -122,7 +121,7 @@ public partial class MainWindow : Window
 
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
-        if (_running || _cfg is null || _packageDir is null) return;
+        if (_running || _session is null) return;
         if (!TryApplyPaths()) return;
 
         if (SimBeforeCheck.IsChecked == true)
@@ -143,8 +142,6 @@ public partial class MainWindow : Window
 
         await RunCollectionAsync(simulateOnly: false);
     }
-
-    private string? _resultsRoot;
 
     private bool TryApplyPaths()
     {
@@ -189,7 +186,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        _cfg!.Tsource = tsource;
+        Cfg!.Tsource = tsource;
         _selectedTsource = tsource;
         _resultsRoot = results;
         ResultsBox.Text = results;
@@ -199,7 +196,7 @@ public partial class MainWindow : Window
     private void BrowseResults_Click(object sender, RoutedEventArgs e)
     {
         var folder = PickFolder("Выберите папку для RESULTS",
-            GuessInitialDir(ResultsBox.Text) ?? _packageDir);
+            GuessInitialDir(ResultsBox.Text) ?? PackageDir);
         if (folder is null) return;
         ResultsBox.Text = folder;
     }
@@ -231,7 +228,7 @@ public partial class MainWindow : Window
     /// <returns>False if failed or cancelled mid-run setup; true if process finished (any exit code).</returns>
     private async Task<bool> RunCollectionAsync(bool simulateOnly)
     {
-        if (_running || _cfg is null || _packageDir is null) return false;
+        if (_running || _session is null) return false;
 
         SourcePanel.IsEnabled = false;
         StartBtn.IsEnabled = false;
@@ -243,7 +240,8 @@ public partial class MainWindow : Window
         var ct = _runCts.Token;
         _progressParser.ResetCounters();
         StopCopyPulse();
-        var twoPhase = _cfg.CollectionMode == IrCollectionMode.TwoPhase
+        var cfg = _session.Manifest;
+        var twoPhase = cfg.CollectionMode == IrCollectionMode.TwoPhase
                        && Phase1OnlyCheck.IsChecked != true
                        && Phase2OnlyCheck.IsChecked != true;
         if (twoPhase)
@@ -253,40 +251,36 @@ public partial class MainWindow : Window
 
         try
         {
-            var kape = Path.Combine(_packageDir, "kape.exe");
             int? phaseFilter = null;
-            if (_cfg.CollectionMode == IrCollectionMode.TwoPhase)
+            if (cfg.CollectionMode == IrCollectionMode.TwoPhase)
             {
                 if (Phase1OnlyCheck.IsChecked == true) phaseFilter = 1;
                 else if (Phase2OnlyCheck.IsChecked == true) phaseFilter = 2;
             }
 
-            var rt = new CollectionPlan.RuntimeOptions(
-                _cfg.Tsource,
-                Simulate: simulateOnly,
-                PhaseFilter: phaseFilter,
-                SkipMemory: SkipMemoryCheck.IsChecked == true,
-                CaseIdOverride: string.IsNullOrWhiteSpace(CaseIdBox.Text) ? null : CaseIdBox.Text.Trim(),
-                ResultsRoot: _resultsRoot);
+            var rt = TriageRunCoordinator.BuildRuntime(
+                cfg.Tsource,
+                simulate: simulateOnly,
+                phaseFilter: phaseFilter,
+                skipMemory: SkipMemoryCheck.IsChecked == true,
+                caseIdOverride: string.IsNullOrWhiteSpace(CaseIdBox.Text) ? null : CaseIdBox.Text.Trim(),
+                resultsRoot: _resultsRoot);
 
             SetStatus(simulateOnly ? "Оценка объёма (--sim)…" : "Сбор артефактов…", indeterminate: true);
             PercentText.Text = "…";
 
-            var self = Environment.ProcessPath;
-            var result = await CollectionRunner.RunAsync(
-                _packageDir,
-                kape,
-                _cfg,
-                rt,
-                self,
+            var result = await _coord.RunAsync(
+                new TriageRunCoordinator.RunOptions(
+                    _session,
+                    rt,
+                    RunKape: async (exe, args, wd, token) =>
+                    {
+                        Log(simulateOnly
+                            ? $"Оценка: kape.exe {string.Join(" ", args.Select(Quote))}"
+                            : $"Команда: kape.exe {string.Join(" ", args.Select(Quote))}");
+                        return await RunKapeAsync(exe, args, wd, token);
+                    }),
                 Log,
-                async (exe, args, wd, token) =>
-                {
-                    Log(simulateOnly
-                        ? $"Оценка: kape.exe {string.Join(" ", args.Select(Quote))}"
-                        : $"Команда: kape.exe {string.Join(" ", args.Select(Quote))}");
-                    return await RunKapeAsync(exe, args, wd, token);
-                },
                 ct);
 
             _resultsDir = result.ResultsDir;
@@ -297,13 +291,11 @@ public partial class MainWindow : Window
                     indeterminate: false, percent: 100);
                 ProgressBar.Foreground = new SolidColorBrush(
                     result.ExitCode == 0 ? Color.FromRgb(0x3F, 0xB9, 0x50) : Color.FromRgb(0xF8, 0x51, 0x49));
-                Log(result.ExitCode == 0
-                    ? "Оценка (--sim) завершена. Файлы не копировались."
-                    : $"Оценка завершилась с кодом {result.ExitCode}.");
+                Log(result.StatusMessage);
                 return result.ExitCode == 0;
             }
 
-            if (_resultsDir is not null && Directory.Exists(_resultsDir))
+            if (result.HasResultsDirectory)
             {
                 SetStatus(result.ExitCode == 0 ? "Готово" : $"Готово с ошибками (код {result.ExitCode})",
                     indeterminate: false, percent: 100);
@@ -318,7 +310,7 @@ public partial class MainWindow : Window
                     indeterminate: false);
                 ProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49));
                 ProgressBar.Value = 100;
-                Log("Папка RESULTS не создана — сбор не выполнен или упал.");
+                Log(result.StatusMessage);
             }
 
             return true;
@@ -561,8 +553,8 @@ public partial class MainWindow : Window
             Title = "Сохранить журнал",
             Filter = "Текст (*.txt)|*.txt|Все файлы (*.*)|*.*",
             FileName = $"kape_run_{DateTime.Now:yyyyMMdd_HHmmss}.txt",
-            InitialDirectory = _packageDir is not null && Directory.Exists(_packageDir)
-                ? _packageDir
+            InitialDirectory = PackageDir is not null && Directory.Exists(PackageDir)
+                ? PackageDir
                 : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
         };
         if (dlg.ShowDialog() != true) return;

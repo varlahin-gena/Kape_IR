@@ -1,4 +1,4 @@
-namespace KapePack.Core.Models;
+namespace KapeIR.Core.Models;
 
 public enum ItemKind
 {

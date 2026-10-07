@@ -1,6 +1,6 @@
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Copies target/module dependency closure into a package folder.</summary>
 public sealed class PackageDependencyCopier

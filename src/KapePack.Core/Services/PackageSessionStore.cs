@@ -1,7 +1,7 @@
 using System.Text.Json;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Persist builder sessions as package.json-shaped JSON under PackBuilder/sessions/.

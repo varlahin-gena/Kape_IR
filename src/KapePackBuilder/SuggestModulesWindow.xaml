@@ -1,4 +1,4 @@
-<Window x:Class="KapePackBuilder.SuggestModulesWindow"
+<Window x:Class="KapeIR.Builder.SuggestModulesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Подсказки модулей по таргетам"

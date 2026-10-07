@@ -1,20 +1,19 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using KapePackBuilder.ViewModels;
+using KapeIR.Builder.ViewModels;
 
-namespace KapePackBuilder;
+namespace KapeIR.Builder;
 
 public partial class MainWindow : Window
 {
     private MainViewModel Vm => (MainViewModel)DataContext;
 
-    public MainWindow()
+    public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
-        var app = (App)Application.Current;
-        DataContext = app.CreateMainViewModel();
+        DataContext = viewModel;
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -31,13 +30,13 @@ public partial class MainWindow : Window
     private void TargetCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (sender is CheckBox { DataContext: CatalogRowVm row })
-            Vm.ToggleCatalogRow(row, KapePack.Core.Models.ItemKind.Target);
+            Vm.ToggleCatalogRow(row, KapeIR.Core.Models.ItemKind.Target);
     }
 
     private void ModuleCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (sender is CheckBox { DataContext: CatalogRowVm row })
-            Vm.ToggleCatalogRow(row, KapePack.Core.Models.ItemKind.Module);
+            Vm.ToggleCatalogRow(row, KapeIR.Core.Models.ItemKind.Module);
     }
 
     private void TreeCheck_Changed(object sender, RoutedEventArgs e)

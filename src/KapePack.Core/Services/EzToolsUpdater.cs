@@ -3,9 +3,9 @@ using System.IO.Compression;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
-using KapePack.Core.Shared;
+using KapeIR.Core.Shared;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Checks / updates Eric Zimmerman tools under Modules\bin via Get-ZimmermanTools.</summary>
 public static class EzToolsUpdater

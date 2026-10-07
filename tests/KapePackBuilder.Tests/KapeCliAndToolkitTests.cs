@@ -1,9 +1,9 @@
 using System.IO.Compression;
 using System.Text;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 public class KapeCliAndToolkitTests
 {

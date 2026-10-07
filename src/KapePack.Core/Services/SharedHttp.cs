@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Long-lived <see cref="SocketsHttpHandler"/> + shared <see cref="HttpClient"/> for production downloads.

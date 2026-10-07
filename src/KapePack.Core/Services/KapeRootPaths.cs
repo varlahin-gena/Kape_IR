@@ -1,4 +1,4 @@
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// All Builder state for a given KAPE tree lives under the UI-selected root

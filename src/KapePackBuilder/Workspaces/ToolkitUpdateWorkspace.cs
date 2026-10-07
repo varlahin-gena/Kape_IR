@@ -1,7 +1,7 @@
 using System.Net.Http;
-using KapePack.Core.Services;
+using KapeIR.Core.Services;
 
-namespace KapePackBuilder.Workspaces;
+namespace KapeIR.Builder.Workspaces;
 
 /// <summary>Check/apply toolkit updates for a bound KAPE root.</summary>
 public sealed class ToolkitUpdateWorkspace

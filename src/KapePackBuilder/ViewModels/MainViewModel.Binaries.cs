@@ -5,10 +5,10 @@ using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using KapePack.Core.Services;
-using KapePackBuilder.Services;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Services;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 public partial class MainViewModel
 {

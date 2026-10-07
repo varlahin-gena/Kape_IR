@@ -1,6 +1,6 @@
-using KapePackRunner;
+using KapeIR.Triage;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 public class SilentCollectionHostTests
 {

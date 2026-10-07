@@ -1,4 +1,4 @@
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>CLI contract for KapeIR.Triage (silent + GUI).</summary>
 public sealed class CollectPackCliOptions

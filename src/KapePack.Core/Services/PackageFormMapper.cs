@@ -1,6 +1,6 @@
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Maps package definition ↔ Builder form fields.</summary>
 public static class PackageFormMapper

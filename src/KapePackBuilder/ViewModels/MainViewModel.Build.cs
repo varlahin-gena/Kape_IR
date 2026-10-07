@@ -1,9 +1,10 @@
 using CommunityToolkit.Mvvm.Input;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
-using KapePackBuilder.Services;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Services;
+using Microsoft.Extensions.Logging;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 public partial class MainViewModel
 {
@@ -91,20 +92,22 @@ public partial class MainViewModel
         var progress = new Progress<string>(m => StatusText = m);
         try
         {
+            var exportOptions = new ExportOptions
+            {
+                CopyDependencies = true,
+                IncludeModuleBin = includeModuleBin,
+                BuildStandaloneExe = true,
+                OverwriteExisting = overwriteExisting
+            };
             var result = await Task.Run(() =>
             {
-                var exporter = new PackageExporter(catalogSnapshot);
+                var exporter = _exporterFactory.ForCatalog(catalogSnapshot);
                 return exporter.Export(
                     pkgSnapshot,
                     outputDir,
-                    installIntoKape: false,
-                    makeZip: false,
-                    copyDependencies: true,
-                    includeModuleBin: includeModuleBin,
-                    buildStandaloneExe: true,
-                    overwriteExisting: overwriteExisting,
-                    progress: progress,
-                    cancellationToken: ct);
+                    exportOptions,
+                    progress,
+                    ct);
             }, ct);
 
             var stubInfo = "";
@@ -147,7 +150,8 @@ public partial class MainViewModel
         }
         catch (Exception ex)
         {
-            AppLog.Error("Build failed", ex);
+            _logger.LogError(ex, "Build failed for package {PackageName}", pkgSnapshot.Name);
+            AppLog.Error(ex, "Build failed for package {PackageName}", pkgSnapshot.Name);
             _dialogs.ShowMessage(ex.Message, "Ошибка сборки", DialogIcon.Error);
             StatusText = "Ошибка сборки";
         }

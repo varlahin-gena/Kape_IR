@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Scans KAPE Modules\bin for installed tool binaries (exe + root scripts).</summary>
 public static class ModulesBinInventory

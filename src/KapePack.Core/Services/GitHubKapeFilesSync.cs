@@ -1,10 +1,10 @@
 using System.IO.Compression;
 using System.Net.Http;
 using System.Text.Json;
-using KapePack.Core.Models;
-using KapePack.Core.Shared;
+using KapeIR.Core.Models;
+using KapeIR.Core.Shared;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 public sealed class SyncOptions
 {

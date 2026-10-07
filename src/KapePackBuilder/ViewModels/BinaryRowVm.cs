@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using KapePack.Core.Services;
+using KapeIR.Core.Services;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 public partial class BinaryRowVm : ObservableObject
 {

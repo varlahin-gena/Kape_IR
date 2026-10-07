@@ -1,6 +1,6 @@
-using KapePack.Core.Services;
+using KapeIR.Core.Services;
 
-namespace KapePackRunner;
+namespace KapeIR.Triage;
 
 internal static class PackPayload
 {

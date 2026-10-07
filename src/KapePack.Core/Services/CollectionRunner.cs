@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Runs single- or two-phase kape collection + evidence wrap-up.</summary>
 public static class CollectionRunner

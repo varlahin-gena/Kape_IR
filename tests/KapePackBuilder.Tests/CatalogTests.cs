@@ -1,6 +1,7 @@
-using KapePack.Core.Services;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Tests.Fixtures;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 public class CatalogTests
 {
@@ -13,46 +14,16 @@ public class CatalogTests
         return root!;
     }
 
-    [SkippableFact]
+    [Fact]
     public void Refresh_SkipsDisabledFolders()
     {
-        var workspace = TestKapeRoot.TryGet();
-        Skip.If(workspace is null, "KAPE root with Targets/ not found.");
-        var sampleTarget = Directory.EnumerateFiles(Path.Combine(workspace!, "Targets"), "*.tkape", SearchOption.AllDirectories)
-            .First(p => !NameCollisionFixer.IsUnderDisabledFolder(p));
-        var sampleModule = Directory.EnumerateFiles(Path.Combine(workspace!, "Modules"), "*.mkape", SearchOption.AllDirectories)
-            .First();
-
-        var root = Path.Combine(Path.GetTempPath(), "kape_cat_" + Guid.NewGuid().ToString("N"));
-        var apps = Path.Combine(root, "Targets", "Apps");
-        var disabled = Path.Combine(root, "Targets", "!Disabled");
-        var modActive = Path.Combine(root, "Modules", "EZTools");
-        var modDisabled = Path.Combine(root, "Modules", "!Disabled");
-        Directory.CreateDirectory(apps);
-        Directory.CreateDirectory(disabled);
-        Directory.CreateDirectory(modActive);
-        Directory.CreateDirectory(modDisabled);
-
-        File.Copy(sampleTarget, Path.Combine(apps, "Active.tkape"));
-        File.Copy(sampleTarget, Path.Combine(disabled, "Hidden.tkape"));
-        File.Copy(sampleModule, Path.Combine(modActive, "Active.mkape"));
-        File.Copy(sampleModule, Path.Combine(modDisabled, "Hidden.mkape"));
-
-        try
-        {
-            var cat = new KapeCatalog(root);
-            cat.Refresh();
-            Assert.Contains(cat.Targets, t => t.Name == "Active");
-            Assert.DoesNotContain(cat.Targets, t => t.Name == "Hidden");
-            Assert.Contains(cat.Modules, m => m.Name == "Active");
-            Assert.DoesNotContain(cat.Modules, m => m.Name == "Hidden");
-            Assert.DoesNotContain(cat.Targets, t => t.RelativePath.Contains("!Disabled", StringComparison.OrdinalIgnoreCase));
-            Assert.DoesNotContain(cat.Modules, m => m.RelativePath.Contains("!Disabled", StringComparison.OrdinalIgnoreCase));
-        }
-        finally
-        {
-            try { Directory.Delete(root, true); } catch { /* ignore */ }
-        }
+        using var fx = FakeKapeRoot.Create(FakeKapeProfile.WithDisabled);
+        Assert.Contains(fx.Catalog.Targets, t => t.Name == "Active");
+        Assert.DoesNotContain(fx.Catalog.Targets, t => t.Name == "Hidden");
+        Assert.Contains(fx.Catalog.Modules, m => m.Name == "Active");
+        Assert.DoesNotContain(fx.Catalog.Modules, m => m.Name == "Hidden");
+        Assert.DoesNotContain(fx.Catalog.Targets, t => t.RelativePath.Contains("!Disabled", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(fx.Catalog.Modules, m => m.RelativePath.Contains("!Disabled", StringComparison.OrdinalIgnoreCase));
     }
 
     [SkippableFact]
@@ -78,7 +49,7 @@ public class CatalogTests
         }
         Assert.NotEmpty(refs);
 
-        var leaves = cat.FlattenToLeaves(refs, KapePack.Core.Models.ItemKind.Target);
+        var leaves = cat.FlattenToLeaves(refs, KapeIR.Core.Models.ItemKind.Target);
         var paths = leaves.Select(l => Path.GetFileName(l.RelativePath).ToLowerInvariant()).ToList();
         Assert.Equal(paths.Count, paths.Distinct().Count());
         Assert.True(leaves.Count > 10);
@@ -90,21 +61,21 @@ public class CatalogTests
         var cat = new KapeCatalog(RequireRoot());
         cat.Refresh();
         Assert.NotNull(cat.FindTarget("Prefetch"));
-        var packs = cat.IncludingCompounds("Prefetch", KapePack.Core.Models.ItemKind.Target);
+        var packs = cat.IncludingCompounds("Prefetch", KapeIR.Core.Models.ItemKind.Target);
         Assert.True(packs.Count >= 1);
     }
 
     [Fact]
     public void RenderCompoundTarget_ContainsRequiredFields()
     {
-        var pkg = new KapePack.Core.Models.PackageDefinition
+        var pkg = new KapeIR.Core.Models.PackageDefinition
         {
             Name = "TestPack",
             Description = "desc",
             Author = "author",
             Targets =
             {
-                new KapePack.Core.Models.SelectionEntry { Name = "Prefetch", Category = "Prefetch", Path = "Prefetch.tkape" }
+                new KapeIR.Core.Models.SelectionEntry { Name = "Prefetch", Category = "Prefetch", Path = "Prefetch.tkape" }
             }
         };
         var text = KapeFileIo.RenderCompoundTarget(pkg);
@@ -124,12 +95,12 @@ public class CatalogTests
     [Fact]
     public void RenderCompoundModule_SetsExportFormatCsv()
     {
-        var pkg = new KapePack.Core.Models.PackageDefinition
+        var pkg = new KapeIR.Core.Models.PackageDefinition
         {
             Name = "T",
             Modules =
             {
-                new KapePack.Core.Models.SelectionEntry { Name = "AmcacheParser", Category = "EZTools", Path = "AmcacheParser.mkape" }
+                new KapeIR.Core.Models.SelectionEntry { Name = "AmcacheParser", Category = "EZTools", Path = "AmcacheParser.mkape" }
             }
         };
         var yaml = KapeFileIo.RenderCompoundModule(pkg);
@@ -147,12 +118,12 @@ public class CatalogTests
     [Fact]
     public void RenderCompoundModule_QuotesBangBangToolSyncPath()
     {
-        var pkg = new KapePack.Core.Models.PackageDefinition
+        var pkg = new KapeIR.Core.Models.PackageDefinition
         {
             Name = "T",
             Modules =
             {
-                new KapePack.Core.Models.SelectionEntry
+                new KapeIR.Core.Models.SelectionEntry
                 {
                     Name = "!!ToolSync",
                     Category = "Sync",
@@ -168,19 +139,19 @@ public class CatalogTests
     [Fact]
     public void IsSyncOrMaintenanceModule_DetectsToolSync()
     {
-        Assert.True(ModuleBinGate.IsSyncOrMaintenanceModule(new KapePack.Core.Models.SelectionEntry
+        Assert.True(ModuleBinGate.IsSyncOrMaintenanceModule(new KapeIR.Core.Models.SelectionEntry
         {
             Name = "!!ToolSync",
             Path = "!!ToolSync.mkape",
             Category = "Sync"
         }));
-        Assert.True(ModuleBinGate.IsSyncOrMaintenanceModule(new KapePack.Core.Models.SelectionEntry
+        Assert.True(ModuleBinGate.IsSyncOrMaintenanceModule(new KapeIR.Core.Models.SelectionEntry
         {
             Name = "Sync_KAPE",
             Path = "Sync_KAPE.mkape",
             Category = "KAPESync"
         }));
-        Assert.False(ModuleBinGate.IsSyncOrMaintenanceModule(new KapePack.Core.Models.SelectionEntry
+        Assert.False(ModuleBinGate.IsSyncOrMaintenanceModule(new KapeIR.Core.Models.SelectionEntry
         {
             Name = "AmcacheParser",
             Path = "AmcacheParser.mkape",

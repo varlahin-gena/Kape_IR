@@ -1,4 +1,4 @@
-namespace KapePack.Core.Models;
+namespace KapeIR.Core.Models;
 
 /// <summary>
 /// Provenance of a Targets/Modules catalog file relative to EricZimmerman/KapeFiles sync.

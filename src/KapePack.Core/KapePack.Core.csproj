@@ -1,10 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
       <TargetFramework>net8.0</TargetFramework>
-      <RootNamespace>KapePack.Core</RootNamespace>
-      <AssemblyName>KapePack.Core</AssemblyName>
+      <RootNamespace>KapeIR.Core</RootNamespace>
+      <AssemblyName>KapeIR.Core</AssemblyName>
     </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
 </Project>

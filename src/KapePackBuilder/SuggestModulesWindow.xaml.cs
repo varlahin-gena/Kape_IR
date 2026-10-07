@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePackBuilder;
+namespace KapeIR.Builder;
 
 public partial class SuggestionRowVm : ObservableObject
 {

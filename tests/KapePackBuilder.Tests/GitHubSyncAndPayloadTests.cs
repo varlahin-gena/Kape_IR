@@ -3,11 +3,11 @@ using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
-using KapePack.Core.Shared;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
+using KapeIR.Core.Shared;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 public class GitHubSyncMockTests
 {

@@ -1,7 +1,7 @@
-using KapePack.Core.Models;
-using KapePackBuilder.Services;
+using KapeIR.Core.Models;
+using KapeIR.Builder.Services;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 internal sealed class FakeDialogService : IDialogService
 {

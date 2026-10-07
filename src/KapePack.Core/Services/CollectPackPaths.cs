@@ -1,4 +1,4 @@
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// KapeIR.Triage is portable: work next to the launched EXE (USB, share, local disk).

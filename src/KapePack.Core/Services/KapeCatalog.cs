@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 public sealed class KapeCatalog
 {

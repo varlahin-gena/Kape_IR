@@ -1,7 +1,7 @@
 using System.Windows;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePackBuilder.Services;
+namespace KapeIR.Builder.Services;
 
 public enum DialogIcon
 {

@@ -1,6 +1,6 @@
 using System.IO.Compression;
 
-namespace KapePack.Core.Shared;
+namespace KapeIR.Core.Shared;
 
 /// <summary>
 /// Zip extract that rejects entries whose resolved path escapes the destination (zip-slip).

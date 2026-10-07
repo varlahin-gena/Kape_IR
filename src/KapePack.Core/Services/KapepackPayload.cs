@@ -1,7 +1,7 @@
 using System.Text;
-using KapePack.Core.Shared;
+using KapeIR.Core.Shared;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// KAPEPACK payload appended after a stub EXE: [stub][zip][Int64 start][Int64 len][ASCII KAPEPACK].

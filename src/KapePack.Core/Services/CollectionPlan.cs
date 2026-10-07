@@ -1,7 +1,7 @@
 using System.IO;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Builds ordered kape.exe invocations for single or two-phase IR packs.</summary>
 public static class CollectionPlan

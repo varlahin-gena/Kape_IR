@@ -1,9 +1,10 @@
 using System.IO.Compression;
 using System.Text;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Tests.Fixtures;
 
-namespace KapePackBuilder.Tests;
+namespace KapeIR.Builder.Tests;
 
 public class StandaloneExeBuilderTests
 {
@@ -75,140 +76,80 @@ public class PackageExporterTests
     [Fact]
     public void Export_CreatesCompoundAndPackageJson_WithoutKapeTree()
     {
-        var tmp = Path.Combine(Path.GetTempPath(), "kape_export_" + Guid.NewGuid().ToString("N"));
-        var fakeRoot = Path.Combine(tmp, "kape");
-        Directory.CreateDirectory(Path.Combine(fakeRoot, "Targets", "Apps"));
-        Directory.CreateDirectory(Path.Combine(fakeRoot, "Modules"));
-        var leaf = Path.Combine(fakeRoot, "Targets", "Apps", "DemoLeaf.tkape");
-        File.WriteAllText(leaf, """
-Description: demo
-Author: test
-Version: 1.0
-Id: 11111111-1111-1111-1111-111111111111
-RecreateDirectories: true
-Targets:
-    -
-        Name: Demo
-        Category: Apps
-        Path: C:\Windows\
-        FileMask: '*.log'
-""");
-
-        var outDir = Path.Combine(tmp, "out");
+        using var fx = FakeKapeRoot.Create(FakeKapeProfile.Minimal);
+        var outDir = Path.Combine(Path.GetTempPath(), "kape_export_out_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(outDir);
-
         try
         {
-            var cat = new KapeCatalog(fakeRoot);
-            cat.Refresh();
-            Assert.Contains(cat.Targets, t => t.Name == "DemoLeaf");
+            Assert.Contains(fx.Catalog.Targets, t => t.Name == FakeKapeRoot.DemoLeafName);
 
-            var stubDir = Path.Combine(tmp, "stub");
-            Directory.CreateDirectory(stubDir);
-            var stub = Path.Combine(stubDir, "KapeIR.Triage.exe");
-            // Reuse minimal GUI PE
-            WriteGuiStub(stub);
-
-            // Point ResolveStubPath via baseDir: copy stub next to a fake "app" dir used as BaseDirectory is not controllable.
-            // Export with buildStandaloneExe:false to avoid stub resolution in this unit test.
             var pkg = new PackageDefinition
             {
                 Name = "UnitPack",
                 Targets =
                 {
-                    new SelectionEntry { Name = "DemoLeaf", Category = "Apps", Path = "DemoLeaf.tkape" }
+                    new SelectionEntry
+                    {
+                        Name = FakeKapeRoot.DemoLeafName,
+                        Category = "Apps",
+                        Path = FakeKapeRoot.DemoLeafName + ".tkape"
+                    }
                 }
             };
-            var exporter = new PackageExporter(cat);
-            var result = exporter.Export(
-                pkg,
-                outDir,
-                installIntoKape: false,
-                makeZip: false,
-                copyDependencies: true,
-                includeModuleBin: false,
-                buildStandaloneExe: false);
+            var exporter = new PackageExporter(fx.Catalog);
+            var result = exporter.Export(pkg, outDir, ExportOptions.FolderOnly);
 
             Assert.True(Directory.Exists(result.PackageDir));
             Assert.True(File.Exists(result.TargetFile));
             Assert.EndsWith("UnitPack.tkape", result.TargetFile, StringComparison.OrdinalIgnoreCase);
             Assert.True(File.Exists(result.ManifestFile));
-            Assert.True(File.Exists(Path.Combine(result.PackageDir, "Targets", "Apps", "DemoLeaf.tkape")));
-            Assert.Contains("DemoLeaf", File.ReadAllText(result.TargetFile));
+            Assert.True(File.Exists(Path.Combine(result.PackageDir, "Targets", "Apps", FakeKapeRoot.DemoLeafName + ".tkape")));
+            Assert.Contains(FakeKapeRoot.DemoLeafName, File.ReadAllText(result.TargetFile));
             Assert.Equal("UnitPack", pkg.TargetCompoundName);
         }
         finally
         {
-            try { Directory.Delete(tmp, true); } catch { /* ignore */ }
+            try { Directory.Delete(outDir, true); } catch { /* ignore */ }
         }
     }
 
     [Fact]
     public void Export_RefusesOverwrite_WithoutFlag()
     {
-        var tmp = Path.Combine(Path.GetTempPath(), "kape_export_ow_" + Guid.NewGuid().ToString("N"));
-        var fakeRoot = Path.Combine(tmp, "kape");
-        Directory.CreateDirectory(Path.Combine(fakeRoot, "Targets", "Apps"));
-        Directory.CreateDirectory(Path.Combine(fakeRoot, "Modules"));
-        File.WriteAllText(Path.Combine(fakeRoot, "Targets", "Apps", "DemoLeaf.tkape"), """
-Description: demo
-Author: test
-Version: 1.0
-Id: 11111111-1111-1111-1111-111111111111
-RecreateDirectories: true
-Targets:
-    -
-        Name: Demo
-        Category: Apps
-        Path: C:\Windows\
-        FileMask: '*.log'
-""");
-        var outDir = Path.Combine(tmp, "out");
+        using var fx = FakeKapeRoot.Create(FakeKapeProfile.Minimal);
+        var outDir = Path.Combine(Path.GetTempPath(), "kape_export_ow_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(outDir);
         try
         {
-            var cat = new KapeCatalog(fakeRoot);
-            cat.Refresh();
             var pkg = new PackageDefinition
             {
                 Name = "OwPack",
-                Targets = { new SelectionEntry { Name = "DemoLeaf", Category = "Apps", Path = "DemoLeaf.tkape" } }
+                Targets =
+                {
+                    new SelectionEntry
+                    {
+                        Name = FakeKapeRoot.DemoLeafName,
+                        Category = "Apps",
+                        Path = FakeKapeRoot.DemoLeafName + ".tkape"
+                    }
+                }
             };
-            var exporter = new PackageExporter(cat);
-            var first = exporter.Export(pkg, outDir, copyDependencies: true, includeModuleBin: false, buildStandaloneExe: false);
+            var exporter = new PackageExporter(fx.Catalog);
+            var first = exporter.Export(pkg, outDir, ExportOptions.FolderOnly);
             Assert.True(Directory.Exists(first.PackageDir));
             File.WriteAllText(Path.Combine(first.PackageDir, "marker.txt"), "keep");
 
             var ex = Assert.Throws<IOException>(() =>
-                exporter.Export(pkg, outDir, copyDependencies: true, includeModuleBin: false, buildStandaloneExe: false,
-                    overwriteExisting: false));
+                exporter.Export(pkg, outDir, ExportOptions.FolderOnly with { OverwriteExisting = false }));
             Assert.Contains("уже существует", ex.Message, StringComparison.OrdinalIgnoreCase);
             Assert.True(File.Exists(Path.Combine(first.PackageDir, "marker.txt")));
 
-            var second = exporter.Export(pkg, outDir, copyDependencies: true, includeModuleBin: false, buildStandaloneExe: false,
-                overwriteExisting: true);
+            var second = exporter.Export(pkg, outDir, ExportOptions.FolderOnly with { OverwriteExisting = true });
             Assert.False(File.Exists(Path.Combine(second.PackageDir, "marker.txt")));
         }
         finally
         {
-            try { Directory.Delete(tmp, true); } catch { /* ignore */ }
+            try { Directory.Delete(outDir, true); } catch { /* ignore */ }
         }
-    }
-
-    private static void WriteGuiStub(string path)
-    {
-        using var fs = File.Create(path);
-        using var bw = new BinaryWriter(fs);
-        var peOffset = 0x80;
-        bw.Write((ushort)0x5A4D);
-        bw.Write(new byte[0x3A]);
-        bw.Write(peOffset);
-        while (fs.Position < peOffset) bw.Write((byte)0);
-        bw.Write(0x00004550);
-        bw.Write(new byte[20]);
-        bw.Write((ushort)0x20B);
-        bw.Write(new byte[66]);
-        bw.Write((ushort)2);
-        bw.Write(new byte[256]);
     }
 }

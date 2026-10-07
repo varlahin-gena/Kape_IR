@@ -1,24 +1,28 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
-using KapePackBuilder.Services;
-using KapePackBuilder.Workspaces;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Services;
+using KapeIR.Builder.Workspaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly IDialogService _dialogs;
+    private readonly IPackageExporterFactory _exporterFactory;
     private readonly AppSettings _settings;
     private readonly CatalogWorkspace _catalogWs;
-    private readonly ToolkitUpdateWorkspace _toolkitWs = new();
+    private readonly CatalogSelectionCoordinator _selection;
+    private readonly ToolkitUpdateWorkspace _toolkitWs;
+    private readonly ILogger<MainViewModel> _logger;
     private DispatcherTimer? _targetSearchTimer;
     private DispatcherTimer? _moduleSearchTimer;
     private DispatcherTimer? _treeSearchTimer;
-    private bool _suppressSelectionEvents;
     private CancellationTokenSource? _syncCts;
     private CancellationTokenSource? _buildCts;
     private CancellationTokenSource? _catalogReloadCts;
@@ -68,12 +72,33 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public PackageDefinition Package { get; private set; } = new();
 
-    public MainViewModel() : this(new WpfDialogService()) {}
-
+    /// <summary>Test helper — dialogs only; other deps use defaults.</summary>
     public MainViewModel(IDialogService dialogs)
+        : this(
+            dialogs,
+            new PackageExporterFactory(),
+            new ToolkitUpdateWorkspace(),
+            new CatalogSelectionCoordinator(),
+            AppSettings.Load(),
+            NullLogger<MainViewModel>.Instance)
+    {
+    }
+
+    /// <summary>DI primary constructor.</summary>
+    public MainViewModel(
+        IDialogService dialogs,
+        IPackageExporterFactory exporterFactory,
+        ToolkitUpdateWorkspace toolkitWorkspace,
+        CatalogSelectionCoordinator selection,
+        AppSettings settings,
+        ILogger<MainViewModel> logger)
     {
         _dialogs = dialogs;
-        _settings = AppSettings.Load();
+        _exporterFactory = exporterFactory;
+        _toolkitWs = toolkitWorkspace;
+        _selection = selection;
+        _settings = settings;
+        _logger = logger;
         // Do not schedule catalog reload from the initial assignment — InitializeAsync owns first load.
         _suppressKapeRootReload = true;
         try
@@ -222,7 +247,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            AppLog.Error("Catalog reload failed", ex);
+            _logger.LogError(ex, "Catalog reload failed");
+            AppLog.Error(ex, "Catalog reload failed");
             StatusText = "Ошибка загрузки каталога";
         }
     }

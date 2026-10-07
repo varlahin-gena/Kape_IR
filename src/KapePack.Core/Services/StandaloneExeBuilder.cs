@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Builds a single self-extracting EXE: [KapeIR.Triage stub][zip payload][footer].

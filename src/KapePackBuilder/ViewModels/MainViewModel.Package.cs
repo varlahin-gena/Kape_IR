@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
-using KapePackBuilder.Services;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Services;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 public partial class MainViewModel
 {
@@ -140,10 +140,10 @@ public partial class MainViewModel
             return;
         }
         var incoming = _catalog.SelectionFromRefs(refs, kind, flatten: true);
-        if (kind == ItemKind.Target)
-            Package.Targets = replace ? incoming : KapeCatalog.MergeEntries(Package.Targets, incoming);
+        if (replace)
+            _selection.ReplaceEntries(Package, kind, incoming);
         else
-            Package.Modules = replace ? incoming : KapeCatalog.MergeEntries(Package.Modules, incoming);
+            _selection.MergeEntries(Package, kind, incoming);
         var stats = _catalog.OverlapStats(refs, kind);
         StatusText = $"{(replace ? "Заменено" : "Добавлено")}: {refs.Count} ссылок → {stats.UniqueLeaves} уникальных leaf";
         SyncAllViews();

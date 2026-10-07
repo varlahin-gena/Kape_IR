@@ -1,4 +1,4 @@
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Best-effort cleanup of download/extract temp folders on cancel or finally.</summary>
 public static class TempCleanup

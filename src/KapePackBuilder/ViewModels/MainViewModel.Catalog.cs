@@ -1,9 +1,9 @@
 using CommunityToolkit.Mvvm.Input;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
-using KapePackBuilder.Services;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
+using KapeIR.Builder.Services;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 public partial class MainViewModel
 {
@@ -214,24 +214,22 @@ public partial class MainViewModel
 
     public void RefreshTargetRows()
     {
-        var wasSuppressing = _suppressSelectionEvents;
-        _suppressSelectionEvents = true;
-        CatalogUiHelpers.FillObservable(
-            TargetRows,
-            CatalogUiHelpers.BuildFilteredRows(_catalog, ItemKind.Target, TargetSearch, TargetFilter, Package.Targets));
-        if (!wasSuppressing)
-            _suppressSelectionEvents = false;
+        using (_selection.SuppressEvents())
+        {
+            CatalogUiHelpers.FillObservable(
+                TargetRows,
+                CatalogUiHelpers.BuildFilteredRows(_catalog, ItemKind.Target, TargetSearch, TargetFilter, Package.Targets));
+        }
     }
 
     public void RefreshModuleRows()
     {
-        var wasSuppressing = _suppressSelectionEvents;
-        _suppressSelectionEvents = true;
-        CatalogUiHelpers.FillObservable(
-            ModuleRows,
-            CatalogUiHelpers.BuildFilteredRows(_catalog, ItemKind.Module, ModuleSearch, ModuleFilter, Package.Modules));
-        if (!wasSuppressing)
-            _suppressSelectionEvents = false;
+        using (_selection.SuppressEvents())
+        {
+            CatalogUiHelpers.FillObservable(
+                ModuleRows,
+                CatalogUiHelpers.BuildFilteredRows(_catalog, ItemKind.Module, ModuleSearch, ModuleFilter, Package.Modules));
+        }
     }
 
     private void RefreshExisting()
@@ -307,9 +305,7 @@ public partial class MainViewModel
         if (sharedOnly && !item.IsCompound && !isShared) return null;
         if (!string.IsNullOrEmpty(query) && !matches && !item.IsCompound) return null;
 
-        var selected = item.IsCompound
-            ? AllLeavesSelected(item, kind, keys)
-            : KapeCatalog.IsSelected(item, keys);
+        var selected = _selection.IsItemEffectivelySelected(_catalog, item, kind, keys);
 
         // Always start collapsed; RebuildTree restores previously expanded paths.
         var node = new TreeNodeVm(item, _catalog.SharedBadge(item), selected, expanded: false);
@@ -333,12 +329,6 @@ public partial class MainViewModel
         return node;
     }
 
-    private bool AllLeavesSelected(CatalogItem compound, ItemKind kind, HashSet<string> keys)
-    {
-        var leaves = _catalog.FlattenToLeaves(new[] { Path.GetFileName(compound.RelativePath) }, kind);
-        return leaves.Count > 0 && leaves.All(l => KapeCatalog.IsSelected(l, keys));
-    }
-
     private void UpdateTreeStats(ItemKind kind, HashSet<string> keys)
     {
         var count = kind == ItemKind.Target ? Package.Targets.Count : Package.Modules.Count;
@@ -347,98 +337,38 @@ public partial class MainViewModel
 
     public void ToggleCatalogRow(CatalogRowVm row, ItemKind kind)
     {
-        if (_suppressSelectionEvents) return;
+        if (_selection.IsSuppressed) return;
         // Row.IsSelected already reflects desired state from checkbox binding.
-        SetItemSelected(row.Item, kind, row.IsSelected);
+        StatusText = _selection.SetItemSelected(_catalog, Package, row.Item, kind, row.IsSelected);
+        SyncAllViews();
     }
 
     /// <summary>Row click (not checkbox): flip inclusion without double-firing Checked handlers.</summary>
     public void ToggleRowFromListClick(CatalogRowVm row, ItemKind kind)
     {
-        if (_suppressSelectionEvents) return;
-        _suppressSelectionEvents = true;
-        try
-        {
+        if (_selection.IsSuppressed) return;
+        using (_selection.SuppressEvents())
             row.IsSelected = !row.IsSelected;
-        }
-        finally
-        {
-            _suppressSelectionEvents = false;
-        }
-        SetItemSelected(row.Item, kind, row.IsSelected);
+        StatusText = _selection.SetItemSelected(_catalog, Package, row.Item, kind, row.IsSelected);
+        SyncAllViews();
     }
 
     public void ToggleTreeNode(TreeNodeVm node)
     {
-        if (_suppressSelectionEvents) return;
+        if (_selection.IsSuppressed) return;
         var kind = TreeIsTargets ? ItemKind.Target : ItemKind.Module;
-        SetItemSelected(node.Item, kind, node.IsSelected);
-    }
-
-    private void SetItemSelected(CatalogItem item, ItemKind kind, bool selected)
-    {
-        var refName = Path.GetFileName(item.RelativePath);
-        var leaves = item.IsCompound
-            ? _catalog.FlattenToLeaves(new[] { refName }, kind)
-            : new List<CatalogItem> { item };
-        if (leaves.Count == 0 && !item.IsCompound)
-            leaves = new List<CatalogItem> { item };
-
-        var list = kind == ItemKind.Target ? Package.Targets : Package.Modules;
-
-        if (!selected)
-        {
-            var remove = leaves.Select(l => Path.GetFileName(l.RelativePath).ToLowerInvariant())
-                .Concat(leaves.Select(l => l.Name.ToLowerInvariant()))
-                .ToHashSet();
-            var next = list.Where(e =>
-                !remove.Contains(e.Path.ToLowerInvariant()) &&
-                !remove.Contains(e.Name.ToLowerInvariant())).ToList();
-            if (kind == ItemKind.Target) Package.Targets = next;
-            else Package.Modules = next;
-        }
-        else
-        {
-            var incoming = leaves.Select(l => new SelectionEntry
-            {
-                Name = l.Name,
-                Category = string.IsNullOrWhiteSpace(l.Category) ? "General" : l.Category,
-                Path = Path.GetFileName(l.RelativePath)
-            }).ToList();
-            var merged = KapeCatalog.MergeEntries(list, incoming);
-            if (kind == ItemKind.Target) Package.Targets = merged;
-            else Package.Modules = merged;
-        }
-
-        StatusText = $"{(selected ? "Добавлено" : "Убрано")}: {item.Name} → {(kind == ItemKind.Target ? Package.Targets.Count : Package.Modules.Count)} шт.";
+        StatusText = _selection.SetItemSelected(_catalog, Package, node.Item, kind, node.IsSelected);
         SyncAllViews();
-    }
-
-    private void ToggleItem(CatalogItem item, ItemKind kind)
-    {
-        var list = kind == ItemKind.Target ? Package.Targets : Package.Modules;
-        var keys = KapeCatalog.BuildSelectionKeys(list);
-        var refName = Path.GetFileName(item.RelativePath);
-        var leaves = item.IsCompound
-            ? _catalog.FlattenToLeaves(new[] { refName }, kind)
-            : new List<CatalogItem> { item };
-        var allOn = leaves.Count > 0 && leaves.All(l => KapeCatalog.IsSelected(l, keys));
-        SetItemSelected(item, kind, !allOn);
     }
 
     private void SyncAllViews()
     {
-        _suppressSelectionEvents = true;
-        try
+        using (_selection.SuppressEvents())
         {
             SyncSelectionTexts();
             SyncVisibleRowChecks(ItemKind.Target);
             SyncVisibleRowChecks(ItemKind.Module);
             RebuildTree();
-        }
-        finally
-        {
-            _suppressSelectionEvents = false;
         }
     }
 
@@ -449,9 +379,7 @@ public partial class MainViewModel
         var keys = KapeCatalog.BuildSelectionKeys(kind == ItemKind.Target ? Package.Targets : Package.Modules);
         foreach (var row in rows)
         {
-            var should = row.Item.IsCompound
-                ? AllLeavesSelected(row.Item, kind, keys)
-                : KapeCatalog.IsSelected(row.Item, keys);
+            var should = _selection.IsItemEffectivelySelected(_catalog, row.Item, kind, keys);
             if (row.IsSelected != should)
                 row.IsSelected = should;
         }
@@ -459,47 +387,35 @@ public partial class MainViewModel
 
     private void SyncSelectionTexts()
     {
-        SelectedTargetsText = string.Join('\n', Package.Targets.Select(t => $"{t.Path}  |  {t.Name}  |  {t.Category}"));
-        SelectedModulesText = string.Join('\n', Package.Modules.Select(m => $"{m.Path}  |  {m.Name}  |  {m.Category}"));
+        SelectedTargetsText = _selection.FormatSelectionText(Package.Targets);
+        SelectedModulesText = _selection.FormatSelectionText(Package.Modules);
     }
 
     [RelayCommand]
     private void CheckVisibleTargets()
     {
-        var incoming = TargetRows.Select(r => new SelectionEntry
-        {
-            Name = r.Item.Name,
-            Category = r.Item.Category,
-            Path = Path.GetFileName(r.Item.RelativePath)
-        });
-        Package.Targets = KapeCatalog.MergeEntries(Package.Targets, incoming);
+        _selection.MergeEntries(Package, ItemKind.Target, TargetRows.Select(r => _selection.ToSelectionEntry(r.Item)));
         SyncAllViews();
     }
 
     [RelayCommand]
     private void CheckVisibleModules()
     {
-        var incoming = ModuleRows.Select(r => new SelectionEntry
-        {
-            Name = r.Item.Name,
-            Category = r.Item.Category,
-            Path = Path.GetFileName(r.Item.RelativePath)
-        });
-        Package.Modules = KapeCatalog.MergeEntries(Package.Modules, incoming);
+        _selection.MergeEntries(Package, ItemKind.Module, ModuleRows.Select(r => _selection.ToSelectionEntry(r.Item)));
         SyncAllViews();
     }
 
     [RelayCommand]
     private void ClearTargets()
     {
-        Package.Targets.Clear();
+        _selection.Clear(Package, ItemKind.Target);
         SyncAllViews();
     }
 
     [RelayCommand]
     private void ClearModules()
     {
-        Package.Modules.Clear();
+        _selection.Clear(Package, ItemKind.Module);
         SyncAllViews();
     }
 
@@ -527,13 +443,7 @@ public partial class MainViewModel
         if (chosen is null || chosen.Count == 0)
             return;
 
-        var incoming = chosen.Select(m => new SelectionEntry
-        {
-            Name = m.Name,
-            Category = string.IsNullOrWhiteSpace(m.Category) ? "General" : m.Category,
-            Path = Path.GetFileName(m.RelativePath)
-        });
-        Package.Modules = KapeCatalog.MergeEntries(Package.Modules, incoming);
+        _selection.MergeEntries(Package, ItemKind.Module, chosen.Select(_selection.ToSelectionEntry));
         ModuleFilter = "Только выбранные";
         SyncAllViews();
         StatusText = $"Добавлено модулей из подсказок: {chosen.Count} (в пакете {Package.Modules.Count})";

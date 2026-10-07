@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
-using KapePack.Core.Models;
-using KapePack.Core.Services;
+using KapeIR.Core.Models;
+using KapeIR.Core.Services;
 
-namespace KapePackBuilder.ViewModels;
+namespace KapeIR.Builder.ViewModels;
 
 /// <summary>Pure list/tree construction for catalog UI (keeps MainViewModel thinner).</summary>
 public static class CatalogUiHelpers

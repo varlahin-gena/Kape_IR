@@ -1,9 +1,9 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
-using KapePack.Core.Models;
+using KapeIR.Core.Models;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 public sealed class PackageExporter : IPackageExporter
 {
@@ -21,15 +21,11 @@ public sealed class PackageExporter : IPackageExporter
     public ExportResult Export(
         PackageDefinition pkg,
         string outputDir,
-        bool installIntoKape = false,
-        bool makeZip = false,
-        bool copyDependencies = true,
-        bool includeModuleBin = true,
-        bool buildStandaloneExe = true,
-        bool overwriteExisting = false,
+        ExportOptions? options = null,
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        options ??= new ExportOptions();
         // Work on a clone — Export mutates Phase2 names / VolatileFirst inject / PackageId.
         pkg = pkg.Clone();
         var warnings = new List<string>();
@@ -42,9 +38,9 @@ public sealed class PackageExporter : IPackageExporter
         var packageDir = Path.Combine(outputDir, PackageDefinition.SafeDir(pkg.Name));
         if (Directory.Exists(packageDir))
         {
-            if (!overwriteExisting)
+            if (!options.OverwriteExisting)
                 throw new IOException(
-                    "Папка пакета уже существует. Передайте overwriteExisting=true после подтверждения пользователя:\n" +
+                    "Папка пакета уже существует. Передайте OverwriteExisting=true после подтверждения пользователя:\n" +
                     packageDir);
             Report("Удаление существующей папки пакета…");
             Directory.Delete(packageDir, true);
@@ -102,7 +98,7 @@ public sealed class PackageExporter : IPackageExporter
 
         Check();
         // Autonomous packs always need dependency targets/modules.
-        if (copyDependencies || buildStandaloneExe)
+        if (options.CopyDependencies || options.BuildStandaloneExe)
         {
             Report("Копирование таргетов…");
             warnings.AddRange(_deps.CopyTargets(pkg, packageDir, cancellationToken));
@@ -110,7 +106,7 @@ public sealed class PackageExporter : IPackageExporter
             {
                 Report("Копирование модулей…");
                 warnings.AddRange(_deps.CopyModules(
-                    pkg, packageDir, includeModuleBin || buildStandaloneExe, cancellationToken));
+                    pkg, packageDir, options.IncludeModuleBin || options.BuildStandaloneExe, cancellationToken));
             }
         }
 
@@ -138,14 +134,14 @@ public sealed class PackageExporter : IPackageExporter
         }
 
         Check();
-        if (buildStandaloneExe)
+        if (options.BuildStandaloneExe)
         {
-            Report(includeModuleBin
+            Report(options.IncludeModuleBin
                 ? "Копирование kape.exe / selective Modules\\bin…"
                 : "Копирование kape.exe / runtime…");
             warnings.AddRange(_runtime.CopyRuntime(
                 packageDir,
-                includeModuleBin,
+                options.IncludeModuleBin,
                 pkg,
                 fullModuleBin: false,
                 cancellationToken,
@@ -169,7 +165,7 @@ public sealed class PackageExporter : IPackageExporter
         var manifestFile = Path.Combine(packageDir, "package.json");
         File.WriteAllText(manifestFile, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
 
-        File.WriteAllText(Path.Combine(packageDir, "README.txt"), ReadmeText(pkg, installIntoKape, buildStandaloneExe));
+        File.WriteAllText(Path.Combine(packageDir, "README.txt"), ReadmeText(pkg, options.InstallIntoKape, options.BuildStandaloneExe));
         File.WriteAllText(
             Path.Combine(packageDir, EvidenceWrapUp.FindingsTemplateFileName),
             EvidenceWrapUp.FindingsTemplateCsv,
@@ -177,7 +173,7 @@ public sealed class PackageExporter : IPackageExporter
 
         string? installedTarget = null;
         string? installedModule = null;
-        if (installIntoKape)
+        if (options.InstallIntoKape)
         {
             Check();
             Report("Установка в локальный KAPE…");
@@ -189,7 +185,7 @@ public sealed class PackageExporter : IPackageExporter
 
         // Always build zip when making standalone EXE (payload); optional keep zip for user.
         string? zipFile = null;
-        var needZip = makeZip || buildStandaloneExe;
+        var needZip = options.MakeZip || options.BuildStandaloneExe;
         var zipPath = Path.Combine(outputDir, PackageDefinition.SafeDir(pkg.Name) + ".zip");
         if (needZip)
         {
@@ -197,12 +193,12 @@ public sealed class PackageExporter : IPackageExporter
             Report("Создание ZIP…");
             if (File.Exists(zipPath)) File.Delete(zipPath);
             ZipFile.CreateFromDirectory(packageDir, zipPath, CompressionLevel.Optimal, false);
-            if (makeZip)
+            if (options.MakeZip)
                 zipFile = zipPath;
         }
 
         string? standaloneExe = null;
-        if (buildStandaloneExe)
+        if (options.BuildStandaloneExe)
         {
             Check();
             Report("Сборка автономного EXE…");
@@ -211,7 +207,7 @@ public sealed class PackageExporter : IPackageExporter
             standaloneExe = Path.Combine(outputDir, exeName);
             StandaloneExeBuilder.Build(stub, zipPath, standaloneExe);
             FileHash.WriteSha256Sidecar(standaloneExe);
-            if (!makeZip && File.Exists(zipPath))
+            if (!options.MakeZip && File.Exists(zipPath))
             {
                 try { File.Delete(zipPath); } catch { /* keep if locked */ }
             }

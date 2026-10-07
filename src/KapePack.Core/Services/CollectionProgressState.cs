@@ -1,4 +1,4 @@
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>Maps per-phase local 0–100 progress into overall CollectPack bar range.</summary>
 public sealed class CollectionProgressState

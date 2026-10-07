@@ -1,6 +1,6 @@
 using System.Net.Http;
 
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 public static partial class GitHubKapeFilesSync
 {

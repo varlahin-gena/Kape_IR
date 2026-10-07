@@ -1,4 +1,4 @@
-namespace KapePack.Core.Services;
+namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Get-ZimmermanTools installs into Modules\bin\net{N}\. KAPE resolves module binaries from
