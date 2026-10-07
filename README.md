@@ -4,7 +4,7 @@
 
 Интерфейс на русском. Термины KAPE (`tsource`, `--zip`, `--sim`, compound, leaf, `.tkape` / `.mkape`) сохранены.
 
-**Версия: 1.8.5**
+**Версия: 1.8.6**
 
 > В этом репозитории **нет** дистрибутива KAPE (`kape.exe`, `Targets`, `Modules`). Нужна отдельная установка KAPE рядом с Builder.
 
@@ -121,7 +121,7 @@ KAPE остаётся движком сбора; Builder — оболочка н
 - Сборка автономного CollectPack (GUI + silent); **selective Modules\bin** — в пакет только нужные парсеры
 - Вкладка **«Утилиты»** — инвентаризация `Modules\bin`
 - **Перечитать каталог** / **Обновить с GitHub…** (KapeFiles, EZ Tools, Chainsaw)
-- Дерево compound, сессии, `package.json`
+- Дерево compound, сессии
 - Опциональная Authenticode-подпись (`KAPEPACK_SIGN_CERT`)
 
 ---

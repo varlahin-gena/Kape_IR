@@ -82,6 +82,7 @@ public partial class MainWindow : Window
                     $"two_phase: {_cfg.Phase1Module} → {_cfg.Target}" +
                     (string.IsNullOrWhiteSpace(_cfg.Phase2Module) ? "" : $" + {_cfg.Phase2Module}");
                 TwoPhasePanel.Visibility = Visibility.Visible;
+                AdvancedExpander.IsExpanded = true;
                 CaseIdBox.Text = _cfg.CaseId ?? "";
             }
             else
@@ -89,6 +90,7 @@ public partial class MainWindow : Window
                 SubtitleText.Text = $"Target: {_cfg.Target}" +
                                     (string.IsNullOrWhiteSpace(_cfg.Module) ? "" : $"  ·  Module: {_cfg.Module}");
                 TwoPhasePanel.Visibility = Visibility.Collapsed;
+                AdvancedExpander.IsExpanded = false;
             }
 
             var initialTs = string.IsNullOrWhiteSpace(_cfg.Tsource) ? "C:" : _cfg.Tsource;
@@ -481,6 +483,12 @@ public partial class MainWindow : Window
 
     private void SetStatus(string text, bool indeterminate, double? percent = null)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => SetStatus(text, indeterminate, percent));
+            return;
+        }
+
         StatusText.Text = text;
         ProgressBar.IsIndeterminate = indeterminate;
         if (percent is { } p)
@@ -497,6 +505,14 @@ public partial class MainWindow : Window
     private void Log(string message)
     {
         if (string.IsNullOrEmpty(message)) return;
+
+        // CollectionRunner continues after kape with ConfigureAwait(false) — off UI thread.
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => Log(message));
+            return;
+        }
+
         var stamp = DateTime.Now.ToString("HH:mm:ss");
         var line = $"[{stamp}] {message}";
         _logBuffer.AppendLine(line);
@@ -507,6 +523,12 @@ public partial class MainWindow : Window
 
     private void Fail(string message)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => Fail(message));
+            return;
+        }
+
         StopCopyPulse();
         SetStatus("Ошибка", indeterminate: false);
         ProgressBar.Value = 100;

@@ -5,82 +5,12 @@
         Height="640" Width="900"
         MinHeight="480" MinWidth="720"
         WindowStartupLocation="CenterScreen"
-        Background="#FF0F1419"
-        Foreground="#FFE6EDF3"
+        Background="{StaticResource Brush.SurfaceApp}"
+        Foreground="{StaticResource Brush.TextPrimary}"
         FontFamily="Segoe UI"
         FontSize="13"
         Icon="pack://application:,,,/app.ico"
         Loaded="OnLoaded">
-  <Window.Resources>
-    <SolidColorBrush x:Key="PanelBg" Color="#FF161B22"/>
-    <SolidColorBrush x:Key="ControlBg" Color="#FF21262D"/>
-    <SolidColorBrush x:Key="ControlBorder" Color="#FF30363D"/>
-    <SolidColorBrush x:Key="TextPrimary" Color="#FFE6EDF3"/>
-    <SolidColorBrush x:Key="AccentGreen" Color="#FF3FB950"/>
-
-    <Style TargetType="Button">
-      <Setter Property="Padding" Value="14,8"/>
-      <Setter Property="Margin" Value="0,0,8,0"/>
-      <Setter Property="Background" Value="{StaticResource ControlBg}"/>
-      <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-      <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
-      <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="Cursor" Value="Hand"/>
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="Button">
-            <Border x:Name="bd" Background="{TemplateBinding Background}"
-                    BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="6" Padding="{TemplateBinding Padding}">
-              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="bd" Property="Background" Value="#FF30363D"/>
-              </Trigger>
-              <Trigger Property="IsEnabled" Value="False">
-                <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
-
-    <!-- Dark popup colours only — do not replace ComboBoxItem template (breaks click-to-select). -->
-    <Style TargetType="ComboBoxItem">
-      <Style.Resources>
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF388BFD"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF21262D"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFE6EDF3"/>
-      </Style.Resources>
-      <Setter Property="Background" Value="{StaticResource ControlBg}"/>
-      <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-      <Setter Property="Padding" Value="8,6"/>
-    </Style>
-
-    <Style TargetType="ComboBox">
-      <Style.Resources>
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF21262D"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FFE6EDF3"/>
-      </Style.Resources>
-      <Setter Property="Background" Value="{StaticResource ControlBg}"/>
-      <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-      <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
-      <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="Padding" Value="8,6"/>
-    </Style>
-
-    <Style TargetType="TextBox">
-      <Setter Property="Background" Value="{StaticResource ControlBg}"/>
-      <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-      <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
-      <Setter Property="CaretBrush" Value="{StaticResource TextPrimary}"/>
-      <Setter Property="Padding" Value="8,6"/>
-    </Style>
-  </Window.Resources>
 
   <Grid Margin="20">
     <Grid.RowDefinitions>
@@ -92,13 +22,15 @@
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
+    <!-- Title -->
     <StackPanel Grid.Row="0" Margin="0,0,0,12">
       <TextBlock x:Name="TitleText" Text="KAPE Pack" FontSize="22" FontWeight="SemiBold"/>
-      <TextBlock x:Name="SubtitleText" Text="Автономный сбор артефактов" Opacity="0.7" Margin="0,4,0,0"/>
+      <TextBlock x:Name="SubtitleText" Text="Автономный сбор артефактов"
+                 Foreground="{StaticResource Brush.TextSecondary}" Margin="0,4,0,0"/>
     </StackPanel>
 
-    <Border Grid.Row="1" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"
-            CornerRadius="8" Padding="14,10" Margin="0,0,0,12">
+    <!-- Progress card -->
+    <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,0,0,12">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
@@ -106,43 +38,42 @@
         </Grid.ColumnDefinitions>
         <StackPanel>
           <TextBlock x:Name="StatusText" Text="Подготовка…" FontWeight="SemiBold"/>
-          <ProgressBar x:Name="ProgressBar" Height="6" Margin="0,8,0,0"
-                       IsIndeterminate="True" Minimum="0" Maximum="100"
-                       Background="{StaticResource ControlBg}" Foreground="{StaticResource AccentGreen}"/>
+          <ProgressBar x:Name="ProgressBar" Margin="0,8,0,0"
+                       IsIndeterminate="True" Minimum="0" Maximum="100"/>
         </StackPanel>
         <TextBlock Grid.Column="1" x:Name="PercentText" VerticalAlignment="Center"
-                   Margin="16,0,0,0" Opacity="0.6" FontFamily="Consolas"/>
+                   Margin="16,0,0,0" Foreground="{StaticResource Brush.TextSecondary}"
+                   FontFamily="Consolas"/>
       </Grid>
     </Border>
 
-    <Border x:Name="SourcePanel" Grid.Row="2" Background="{StaticResource PanelBg}" BorderBrush="{StaticResource ControlBorder}"
-            BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,0,0,12"
+    <!-- Source card -->
+    <Border x:Name="SourcePanel" Grid.Row="2" Style="{StaticResource CardBorder}" Margin="0,0,0,12"
             Visibility="Collapsed">
       <StackPanel>
-        <!-- Source: drive letter only -->
+        <!-- Disk -->
         <Grid>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="120"/>
             <ColumnDefinition Width="*"/>
           </Grid.ColumnDefinitions>
-          <TextBlock Text="Диск:" VerticalAlignment="Center" Opacity="0.8"
+          <TextBlock Text="Диск:" VerticalAlignment="Center"
+                     Foreground="{StaticResource Brush.TextSecondary}"
                      ToolTip="Том для --tsource / --msource"/>
           <ComboBox x:Name="DriveCombo" Grid.Column="1" VerticalAlignment="Center"
                     IsEditable="True" IsReadOnly="True" IsTextSearchEnabled="False"
                     StaysOpenOnEdit="False"
-                    Background="{StaticResource ControlBg}"
-                    Foreground="{StaticResource TextPrimary}"
                     SelectionChanged="DriveCombo_SelectionChanged"
                     ToolTip="Диск-источник сбора">
             <ComboBox.ItemTemplate>
               <DataTemplate>
-                <TextBlock Text="{Binding Label}" Foreground="{StaticResource TextPrimary}"/>
+                <TextBlock Text="{Binding Label}"/>
               </DataTemplate>
             </ComboBox.ItemTemplate>
           </ComboBox>
         </Grid>
 
-        <!-- Results destination -->
+        <!-- Results -->
         <Grid Margin="0,10,0,0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="120"/>
@@ -150,59 +81,72 @@
             <ColumnDefinition Width="8"/>
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
-          <TextBlock Text="Результаты:" VerticalAlignment="Center" Opacity="0.8"
+          <TextBlock Text="Результаты:" VerticalAlignment="Center"
+                     Foreground="{StaticResource Brush.TextSecondary}"
                      ToolTip="Куда складывать RESULTS\&lt;hostname&gt;"/>
           <TextBox x:Name="ResultsBox" Grid.Column="1" VerticalAlignment="Center"
                    ToolTip="Папка, внутри которой будет RESULTS\&lt;hostname&gt;\…"/>
           <Button x:Name="BrowseResultsBtn" Grid.Column="3" Content="Обзор…" Margin="0"
-                  Padding="12,8" Click="BrowseResults_Click"
+                  Click="BrowseResults_Click"
                   ToolTip="Выбрать папку для результатов триажа"/>
         </Grid>
 
-        <Grid Margin="0,10,0,0">
+        <!-- Actions: Оценить + Primary Начать сбор -->
+        <Grid Margin="0,12,0,0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
-          <CheckBox x:Name="SimBeforeCheck" Content="Перед сбором сначала выполнить оценку (--sim)"
-                    VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}"
-                    ToolTip="При «Начать сбор» сначала --sim, затем подтверждение полного копирования"/>
           <Button x:Name="SimBtn" Grid.Column="1" Content="Оценить (--sim)" Click="Sim_Click"
-                  Margin="0,0,8,0" Padding="14,8"
+                  Margin="0,0,8,0"
                   ToolTip="Посчитать файлы/объём без копирования (KAPE --sim)"/>
           <Button x:Name="StartBtn" Grid.Column="2" Content="Начать сбор" Click="Start_Click"
-                  Background="#FF1F6A5A" Margin="0" Padding="18,8"/>
+                  Style="{StaticResource PrimaryButton}" Margin="0" Padding="18,8"/>
         </Grid>
 
-        <StackPanel x:Name="TwoPhasePanel" Margin="0,10,0,0" Visibility="Collapsed">
-          <TextBlock Text="Двухфазный IR" FontWeight="SemiBold" Margin="0,0,0,6" Opacity="0.85"/>
-          <Grid Margin="0,0,0,6">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto"/>
-              <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="Case ID:" VerticalAlignment="Center" Margin="0,0,8,0" Opacity="0.8"/>
-            <TextBox x:Name="CaseIdBox" Grid.Column="1"
-                     ToolTip="Идентификатор дела для chain_of_custody.txt"/>
-          </Grid>
-          <StackPanel Orientation="Horizontal">
-            <CheckBox x:Name="SkipMemoryCheck" Content="Без memory dump" Margin="0,0,16,0"
-                      Foreground="{StaticResource TextPrimary}"
-                      ToolTip="Фаза 1: VolatileFirst_NoMemory (без WinPmem)"/>
-            <CheckBox x:Name="Phase1OnlyCheck" Content="Только фаза 1" Margin="0,0,16,0"
-                      Foreground="{StaticResource TextPrimary}" Checked="PhaseOnly_Checked"
-                      ToolTip="Только volatile"/>
-            <CheckBox x:Name="Phase2OnlyCheck" Content="Только фаза 2" Foreground="{StaticResource TextPrimary}"
-                      Checked="PhaseOnly_Checked" ToolTip="Только disk triage"/>
+        <!-- Дополнительно: sim checkbox + TwoPhasePanel -->
+        <Expander x:Name="AdvancedExpander" Header="Дополнительно" Margin="0,12,0,0" IsExpanded="False">
+          <StackPanel Margin="0,10,0,0">
+            <CheckBox x:Name="SimBeforeCheck" Content="Перед сбором сначала выполнить оценку (--sim)"
+                      ToolTip="При «Начать сбор» сначала --sim, затем подтверждение полного копирования"/>
+
+            <StackPanel x:Name="TwoPhasePanel" Margin="0,10,0,0" Visibility="Collapsed">
+              <TextBlock Text="Двухфазный IR" FontWeight="SemiBold" Margin="0,0,0,6"
+                         Foreground="{StaticResource Brush.TextSecondary}"/>
+              <Grid Margin="0,0,0,6">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Case ID:" VerticalAlignment="Center" Margin="0,0,8,0"
+                           Foreground="{StaticResource Brush.TextSecondary}"/>
+                <TextBox x:Name="CaseIdBox" Grid.Column="1"
+                         ToolTip="Идентификатор дела для chain_of_custody.txt"/>
+              </Grid>
+              <StackPanel Orientation="Horizontal">
+                <CheckBox x:Name="SkipMemoryCheck" Content="Без memory dump" Margin="0,0,16,0"
+                          ToolTip="Фаза 1: VolatileFirst_NoMemory (без WinPmem)"/>
+                <CheckBox x:Name="Phase1OnlyCheck" Content="Только фаза 1" Margin="0,0,16,0"
+                          Checked="PhaseOnly_Checked"
+                          ToolTip="Только volatile"/>
+                <CheckBox x:Name="Phase2OnlyCheck" Content="Только фаза 2"
+                          Checked="PhaseOnly_Checked" ToolTip="Только disk triage"/>
+              </StackPanel>
+            </StackPanel>
           </StackPanel>
-        </StackPanel>
+        </Expander>
       </StackPanel>
     </Border>
 
-    <TextBlock Grid.Row="3" Text="Журнал" Opacity="0.55" Margin="0,0,0,6" FontSize="12"/>
+    <!-- Journal label -->
+    <TextBlock Grid.Row="3" Text="Журнал"
+               Foreground="{StaticResource Brush.TextSecondary}"
+               Margin="0,0,0,6" FontSize="12"/>
 
-    <Border Grid.Row="4" Background="#FF010409" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"
+    <!-- Log -->
+    <Border Grid.Row="4" Background="{StaticResource Brush.LogBg}"
+            BorderBrush="{StaticResource Brush.BorderSubtle}" BorderThickness="1"
             CornerRadius="8" Padding="2">
       <TextBox x:Name="LogBox"
                IsReadOnly="True"
@@ -212,13 +156,14 @@
                AcceptsReturn="True"
                BorderThickness="0"
                Background="Transparent"
-               Foreground="#FF8B949E"
-               CaretBrush="{StaticResource TextPrimary}"
+               Foreground="{StaticResource Brush.TextSecondary}"
+               CaretBrush="{StaticResource Brush.TextPrimary}"
                FontFamily="Consolas"
                FontSize="12"
                Padding="12"/>
     </Border>
 
+    <!-- Footer -->
     <DockPanel Grid.Row="5" Margin="0,14,0,0" LastChildFill="False">
       <Button x:Name="OpenResultsBtn" Content="Открыть RESULTS" Click="OpenResults_Click"
               IsEnabled="False" DockPanel.Dock="Left"/>
@@ -226,6 +171,7 @@
               IsEnabled="False" DockPanel.Dock="Left"/>
       <Button x:Name="CancelRunBtn" Content="Остановить" Click="CancelRun_Click"
               IsEnabled="False" DockPanel.Dock="Left"
+              Style="{StaticResource DangerButton}"
               ToolTip="Прервать запущенный kape.exe"/>
       <Button x:Name="CloseBtn" Content="Закрыть" Click="Close_Click"
               DockPanel.Dock="Right" Margin="0" IsEnabled="False"/>

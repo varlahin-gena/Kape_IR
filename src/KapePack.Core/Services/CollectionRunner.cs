@@ -84,7 +84,6 @@ public static class CollectionRunner
             var exit = await runKape(kapeExe, args, packageDir, cancellationToken).ConfigureAwait(false);
             var summary = $"{phase.Name}: exit={exit} — {phase.Label}";
             summaries.Add(summary);
-            log(summary);
             if (exit != 0 && worstExit == 0)
                 worstExit = exit;
 
@@ -93,6 +92,9 @@ public static class CollectionRunner
                 var phase1 = Path.Combine(resultsDir, "Phase1_Volatile");
                 EvidenceWrapUp.HashMemoryDumps(phase1, log);
             }
+
+            // Log after phase bookkeeping so a UI-thread Log failure cannot skip wrap-up.
+            log(summary);
         }
 
         if (!rt.Simulate)
@@ -102,6 +104,7 @@ public static class CollectionRunner
                 ? rt.CaseIdOverride!
                 : cfg.CaseId;
             var mode = cfg.CollectionMode == IrCollectionMode.TwoPhase ? "two_phase" : "single";
+            // Write evidence files before any further UI log traffic.
             EvidenceWrapUp.WriteAll(new EvidenceWrapUp.Context(
                 resultsDir,
                 caseId,
@@ -110,7 +113,11 @@ public static class CollectionRunner
                 collectorExe ?? "",
                 summaries,
                 started,
-                DateTimeOffset.UtcNow), log);
+                DateTimeOffset.UtcNow), msg =>
+            {
+                try { log(msg); }
+                catch { /* never fail wrap-up because of UI logging */ }
+            });
         }
 
         var hasResults = Directory.Exists(resultsDir) &&

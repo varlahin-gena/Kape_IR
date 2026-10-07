@@ -40,17 +40,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _treeSharedOnly;
     [ObservableProperty] private bool _treeIsTargets = true;
 
-    [ObservableProperty] private string _packageName = "WindowsTriage";
-    [ObservableProperty] private string _packageDescription = "Пакет Windows triage";
+    [ObservableProperty] private string _packageName = "";
+    [ObservableProperty] private string _packageDescription = "";
     [ObservableProperty] private string _packageAuthor = "";
-    [ObservableProperty] private string _packageVersion = "1.0";
+    [ObservableProperty] private string _packageVersion = "";
     [ObservableProperty] private string _tsource = "C:";
     [ObservableProperty] private string _notes = "";
     [ObservableProperty] private bool _zipOutput = true;
     [ObservableProperty] private bool _vss;
     [ObservableProperty] private bool _twoPhaseCollection;
     [ObservableProperty] private string _caseId = "";
-    [ObservableProperty] private bool _makeZip;
     [ObservableProperty] private bool _copyDeps = true;
 
     [ObservableProperty] private string _selectedTargetsText = "";

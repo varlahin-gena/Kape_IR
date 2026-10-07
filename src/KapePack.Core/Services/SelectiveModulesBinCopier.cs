@@ -59,59 +59,11 @@ public static class SelectiveModulesBinCopier
 
         progress?.Report($"Modules\\bin (selective): разбор {required.Count} зависимостей…");
 
-        var nestedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var rootStems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var explicitRootFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var missing = new List<string>();
-
-        foreach (var exe in required)
-        {
-            ct.ThrowIfCancellationRequested();
-            if (ModuleBinGate.IsHostBuiltin(exe))
-                continue;
-
-            var rel = NormalizeBinRelative(exe);
-            if (string.IsNullOrEmpty(rel))
-                continue;
-
-            var parts = SplitRel(rel);
-            if (parts.Length >= 2)
-            {
-                nestedFolders.Add(parts[0]);
-                continue;
-            }
-
-            var fileName = parts[0];
-            if (string.IsNullOrEmpty(fileName))
-                continue;
-
-            if (LocateFile(binSrc, rel) is null &&
-                LocateFile(binSrc, fileName) is null)
-            {
-                missing.Add(exe);
-                continue;
-            }
-
-            explicitRootFiles.Add(fileName);
-            var stem = Path.GetFileNameWithoutExtension(fileName);
-            var ext = Path.GetExtension(fileName);
-            // Tool companions (PECmd.*) only for native/PE payloads — scripts stay explicit-only.
-            if (!string.IsNullOrEmpty(stem) &&
-                (ext.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
-                 ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
-                 ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase) ||
-                 ext.Equals(".bat", StringComparison.OrdinalIgnoreCase)))
-            {
-                rootStems.Add(stem);
-            }
-        }
-
-        // RECmd / related batch modules expect Maps\ next to the EXE.
-        if (rootStems.Any(s => s.StartsWith("RECmd", StringComparison.OrdinalIgnoreCase)) &&
-            Directory.Exists(Path.Combine(binSrc, "Maps")))
-        {
-            nestedFolders.Add("Maps");
-        }
+        var plan = PlanCopy(binSrc, required);
+        var nestedFolders = plan.NestedFolders;
+        var rootStems = plan.RootStems;
+        var explicitRootFiles = plan.ExplicitRootFiles;
+        var missing = new List<string>(plan.Missing);
 
         var binDst = Path.Combine(packageDir, "Modules", "bin");
         Directory.CreateDirectory(binDst);
@@ -125,7 +77,7 @@ public static class SelectiveModulesBinCopier
             var srcDir = Path.Combine(binSrc, folder);
             if (!Directory.Exists(srcDir))
             {
-                missing.Add(folder + "\\");
+                // Already in missing from PlanCopy.
                 warnings.Add($"Нет папки Modules\\bin\\{folder} — вложенный инструмент не скопирован.");
                 continue;
             }
@@ -172,8 +124,133 @@ public static class SelectiveModulesBinCopier
     }
 
     /// <summary>
+    /// Dry-run: which Modules\bin payloads are required and which are missing (no copy).
+    /// </summary>
+    public static CopyResult Analyze(KapeCatalog catalog, PackageDefinition pkg)
+    {
+        var warnings = new List<string>();
+        var binSrc = Path.Combine(catalog.KapeRoot, "Modules", "bin");
+        if (!Directory.Exists(binSrc))
+        {
+            warnings.Add("Modules\\bin отсутствует.");
+            var requiredEmpty = CollectRequiredExecutables(catalog, pkg);
+            return new CopyResult
+            {
+                RequiredExecutables = requiredEmpty,
+                Missing = requiredEmpty.Count > 0
+                    ? requiredEmpty.Select(NormalizeMissingLabel).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToList()
+                    : new List<string> { "Modules\\bin\\" },
+                Warnings = warnings
+            };
+        }
+
+        var required = CollectRequiredExecutables(catalog, pkg);
+        if (required.Count == 0)
+        {
+            return new CopyResult
+            {
+                RequiredExecutables = required,
+                Warnings = warnings
+            };
+        }
+
+        var plan = PlanCopy(binSrc, required);
+        return new CopyResult
+        {
+            RequiredExecutables = required,
+            Missing = plan.Missing.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x).ToList(),
+            NestedFolders = plan.NestedFolders.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            RootStems = plan.RootStems.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            ExplicitRootFiles = plan.ExplicitRootFiles.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            Warnings = warnings
+        };
+    }
+
+    private sealed record CopyPlan(
+        HashSet<string> NestedFolders,
+        HashSet<string> RootStems,
+        HashSet<string> ExplicitRootFiles,
+        List<string> Missing);
+
+    private static CopyPlan PlanCopy(string binSrc, List<string> required)
+    {
+        var nestedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var rootStems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var explicitRootFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var missing = new List<string>();
+
+        foreach (var exe in required)
+        {
+            if (ModuleBinGate.IsHostBuiltin(exe))
+                continue;
+
+            var rel = NormalizeBinRelative(exe);
+            if (string.IsNullOrEmpty(rel))
+                continue;
+
+            var parts = SplitRel(rel);
+            if (parts.Length >= 2)
+            {
+                nestedFolders.Add(parts[0]);
+                continue;
+            }
+
+            var fileName = parts[0];
+            if (string.IsNullOrEmpty(fileName))
+                continue;
+
+            if (LocateFile(binSrc, rel) is null &&
+                LocateFile(binSrc, fileName) is null)
+            {
+                missing.Add(exe);
+                continue;
+            }
+
+            explicitRootFiles.Add(fileName);
+            var stem = Path.GetFileNameWithoutExtension(fileName);
+            var ext = Path.GetExtension(fileName);
+            if (!string.IsNullOrEmpty(stem) &&
+                (ext.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
+                 ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
+                 ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                 ext.Equals(".bat", StringComparison.OrdinalIgnoreCase)))
+            {
+                rootStems.Add(stem);
+            }
+        }
+
+        if (rootStems.Any(s => s.StartsWith("RECmd", StringComparison.OrdinalIgnoreCase)) &&
+            Directory.Exists(Path.Combine(binSrc, "Maps")))
+        {
+            nestedFolders.Add("Maps");
+        }
+
+        foreach (var folder in nestedFolders.OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList())
+        {
+            var srcDir = Path.Combine(binSrc, folder);
+            if (!Directory.Exists(srcDir))
+                missing.Add(folder + "\\");
+        }
+
+        return new CopyPlan(nestedFolders, rootStems, explicitRootFiles, missing);
+    }
+
+    private static string NormalizeMissingLabel(string executable)
+    {
+        var rel = NormalizeBinRelative(executable);
+        if (string.IsNullOrEmpty(rel))
+            return executable;
+        var parts = SplitRel(rel);
+        if (parts.Length >= 2)
+            return parts[0] + "\\";
+        return rel;
+    }
+
+    /// <summary>
     /// Leaf Executable values (non-builtin) plus Modules\bin paths from CommandLine
     /// for the package module closure.
+    /// Two-phase packs always require winpmem.exe for Phase 1 (VolatileFirst) even if
+    /// the leaf mkape failed to parse or was omitted from the selected module list.
     /// </summary>
     public static List<string> CollectRequiredExecutables(KapeCatalog catalog, PackageDefinition pkg)
     {
@@ -183,11 +260,16 @@ public static class SelectiveModulesBinCopier
             .Where(r => !string.IsNullOrWhiteSpace(r))
             .ToList();
 
+        var exes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Phase 1 RAM dump — do not rely solely on FlattenToLeaves(Velocidex_WinPmem).
+        if (pkg.IsTwoPhase)
+            exes.Add("winpmem.exe");
+
         if (refs.Count == 0)
-            return new List<string>();
+            return exes.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 
         var leaves = catalog.FlattenToLeaves(refs, ItemKind.Module);
-        var exes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var leaf in leaves)
         {
             if (ModuleBinGate.IsSyncOrMaintenanceModule(leaf))

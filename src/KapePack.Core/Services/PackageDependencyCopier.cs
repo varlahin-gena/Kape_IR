@@ -82,6 +82,21 @@ public sealed class PackageDependencyCopier
             })
             .ToList();
 
+        // Compound Children that failed to load (bad YAML, disabled path, …) are skipped by
+        // ResolveClosure — surface them so Phase1 leaves like Velocidex_WinPmem are not silent.
+        foreach (var compound in items.Where(i => i.IsCompound))
+        {
+            foreach (var child in compound.Children)
+            {
+                if (_catalog.FindModule(child) is null)
+                {
+                    warnings.Add(
+                        $"Зависимость «{compound.Name}» не найдена в каталоге: {child} " +
+                        "(проверьте YAML / !Disabled).");
+                }
+            }
+        }
+
         var generated = (pkg.ModuleCompoundName + ".mkape")?.ToLowerInvariant();
         var writtenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in unique)

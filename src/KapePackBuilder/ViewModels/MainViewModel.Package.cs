@@ -11,12 +11,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void NewPack()
     {
-        Package = new PackageDefinition
-        {
-            Name = "WindowsTriage",
-            Description = "Пакет Windows triage",
-            Author = PackageAuthor
-        };
+        Package = new PackageDefinition();
         PushPackageToForm();
         SyncAllViews();
         StatusText = "Новый пустой пакет";
@@ -124,19 +119,6 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private void OpenPackageJson()
-    {
-        var path = _dialogs.PickOpenFile("Открыть package.json", "JSON|*.json|Все|*.*");
-        if (path is null) return;
-        Package = PackageExporter.LoadPackageJson(path);
-        PushPackageToForm();
-        TargetFilter = "Только выбранные";
-        if (Package.Modules.Count > 0) ModuleFilter = "Только выбранные";
-        SyncAllViews();
-        StatusText = $"Загружен package.json: {Package.Targets.Count} таргетов, {Package.Modules.Count} модулей";
-    }
-
-    [RelayCommand]
     private void MergeTreeIntoPackage()
     {
         ApplyCheckedTree(replace: false);
@@ -176,15 +158,6 @@ public partial class MainViewModel
             foreach (var c in CollectCheckedRefs(n.Children))
                 yield return c;
         }
-    }
-
-    [RelayCommand]
-    private void PreviewCommand()
-    {
-        PullFormToPackage();
-        var text = "=== _kape.cli / фазы ===\r\n" + KapeFileIo.RenderKapeCli(Package) +
-                   "\r\n=== run_collection.bat ===\r\n" + KapeFileIo.RenderRunBat(Package);
-        _dialogs.ShowMessage(text, "Превью запуска");
     }
 
     public void ShowItemInfo(CatalogItem item)

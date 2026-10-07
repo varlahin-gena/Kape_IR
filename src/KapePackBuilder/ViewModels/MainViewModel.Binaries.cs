@@ -64,12 +64,6 @@ public partial class MainViewModel
     }
 
     [RelayCommand]
-    private async Task ReloadBinariesAsync()
-    {
-        await LoadBinariesAsync(updateStatus: true);
-    }
-
-    [RelayCommand]
     private void OpenModulesBinFolder()
     {
         var bin = Path.Combine(KapeRoot ?? "", "Modules", "bin");

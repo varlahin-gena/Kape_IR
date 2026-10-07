@@ -67,10 +67,10 @@ public sealed class PackageDefinition
     public const string DefaultPhase1Module = "VolatileFirst";
     public const string DefaultPhase1ModuleNoMemory = "VolatileFirst_NoMemory";
 
-    public string Name { get; set; } = "WindowsTriage";
-    public string Description { get; set; } = "Пакет Windows triage";
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
     public string Author { get; set; } = "";
-    public string Version { get; set; } = "1.0";
+    public string Version { get; set; } = "";
     public string PackageId { get; set; } = Guid.NewGuid().ToString();
     public bool RecreateDirectories { get; set; } = true;
     public List<SelectionEntry> Targets { get; set; } = new();

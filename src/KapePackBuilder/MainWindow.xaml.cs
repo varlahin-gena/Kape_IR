@@ -22,6 +22,12 @@ public partial class MainWindow : Window
         await Vm.InitializeAsync();
     }
 
+    private void Find_Executed(object sender, ExecutedRoutedEventArgs e)
+    {
+        TargetSearchBox?.Focus();
+        TargetSearchBox?.SelectAll();
+    }
+
     private void TargetCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (sender is CheckBox { DataContext: CatalogRowVm row })
@@ -41,21 +47,19 @@ public partial class MainWindow : Window
     }
 
     private void TargetList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        => TryToggleRowFromClick(e, KapePack.Core.Models.ItemKind.Target);
+        => SelectRowForDetail(e);
 
     private void ModuleList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        => TryToggleRowFromClick(e, KapePack.Core.Models.ItemKind.Module);
+        => SelectRowForDetail(e);
 
-    private void TryToggleRowFromClick(MouseButtonEventArgs e, KapePack.Core.Models.ItemKind kind)
+    /// <summary>Row click shows detail; checkbox alone toggles package membership.</summary>
+    private void SelectRowForDetail(MouseButtonEventArgs e)
     {
-        // Checkbox handles itself via Checked/Unchecked.
         if (FindVisualParent<CheckBox>(e.OriginalSource as DependencyObject) is not null)
             return;
 
         var row = FindRowVm(e.OriginalSource as DependencyObject);
         if (row is null) return;
-
-        Vm.ToggleRowFromListClick(row, kind);
         Vm.ShowItemInfo(row.Item);
     }
 

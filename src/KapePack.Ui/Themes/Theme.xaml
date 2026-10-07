@@ -1,0 +1,7 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.MergedDictionaries>
+    <!-- Controls merges Dark internally so styles can StaticResource theme keys -->
+    <ResourceDictionary Source="Controls.xaml"/>
+  </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

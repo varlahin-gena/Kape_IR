@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.6] — 2026-10-07
+
+### UI
+- Общая тема `KapePack.Ui` (Builder + Runner): тёмный UI, watermark поиска, единые контролы
+- Упрощение панели пакета: без «Превью cmd», «Оставить ZIP», импорта `package.json`
+- Вкладки: без дублей сессии/«Снять все»/подсказок; дерево без Развернуть/Свернуть; меню «Пакет» — только сессия
+- «Утилиты»: убраны лишние кнопки, оставлен «Открыть папку»
+
+### CollectPack / Modules\bin
+- Preflight перед сборкой EXE: проверка бинарников выбранных модулей (+ winpmem для two-phase)
+- Selective `Modules\bin`: явные зависимости из `CommandLine` / `PackageDependencyCopier`, тесты two-phase winpmem
+
+### Changed
+- Версия / Product / User-Agent = 1.8.6
+
 ## [1.8.5] — 2026-09-24
 
 ### Fix — selective Modules\bin

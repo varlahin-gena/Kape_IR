@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KapePack.Core\KapePack.Core.csproj" />
+    <ProjectReference Include="..\KapePack.Ui\KapePack.Ui.csproj" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 

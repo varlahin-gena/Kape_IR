@@ -21,6 +21,38 @@ public partial class MainViewModel
         var root = await EnsureCatalogBoundToUiRootAsync();
         if (root is null) return;
 
+        if (!_catalogWs.IsBoundTo(root))
+        {
+            _dialogs.ShowMessage(
+                "Каталог не совпадает с корнем KAPE вверху окна. Обновите каталог и повторите сборку.",
+                "Сборка",
+                DialogIcon.Error);
+            return;
+        }
+
+        // Preflight: missing Modules\bin before picking output folder (cancel / continue).
+        var includeModuleBinPreview = TwoPhaseCollection || Package.Modules.Count > 0;
+        if (includeModuleBinPreview)
+        {
+            StatusText = "Проверка Modules\\bin…";
+            var preflightPkg = Package.Clone();
+            var catalogForCheck = _catalog;
+            var preflight = await Task.Run(() => ModulesBinPreflight.Check(catalogForCheck, preflightPkg));
+            if (preflight.HasIssues)
+            {
+                StatusText = "Недостающие бинарники — подтвердите сборку";
+                var ok = _dialogs.Confirm(
+                    ModulesBinPreflight.FormatConfirmMessage(preflight),
+                    "Недостающие бинарники",
+                    DialogIcon.Warning);
+                if (!ok)
+                {
+                    StatusText = "Сборка отменена (бинарники)";
+                    return;
+                }
+            }
+        }
+
         var initial = KapeRootPaths.ExportsDir(root);
         Directory.CreateDirectory(initial);
         var outputDir = _dialogs.PickFolder("Выберите папку для сохранения автономного EXE", initial);
@@ -39,19 +71,9 @@ public partial class MainViewModel
             overwriteExisting = true;
         }
 
-        if (!_catalogWs.IsBoundTo(root))
-        {
-            _dialogs.ShowMessage(
-                "Каталог не совпадает с корнем KAPE вверху окна. Обновите каталог и повторите сборку.",
-                "Сборка",
-                DialogIcon.Error);
-            return;
-        }
-
         // Cancel any in-flight catalog reload so Export reads a stable catalog instance.
         _catalogReloadCts?.Cancel();
 
-        var makeZip = MakeZip;
         // Modules\bin: auto for two_phase (Phase1 needs winpmem/live tools) or any selected modules (parsers).
         var includeModuleBin = TwoPhaseCollection || pkg.Modules.Count > 0;
 
@@ -76,7 +98,7 @@ public partial class MainViewModel
                     pkgSnapshot,
                     outputDir,
                     installIntoKape: false,
-                    makeZip: makeZip,
+                    makeZip: false,
                     copyDependencies: true,
                     includeModuleBin: includeModuleBin,
                     buildStandaloneExe: true,

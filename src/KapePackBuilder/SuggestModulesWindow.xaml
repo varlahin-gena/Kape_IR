@@ -5,44 +5,24 @@
         Height="560" Width="920"
         MinHeight="420" MinWidth="720"
         WindowStartupLocation="CenterOwner"
-        Background="#1e1e1e"
-        Foreground="#e8e8e8"
+        Background="{StaticResource Brush.SurfaceApp}"
+        Foreground="{StaticResource Brush.TextPrimary}"
         Icon="pack://application:,,,/app.ico">
-  <Window.Resources>
-    <Style TargetType="TextBlock">
-      <Setter Property="Foreground" Value="#e8e8e8"/>
-    </Style>
-    <Style TargetType="Button">
-      <Setter Property="Padding" Value="10,4"/>
-      <Setter Property="Margin" Value="4,0"/>
-      <Setter Property="Background" Value="#3a3a3a"/>
-      <Setter Property="Foreground" Value="#e8e8e8"/>
-      <Setter Property="BorderBrush" Value="#555"/>
-    </Style>
-    <Style TargetType="CheckBox">
-      <Setter Property="Foreground" Value="#e8e8e8"/>
-    </Style>
-    <Style TargetType="ListView">
-      <Setter Property="Background" Value="#2b2b2b"/>
-      <Setter Property="Foreground" Value="#e8e8e8"/>
-      <Setter Property="BorderBrush" Value="#444"/>
-    </Style>
-  </Window.Resources>
+  <DockPanel Margin="14">
+    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
+               Foreground="{StaticResource Brush.TextSecondary}" FontSize="12" Margin="0,0,0,12"
+               Text="Рекомендации по FileMask, связкам Windows (Prefetch→PECmd) и имени/описанию. EZTools предпочтительнее."/>
 
-  <DockPanel Margin="12">
-    <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Foreground="#aaa" Margin="0,0,0,10"
-               Text="Рекомендации по совпадению FileMask, известным связкам Windows (например Prefetch→PECmd) и имени/описанию. Модули EZTools предпочтительнее."/>
-
-    <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
         <Button Content="Новые" Click="SelectNew_Click"/>
         <Button Content="Все" Click="SelectAll_Click"/>
-        <Button Content="Ничего" Click="SelectNone_Click"/>
+        <Button Content="Ничего" Click="SelectNone_Click" Margin="0"/>
       </StackPanel>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
         <Button Content="Отмена" Click="Cancel_Click" IsCancel="True"/>
         <Button Content="Добавить выбранные" Click="Apply_Click" IsDefault="True"
-                Background="#1f6aa5" Foreground="White"/>
+                Style="{StaticResource PrimaryButton}" Margin="0"/>
       </StackPanel>
     </DockPanel>
 
@@ -52,7 +32,8 @@
           <GridViewColumn Width="36">
             <GridViewColumn.CellTemplate>
               <DataTemplate>
-                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          AutomationProperties.Name="{Binding Name}"/>
               </DataTemplate>
             </GridViewColumn.CellTemplate>
           </GridViewColumn>
