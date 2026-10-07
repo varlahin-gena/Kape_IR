@@ -1,6 +1,6 @@
 namespace KapePack.Core.Services;
 
-/// <summary>CLI contract for CollectPack / KapePackRunner (silent + GUI).</summary>
+/// <summary>CLI contract for KapeIR.Triage (silent + GUI).</summary>
 public sealed class CollectPackCliOptions
 {
     public bool Silent { get; init; }
@@ -12,7 +12,7 @@ public sealed class CollectPackCliOptions
     /// <summary>1, 2, or null (all).</summary>
     public int? Phase { get; init; }
     public bool SkipMemory { get; init; }
-    /// <summary>Require sibling CollectPack.exe.sha256 and match before collect.</summary>
+    /// <summary>Require sibling &lt;exe&gt;.sha256 and match before collect.</summary>
     public bool VerifySha256 { get; init; }
     public List<string> Errors { get; init; } = new();
 
@@ -146,22 +146,22 @@ public sealed class CollectPackCliOptions
     }
 
     public static string HelpText =>
-        """
-        KAPE Pack Runner
+        $"""
+        {ProductIdentity.Triage}
 
           GUI (по умолчанию):
-            CollectPack.exe
+            MyPack.exe   (имя = имя пакета из Builder)
 
           Silent / EDR:
-            CollectPack.exe --silent --tsource C:
-            CollectPack.exe --silent --tsource C: --log C:\Windows\Temp\kape_pack.log
-            CollectPack.exe --sim-only --tsource C:
-            CollectPack.exe --silent --tsource C: --verify
+            MyPack.exe --silent --tsource C:
+            MyPack.exe --silent --tsource C: --log C:\Windows\Temp\kape_ir.log
+            MyPack.exe --sim-only --tsource C:
+            MyPack.exe --silent --tsource C: --verify
 
           Двухфазный IR (package.json collection_mode=two_phase):
-            CollectPack.exe --silent --tsource C: --case-id IR-2026-001
-            CollectPack.exe --silent --tsource C: --phase 1
-            CollectPack.exe --silent --tsource C: --phase 2 --skip-memory
+            MyPack.exe --silent --tsource C: --case-id IR-2026-001
+            MyPack.exe --silent --tsource C: --phase 1
+            MyPack.exe --silent --tsource C: --phase 2 --skip-memory
 
           Параметры:
             --silent, -s     Без GUI: распаковка + kape.exe + код выхода
@@ -171,7 +171,7 @@ public sealed class CollectPackCliOptions
             --case-id        ID дела для chain_of_custody.txt
             --phase 1|2      Только фаза 1 (volatile) или 2 (disk)
             --skip-memory    Фаза 1 без WinPmem (VolatileFirst_NoMemory)
-            --verify         Требовать и проверить CollectPack.exe.sha256 перед сбором
+            --verify         Требовать и проверить <exe>.sha256 перед сбором
             --help, -h       Эта справка
 
           Коды выхода: 0=OK, 1=сбой сбора, 2=аргументы/payload/verify, 3=ошибка подготовки

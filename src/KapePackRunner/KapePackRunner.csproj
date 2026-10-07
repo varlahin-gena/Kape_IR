@@ -3,8 +3,10 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <AssemblyName>KapePackRunner</AssemblyName>
+    <AssemblyName>KapeIR.Triage</AssemblyName>
     <RootNamespace>KapePackRunner</RootNamespace>
+    <Product>KapeIR.Triage</Product>
+    <AssemblyTitle>KapeIR.Triage</AssemblyTitle>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>

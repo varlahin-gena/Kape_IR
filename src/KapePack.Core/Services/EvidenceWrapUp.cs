@@ -61,7 +61,7 @@ public static class EvidenceWrapUp
     {
         var path = Path.Combine(ctx.ResultsDir, "collection_log.txt");
         var sb = new StringBuilder();
-        sb.AppendLine("KAPE Pack — collection log");
+        sb.AppendLine("KapeIR.Triage — collection log");
         sb.AppendLine("==========================");
         sb.AppendLine($"Case ID: {NullDash(ctx.CaseId)}");
         sb.AppendLine($"Package: {ctx.PackageName}");
@@ -185,7 +185,7 @@ public static class EvidenceWrapUp
         AppendHostTimeZone(sb, ctx.EndedUtc);
         sb.AppendLine($"Collected By: {Environment.UserDomainName}\\{Environment.UserName}");
         sb.AppendLine($"System: {Environment.MachineName}");
-        sb.AppendLine($"Collection Method: KAPE Pack CollectPack ({ctx.CollectionMode})");
+        sb.AppendLine($"Collection Method: KapeIR.Triage ({ctx.CollectionMode})");
         sb.AppendLine($"Package: {ctx.PackageName}");
         sb.AppendLine();
         sb.AppendLine("Evidence root:");

@@ -4,7 +4,7 @@
       <OutputType>WinExe</OutputType>
       <TargetFramework>net8.0-windows</TargetFramework>
       <UseWPF>true</UseWPF>
-      <AssemblyName>KapePackBuilder</AssemblyName>
+      <AssemblyName>KapeIR</AssemblyName>
       <ApplicationIcon>app.ico</ApplicationIcon>
     </PropertyGroup>
 
@@ -22,16 +22,16 @@
     <InternalsVisibleTo Include="KapePackBuilder.Tests" />
   </ItemGroup>
 
-  <!-- Stub for CollectPack: embed once. Copy beside output for F5/debug, but do NOT
+  <!-- Triage stub: embed once. Copy beside output for F5/debug, but do NOT
        bundle again into PublishSingleFile (that doubled ~70 MB in the deliverable). -->
   <ItemGroup>
-    <None Include="..\..\tools\KapePackRunner.exe" Condition="Exists('..\..\tools\KapePackRunner.exe')">
+    <None Include="..\..\tools\KapeIR.Triage.exe" Condition="Exists('..\..\tools\KapeIR.Triage.exe')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>KapePackRunner.exe</Link>
+      <Link>KapeIR.Triage.exe</Link>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>
-    <EmbeddedResource Include="..\..\tools\KapePackRunner.exe" Condition="Exists('..\..\tools\KapePackRunner.exe')"
-                      LogicalName="KapePackRunner.exe" />
+    <EmbeddedResource Include="..\..\tools\KapeIR.Triage.exe" Condition="Exists('..\..\tools\KapeIR.Triage.exe')"
+                      LogicalName="KapeIR.Triage.exe" />
   </ItemGroup>
 
 </Project>

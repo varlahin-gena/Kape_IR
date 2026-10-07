@@ -15,7 +15,8 @@ public enum CatalogOrigin
 
 public static class CatalogOriginLabels
 {
-    public const string PackBuilderAuthorPrefix = "KAPE Pack Builder";
+    public const string PackBuilderAuthorPrefix = "KapeIR";
+    public const string LegacyPackBuilderAuthorPrefix = "KAPE Pack Builder";
 
     public static string Display(CatalogOrigin origin) => origin switch
     {
@@ -40,7 +41,8 @@ public static class CatalogOriginLabels
 
     public static bool LooksLikePackBuilderAuthor(string? author)
         => !string.IsNullOrWhiteSpace(author) &&
-           author.StartsWith(PackBuilderAuthorPrefix, StringComparison.OrdinalIgnoreCase);
+           (author.StartsWith(PackBuilderAuthorPrefix, StringComparison.OrdinalIgnoreCase)
+            || author.StartsWith(LegacyPackBuilderAuthorPrefix, StringComparison.OrdinalIgnoreCase));
 
     public static CatalogOrigin Resolve(string relativePath, string? author, IReadOnlySet<string>? upstreamPaths)
     {

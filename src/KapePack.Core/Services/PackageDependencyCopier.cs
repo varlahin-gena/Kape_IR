@@ -146,7 +146,7 @@ public sealed class PackageDependencyCopier
         if (!File.Exists(winpmem))
         {
             warnings.Add(
-                "ОШИБКА: winpmem.exe не найден в Modules\\bin. CollectPack без --skip-memory " +
+                "ОШИБКА: winpmem.exe не найден в Modules\\bin. KapeIR.Triage без --skip-memory " +
                 "остановит Phase 1. Нужен go-winpmem_amd64_1.0-rc2_signed.exe → winpmem.exe " +
                 "(см. Velocidex_WinPmem.mkape BinaryUrl), не unsigned mini.");
         }

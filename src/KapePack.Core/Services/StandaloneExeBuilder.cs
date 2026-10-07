@@ -4,7 +4,7 @@ using System.Text;
 namespace KapePack.Core.Services;
 
 /// <summary>
-/// Builds a single self-extracting EXE: [KapePackRunner stub][zip payload][footer].
+/// Builds a single self-extracting EXE: [KapeIR.Triage stub][zip payload][footer].
 /// Footer: Int64 zipStart, Int64 zipLen, ASCII "KAPEPACK".
 /// </summary>
 public static class StandaloneExeBuilder
@@ -17,14 +17,14 @@ public static class StandaloneExeBuilder
     public static string Build(string stubExePath, string zipPath, string outputExePath)
     {
         if (!File.Exists(stubExePath))
-            throw new FileNotFoundException("Не найден stub KapePackRunner (GUI)", stubExePath);
+            throw new FileNotFoundException($"Не найден stub {ProductIdentity.Triage} (GUI)", stubExePath);
         if (!File.Exists(zipPath))
             throw new FileNotFoundException("Не найден ZIP пакета", zipPath);
         if (!IsGuiStub(stubExePath))
             throw new InvalidOperationException(
                 "Найден устаревший console-stub (две консоли).\n" +
                 $"Файл: {stubExePath}\n" +
-                "Пересоберите Pack Builder через publish.ps1 (stub встраивается в один EXE).");
+                $"Пересоберите {ProductIdentity.Builder} через publish.ps1 (stub встраивается в один EXE).");
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputExePath)!);
         if (File.Exists(outputExePath))
@@ -74,18 +74,29 @@ public static class StandaloneExeBuilder
         // Embedded resource inside single-file Builder
         var embedded = ExtractEmbeddedStub(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "KapePackBuilder",
+            ProductIdentity.AppDataFolder,
             "stub"));
         if (embedded is not null && IsGuiStub(embedded))
             return embedded;
 
+        // Migrate: legacy AppData cache
+        var legacyEmbedded = ExtractEmbeddedStub(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            ProductIdentity.LegacyAppDataFolder,
+            "stub"));
+        if (legacyEmbedded is not null && IsGuiStub(legacyEmbedded))
+            return legacyEmbedded;
+
         var candidates = new[]
         {
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "tools", "KapePackRunner.exe")),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "artifacts", "runner", "KapePackRunner.exe")),
-            Path.Combine(baseDir, "tools", "KapePackRunner.exe"),
-            Path.Combine(baseDir, "..", "tools", "KapePackRunner.exe"),
-            Path.Combine(baseDir, "KapePackRunner.exe"),
+            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "tools", ProductIdentity.TriageExe)),
+            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "artifacts", "runner", ProductIdentity.TriageExe)),
+            Path.Combine(baseDir, "tools", ProductIdentity.TriageExe),
+            Path.Combine(baseDir, "..", "tools", ProductIdentity.TriageExe),
+            Path.Combine(baseDir, ProductIdentity.TriageExe),
+            // Legacy names during transition
+            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "tools", ProductIdentity.LegacyTriageExe)),
+            Path.Combine(baseDir, ProductIdentity.LegacyTriageExe),
         };
 
         string? consoleFallback = null;
@@ -99,13 +110,13 @@ public static class StandaloneExeBuilder
 
         if (consoleFallback is not null)
             throw new InvalidOperationException(
-                "Рядом лежит только старый console KapePackRunner.exe — из‑за него открываются две консоли.\n" +
+                $"Рядом лежит только старый console stub — из‑за него открываются две консоли.\n" +
                 $"Удалите: {consoleFallback}\n" +
-                "Нужен актуальный KapePackBuilder.exe из publish (stub встроен внутрь).");
+                $"Нужен актуальный {ProductIdentity.BuilderExe} из publish (stub встроен внутрь).");
 
         throw new FileNotFoundException(
             "GUI-stub для автономного пакета не найден.\n" +
-            "Пересоберите KapePackBuilder через publish.ps1 — stub встраивается в один EXE.");
+            $"Пересоберите {ProductIdentity.Builder} через publish.ps1 — stub встраивается в один EXE.");
     }
 
     public static bool TryGetEmbeddedStubInfo(out long sizeBytes, out string? resourceName)
@@ -113,8 +124,7 @@ public static class StandaloneExeBuilder
         sizeBytes = 0;
         resourceName = null;
         var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-        resourceName = asm.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith("KapePackRunner.exe", StringComparison.OrdinalIgnoreCase));
+        resourceName = FindStubResourceName(asm);
         if (resourceName is null) return false;
         using var stream = asm.GetManifestResourceStream(resourceName);
         if (stream is null) return false;
@@ -146,15 +156,20 @@ public static class StandaloneExeBuilder
         }
     }
 
+    private static string? FindStubResourceName(Assembly asm)
+        => asm.GetManifestResourceNames()
+            .FirstOrDefault(n =>
+                n.EndsWith(ProductIdentity.TriageExe, StringComparison.OrdinalIgnoreCase) ||
+                n.EndsWith(ProductIdentity.LegacyTriageExe, StringComparison.OrdinalIgnoreCase));
+
     private static string? ExtractEmbeddedStub(string toolsDir)
     {
         var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-        var name = asm.GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith("KapePackRunner.exe", StringComparison.OrdinalIgnoreCase));
+        var name = FindStubResourceName(asm);
         if (name is null) return null;
 
         Directory.CreateDirectory(toolsDir);
-        var dest = Path.Combine(toolsDir, "KapePackRunner.exe");
+        var dest = Path.Combine(toolsDir, ProductIdentity.TriageExe);
         var marker = dest + ".embedsha256";
 
         using var stream = asm.GetManifestResourceStream(name);

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:KapePack.Ui;assembly=KapePack.Ui"
-        Title="Kape_IR"
+        Title="KapeIR"
         Height="860" Width="1280"
         MinHeight="700" MinWidth="1100"
         Background="{StaticResource Brush.SurfaceApp}"
@@ -333,7 +333,7 @@
               <Button Grid.Column="0" Content="Новый" Command="{Binding NewPackCommand}" Margin="0,0,6,0"/>
               <Button Grid.Column="1" Content="Собрать EXE" Command="{Binding BuildPackageCommand}"
                       Style="{StaticResource PrimaryButton}" Margin="0,0,6,0"
-                      ToolTip="Автономный CollectPack EXE (Ctrl+B)"/>
+                      ToolTip="Автономный KapeIR.Triage EXE (Ctrl+B)"/>
               <Button Grid.Column="2" Content="Отмена" Command="{Binding CancelBuildCommand}"
                       Visibility="{Binding IsBuilding, Converter={StaticResource BoolToVis}}"
                       Style="{StaticResource DangerButton}" Margin="0"/>

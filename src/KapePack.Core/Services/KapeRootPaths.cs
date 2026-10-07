@@ -13,18 +13,37 @@ public static class KapeRootPaths
         return Path.GetFullPath(kapeRoot.Trim());
     }
 
+    /// <summary>
+    /// True when the folder already has a KAPE layout (Targets/Modules) or kape.exe
+    /// (fresh install / empty tree that Builder can scaffold).
+    /// </summary>
     public static bool LooksLikeKapeRoot(string? kapeRoot)
     {
         if (string.IsNullOrWhiteSpace(kapeRoot)) return false;
         try
         {
             var root = Path.GetFullPath(kapeRoot.Trim());
-            return Directory.Exists(Path.Combine(root, "Targets"));
+            if (!Directory.Exists(root)) return false;
+            return Directory.Exists(Path.Combine(root, "Targets"))
+                   || Directory.Exists(Path.Combine(root, "Modules"))
+                   || FindKapeExeInRoot(root) is not null;
         }
         catch
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Create Targets / Modules (and Modules\bin) when missing.
+    /// Safe to call repeatedly on an already-populated KAPE tree.
+    /// </summary>
+    public static void EnsureLayout(string kapeRoot)
+    {
+        var root = Normalize(kapeRoot);
+        Directory.CreateDirectory(Path.Combine(root, "Targets"));
+        Directory.CreateDirectory(Path.Combine(root, "Modules"));
+        Directory.CreateDirectory(Path.Combine(root, "Modules", "bin"));
     }
 
     public static string PackBuilderDir(string kapeRoot)

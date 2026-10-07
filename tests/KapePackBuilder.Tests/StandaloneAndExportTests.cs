@@ -105,7 +105,7 @@ Targets:
 
             var stubDir = Path.Combine(tmp, "stub");
             Directory.CreateDirectory(stubDir);
-            var stub = Path.Combine(stubDir, "KapePackRunner.exe");
+            var stub = Path.Combine(stubDir, "KapeIR.Triage.exe");
             // Reuse minimal GUI PE
             WriteGuiStub(stub);
 

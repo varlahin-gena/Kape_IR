@@ -18,7 +18,7 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public async Task EnsureCatalogBoundToUiRootAsync_MissingTargets_ShowsError()
+    public async Task EnsureCatalogBoundToUiRootAsync_RandomFolder_ShowsError()
     {
         var dialogs = new FakeDialogService();
         var tmp = Path.Combine(Path.GetTempPath(), "kape_vm_" + Guid.NewGuid().ToString("N"));
@@ -32,12 +32,51 @@ public class MainViewModelTests
             Assert.Null(root);
             Assert.Contains(dialogs.Messages, m =>
                 m.Title == "Корень KAPE" &&
-                m.Message.Contains("нет Targets", StringComparison.OrdinalIgnoreCase));
+                m.Message.Contains("не похожа", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
             try { Directory.Delete(tmp, true); } catch { /* ignore */ }
         }
+    }
+
+    [Fact]
+    public async Task EnsureCatalogBoundToUiRootAsync_KapeExeOnly_CreatesLayout()
+    {
+        var dialogs = new FakeDialogService();
+        var tmp = Path.Combine(Path.GetTempPath(), "kape_vm_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tmp);
+        File.WriteAllBytes(Path.Combine(tmp, "kape.exe"), new byte[] { 1 });
+        try
+        {
+            using var vm = new MainViewModel(dialogs) { KapeRoot = tmp };
+
+            var root = await vm.EnsureCatalogBoundToUiRootAsync();
+
+            Assert.NotNull(root);
+            Assert.True(Directory.Exists(Path.Combine(tmp, "Targets")));
+            Assert.True(Directory.Exists(Path.Combine(tmp, "Modules")));
+            Assert.True(Directory.Exists(Path.Combine(tmp, "Modules", "bin")));
+            Assert.Empty(dialogs.Messages);
+        }
+        finally
+        {
+            try { Directory.Delete(tmp, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public async Task InitializeAsync_EmptyRoot_DoesNotPrompt()
+    {
+        var dialogs = new FakeDialogService();
+        dialogs.ConfirmResults.Enqueue(true);
+        using var vm = new MainViewModel(dialogs) { KapeRoot = "" };
+
+        await vm.InitializeAsync();
+
+        Assert.Empty(dialogs.Confirms);
+        Assert.Empty(dialogs.Messages);
+        Assert.Contains("Обзор", vm.StatusText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -20,7 +20,13 @@ public partial class MainViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanReloadCatalog))]
-    private async Task ReloadCatalogAsync()
+    private Task ReloadCatalogAsync() => ReloadCatalogAsync(promptIfMissing: true);
+
+    /// <param name="promptIfMissing">
+    /// When false (startup), missing/unknown root only updates StatusText — no dialogs.
+    /// When true (Browse / «Перечитать»), offer to pick a folder.
+    /// </param>
+    private async Task ReloadCatalogAsync(bool promptIfMissing)
     {
         if (IsBuilding || IsSyncing)
         {
@@ -31,14 +37,11 @@ public partial class MainViewModel
         }
 
         KapeRoot = (KapeRoot ?? "").Trim();
-        if (string.IsNullOrEmpty(KapeRoot) || !KapeRootPaths.LooksLikeKapeRoot(KapeRoot))
+        if (string.IsNullOrEmpty(KapeRoot))
         {
-            if (_dialogs.Confirm(
-                    string.IsNullOrEmpty(KapeRoot)
-                        ? "Корень KAPE не задан.\n\nВыбрать папку?"
-                        : $"Папка Targets не найдена в:\n{KapeRoot}\n\nВыбрать другую папку?",
-                    "Корень KAPE",
-                    DialogIcon.Error))
+            StatusText = "Укажите корень KAPE (кнопка «Обзор…»).";
+            if (promptIfMissing &&
+                _dialogs.Confirm("Корень KAPE не задан.\n\nВыбрать папку?", "Корень KAPE", DialogIcon.Warning))
             {
                 BrowseKapeRoot();
             }
@@ -49,7 +52,41 @@ public partial class MainViewModel
         try { root = KapeRootPaths.Normalize(KapeRoot); }
         catch
         {
-            _dialogs.ShowMessage("Некорректный путь корня KAPE.", "Корень KAPE", DialogIcon.Error);
+            StatusText = "Некорректный путь корня KAPE.";
+            if (promptIfMissing)
+                _dialogs.ShowMessage("Некорректный путь корня KAPE.", "Корень KAPE", DialogIcon.Error);
+            return;
+        }
+
+        if (!Directory.Exists(root) || !KapeRootPaths.LooksLikeKapeRoot(root))
+        {
+            StatusText = "Укажите корень KAPE (папка с kape.exe).";
+            if (promptIfMissing &&
+                _dialogs.Confirm(
+                    $"Папка не похожа на корень KAPE (нет kape.exe / Targets / Modules):\n{root}\n\n" +
+                    "Выбрать другую папку?",
+                    "Корень KAPE",
+                    DialogIcon.Warning))
+            {
+                BrowseKapeRoot();
+            }
+            return;
+        }
+
+        try
+        {
+            KapeRootPaths.EnsureLayout(root);
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Не удалось создать Targets/Modules.";
+            if (promptIfMissing)
+            {
+                _dialogs.ShowMessage(
+                    $"Не удалось создать Targets/Modules в:\n{root}\n\n{ex.Message}",
+                    "Корень KAPE",
+                    DialogIcon.Error);
+            }
             return;
         }
 

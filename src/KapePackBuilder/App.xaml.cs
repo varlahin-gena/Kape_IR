@@ -13,12 +13,12 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        AppLog.Info($"KapePackBuilder start (pid={Environment.ProcessId})");
+        AppLog.Info($"{ProductIdentity.Builder} start (pid={Environment.ProcessId})");
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        AppLog.Info($"KapePackBuilder exit code={e.ApplicationExitCode}");
+        AppLog.Info($"{ProductIdentity.Builder} exit code={e.ApplicationExitCode}");
         base.OnExit(e);
     }
 

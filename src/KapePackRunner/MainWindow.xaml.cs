@@ -51,7 +51,7 @@ public partial class MainWindow : Window
             {
                 if (!FileHash.TryVerifySidecar(self, out var verifyMsg, requireSidecar: false))
                 {
-                    Fail(verifyMsg + "\n\nПоложите корректный CollectPack.exe.sha256 рядом с EXE или пересоберите пакет.");
+                    Fail(verifyMsg + "\n\nПоложите корректный KapeIR.Triage.exe.sha256 рядом с EXE или пересоберите пакет.");
                     return;
                 }
 
@@ -74,7 +74,7 @@ public partial class MainWindow : Window
             _packageDir = prep.PackageDir;
             _cfg = prep.Manifest;
 
-            Title = $"KAPE Pack — {_cfg!.Name}";
+            Title = $"KapeIR.Triage — {_cfg!.Name}";
             TitleText.Text = _cfg.Name;
             if (_cfg.CollectionMode == IrCollectionMode.TwoPhase)
             {
@@ -131,7 +131,7 @@ public partial class MainWindow : Window
             if (!simOk) return;
             var cont = MessageBox.Show(
                 "Оценка (--sim) завершена — см. журнал.\n\nЗапустить полный сбор с копированием файлов?",
-                "KAPE Pack",
+                "KapeIR.Triage",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
             if (cont != MessageBoxResult.Yes)
@@ -154,7 +154,7 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrWhiteSpace(tsource))
         {
-            MessageBox.Show("Выберите диск для сбора.", "KAPE Pack",
+            MessageBox.Show("Выберите диск для сбора.", "KapeIR.Triage",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -162,7 +162,7 @@ public partial class MainWindow : Window
         var results = (ResultsBox.Text ?? "").Trim();
         if (string.IsNullOrWhiteSpace(results))
         {
-            MessageBox.Show("Укажите папку для результатов (RESULTS).", "KAPE Pack",
+            MessageBox.Show("Укажите папку для результатов (RESULTS).", "KapeIR.Triage",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -173,7 +173,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Некорректный путь результатов: " + ex.Message, "KAPE Pack",
+            MessageBox.Show("Некорректный путь результатов: " + ex.Message, "KapeIR.Triage",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -184,7 +184,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Не удалось создать папку результатов:\n" + ex.Message, "KAPE Pack",
+            MessageBox.Show("Не удалось создать папку результатов:\n" + ex.Message, "KapeIR.Triage",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -534,7 +534,7 @@ public partial class MainWindow : Window
         ProgressBar.Value = 100;
         ProgressBar.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49));
         Log(message);
-        MessageBox.Show(message, "KAPE Pack", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(message, "KapeIR.Triage", MessageBoxButton.OK, MessageBoxImage.Error);
         CloseBtn.IsEnabled = true;
         SaveLogBtn.IsEnabled = true;
         CancelRunBtn.IsEnabled = false;
@@ -580,7 +580,7 @@ public partial class MainWindow : Window
     private void CancelRun_Click(object sender, RoutedEventArgs e)
     {
         if (_runCts is null || _runCts.IsCancellationRequested) return;
-        if (MessageBox.Show("Остановить kape.exe? Сбор будет прерван.", "KAPE Pack",
+        if (MessageBox.Show("Остановить kape.exe? Сбор будет прерван.", "KapeIR.Triage",
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
         try

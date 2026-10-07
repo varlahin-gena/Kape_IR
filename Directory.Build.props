@@ -1,12 +1,12 @@
 <Project>
   <PropertyGroup>
-    <KapePackVersion>1.8.6</KapePackVersion>
+    <KapePackVersion>1.8.8</KapePackVersion>
     <Version>$(KapePackVersion)</Version>
-    <AssemblyVersion>1.8.6.0</AssemblyVersion>
-    <FileVersion>1.8.6.0</FileVersion>
+    <AssemblyVersion>1.8.8.0</AssemblyVersion>
+    <FileVersion>1.8.8.0</FileVersion>
     <InformationalVersion>$(KapePackVersion)</InformationalVersion>
-    <Product>Kape_IR</Product>
-    <AssemblyTitle>Kape_IR</AssemblyTitle>
+    <Product>KapeIR</Product>
+    <AssemblyTitle>KapeIR</AssemblyTitle>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>

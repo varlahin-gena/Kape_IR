@@ -81,7 +81,7 @@ public partial class App : Application
                 Encoding.UTF8);
             MessageBox.Show(
                 ex.Message + "\n\nПодробности: " + path,
-                "KAPE Pack — ошибка",
+                "KapeIR.Triage — ошибка",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
@@ -89,7 +89,7 @@ public partial class App : Application
         {
             try
             {
-                MessageBox.Show(ex.Message, "KAPE Pack — ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(ex.Message, "KapeIR.Triage — ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             catch
             {

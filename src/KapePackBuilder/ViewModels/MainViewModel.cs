@@ -74,14 +74,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         _dialogs = dialogs;
         _settings = AppSettings.Load();
-        KapeRoot = AppSettings.ResolveDefaultKapeRoot(_settings);
+        // Do not schedule catalog reload from the initial assignment — InitializeAsync owns first load.
+        _suppressKapeRootReload = true;
+        try
+        {
+            KapeRoot = AppSettings.ResolveDefaultKapeRoot(_settings);
+        }
+        finally
+        {
+            _suppressKapeRootReload = false;
+        }
         // Catalog must track the UI root only — never Environment.CurrentDirectory.
         _catalogWs = new CatalogWorkspace(string.IsNullOrWhiteSpace(KapeRoot) ? "" : KapeRoot);
     }
 
     public async Task InitializeAsync()
     {
-        await ReloadCatalogAsync();
+        // First launch / no known root: quiet status only — never prompt before the user can Browse.
+        await ReloadCatalogAsync(promptIfMissing: false);
     }
 
     /// <summary>Normalize UI root and ensure <see cref="_catalog"/> is bound to it.</summary>
@@ -105,10 +115,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return null;
         }
 
-        if (!KapeRootPaths.LooksLikeKapeRoot(root))
+        if (!Directory.Exists(root) || !KapeRootPaths.LooksLikeKapeRoot(root))
         {
             _dialogs.ShowMessage(
-                $"В указанной папке нет Targets:\n{root}\n\nВсе операции Builder идут только в этот корень.",
+                $"Папка не похожа на корень KAPE (нужны kape.exe и/или Targets/Modules):\n{root}\n\n" +
+                "Выберите папку с kape.exe — Targets и Modules будут созданы при необходимости.",
+                "Корень KAPE",
+                DialogIcon.Error);
+            return null;
+        }
+
+        try
+        {
+            KapeRootPaths.EnsureLayout(root);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowMessage(
+                $"Не удалось создать Targets/Modules в:\n{root}\n\n{ex.Message}",
                 "Корень KAPE",
                 DialogIcon.Error);
             return null;
@@ -122,7 +146,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         if (!_catalogWs.IsBoundTo(root))
-            await ReloadCatalogAsync();
+            await ReloadCatalogAsync(promptIfMissing: false);
 
         if (!_catalogWs.IsBoundTo(root))
         {

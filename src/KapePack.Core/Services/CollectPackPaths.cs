@@ -1,12 +1,12 @@
 namespace KapePack.Core.Services;
 
 /// <summary>
-/// CollectPack is portable: work next to the launched EXE (USB, share, local disk).
+/// KapeIR.Triage is portable: work next to the launched EXE (USB, share, local disk).
 /// Never prefer %TEMP% / fixed C: paths for package contents or RESULTS.
 /// </summary>
 public static class CollectPackPaths
 {
-    /// <summary>Directory that contains the CollectPack EXE (launch / USB folder).</summary>
+    /// <summary>Directory that contains the triage EXE (launch / USB folder).</summary>
     public static string ResolveLaunchDirectory(string? processPath = null)
     {
         var self = processPath ?? Environment.ProcessPath;
@@ -35,7 +35,7 @@ public static class CollectPackPaths
     {
         var name = Path.GetFileNameWithoutExtension(exePath);
         if (string.IsNullOrWhiteSpace(name))
-            name = "CollectPack";
+            name = ProductIdentity.Triage;
         return Path.Combine(Path.GetFullPath(launchDir), name);
     }
 

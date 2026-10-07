@@ -8,7 +8,7 @@ namespace KapePackBuilder.ViewModels;
 
 public partial class MainViewModel
 {
-    public const string ProductName = "Kape_IR";
+    public const string ProductName = ProductIdentity.Builder;
 
     [RelayCommand]
     private void ShowAbout()

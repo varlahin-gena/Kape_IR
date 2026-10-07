@@ -8,7 +8,11 @@ public sealed class AppSettings
 
     private static string SettingsPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "KapePackBuilder", "settings.json");
+            ProductIdentity.AppDataFolder, "settings.json");
+
+    private static string LegacySettingsPath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            ProductIdentity.LegacyAppDataFolder, "settings.json");
 
     public static AppSettings Load()
     {
@@ -16,6 +20,9 @@ public sealed class AppSettings
         {
             if (File.Exists(SettingsPath))
                 return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath)) ?? new AppSettings();
+            // One-time migrate from pre-rename AppData folder.
+            if (File.Exists(LegacySettingsPath))
+                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(LegacySettingsPath)) ?? new AppSettings();
         }
         catch (Exception ex)
         {

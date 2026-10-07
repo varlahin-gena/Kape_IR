@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.8.8] — 2026-10-07
+
+### Rename
+- Builder deliverable: **`KapeIR.exe`** (было `KapePackBuilder.exe` / Product `Kape_IR`)
+- Runner stub: **`KapeIR.Triage.exe`** (было `KapePackRunner.exe` / CollectPack в UI)
+- AppData / логи / User-Agent → `KapeIR` (миграция settings из `KapePackBuilder`)
+
+### Changed
+- Версия / Product = 1.8.8
+
+## [1.8.7] — 2026-10-07
+
+### Fix — корень KAPE
+- Папка только с `kape.exe`: автоматически создаются `Targets`, `Modules`, `Modules\bin`
+- Первый запуск без выбранного корня: без ложных диалогов «нет Targets»; статус предлагает «Обзор…»
+- Убрана двойная проверка каталога при старте (конструктор + Initialize)
+
+### Changed
+- Версия / Product / User-Agent = 1.8.7
+
 ## [1.8.6] — 2026-10-07
 
 ### UI

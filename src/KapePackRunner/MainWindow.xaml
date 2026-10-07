@@ -1,7 +1,7 @@
 <Window x:Class="KapePackRunner.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="KAPE Pack"
+        Title="KapeIR.Triage"
         Height="640" Width="900"
         MinHeight="480" MinWidth="720"
         WindowStartupLocation="CenterScreen"
@@ -24,7 +24,7 @@
 
     <!-- Title -->
     <StackPanel Grid.Row="0" Margin="0,0,0,12">
-      <TextBlock x:Name="TitleText" Text="KAPE Pack" FontSize="22" FontWeight="SemiBold"/>
+      <TextBlock x:Name="TitleText" Text="KapeIR.Triage" FontSize="22" FontWeight="SemiBold"/>
       <TextBlock x:Name="SubtitleText" Text="Автономный сбор артефактов"
                  Foreground="{StaticResource Brush.TextSecondary}" Margin="0,4,0,0"/>
     </StackPanel>

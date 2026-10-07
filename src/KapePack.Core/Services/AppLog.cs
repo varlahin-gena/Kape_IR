@@ -9,7 +9,7 @@ public static class AppLog
     public static string LogDirectory =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "KapePackBuilder",
+            ProductIdentity.AppDataFolder,
             "logs");
 
     public static string LogFilePath

@@ -39,7 +39,7 @@ internal static class SharedHttp
         var plus = ver.IndexOf('+', StringComparison.Ordinal);
         if (plus >= 0)
             ver = ver[..plus];
-        return $"Kape_IR/{ver} (+https://github.com/EricZimmerman/KapeFiles)";
+        return $"{ProductIdentity.Builder}/{ver} (+https://github.com/EricZimmerman/KapeFiles)";
     }
 
     private static HttpClient CreateClient(

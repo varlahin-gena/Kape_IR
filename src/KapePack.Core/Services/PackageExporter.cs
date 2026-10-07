@@ -492,7 +492,7 @@ public sealed class PackageExporter : IPackageExporter
         {
             "  - run_collection.bat / run_collection.ps1",
             "  - _kape.cli.example (fleet: переименуйте в _kape.cli рядом с kape.exe и запустите kape.exe без аргументов;",
-            "    не держите активный _kape.cli при запуске CollectPack / run_collection — KAPE тогда игнорирует CLI)",
+            "    не держите активный _kape.cli при запуске KapeIR.Triage / run_collection — KAPE тогда игнорирует CLI)",
             "  - манифест package.json",
             $"  - {EvidenceWrapUp.FindingsTemplateFileName} (скопируйте в findings.csv после сбора)",
             "  - зависимые Targets/Modules",
@@ -503,16 +503,16 @@ public sealed class PackageExporter : IPackageExporter
         {
             lines.AddRange(new[]
             {
-                "Автономный EXE (один файл CollectPack):",
-                "  GUI:  CollectPack.exe — окно, оценка (--sim), выбор диска, сбор (UAC).",
+                "Автономный EXE (KapeIR.Triage stub + пакет):",
+                "  GUI:  <ИмяПакета>.exe — окно, оценка (--sim), выбор диска, сбор (UAC).",
                 "  Silent / EDR:",
-                "    CollectPack.exe --silent --tsource C:",
-                "    CollectPack.exe --sim-only --tsource C:",
-                "    CollectPack.exe --silent --tsource C: --log C:\\Windows\\Temp\\kape_pack.log",
+                "    <ИмяПакета>.exe --silent --tsource C:",
+                "    <ИмяПакета>.exe --sim-only --tsource C:",
+                "    <ИмяПакета>.exe --silent --tsource C: --log C:\\Windows\\Temp\\kape_ir.log",
                 "  Двухфазный IR:",
-                "    CollectPack.exe --silent --tsource C: --case-id IR-2026-001",
-                "    CollectPack.exe --silent --tsource C: --phase 1",
-                "    CollectPack.exe --silent --tsource C: --phase 2 --skip-memory",
+                "    <ИмяПакета>.exe --silent --tsource C: --case-id IR-2026-001",
+                "    <ИмяПакета>.exe --silent --tsource C: --phase 1",
+                "    <ИмяПакета>.exe --silent --tsource C: --phase 2 --skip-memory",
                 "  Коды выхода: 0=OK, 1=сбой сбора, 2=аргументы/payload, 3=ошибка подготовки.",
                 ""
             });
@@ -533,7 +533,7 @@ public sealed class PackageExporter : IPackageExporter
         lines.AddRange(new[]
         {
             "",
-            "Сгенерировано KAPE Pack Builder",
+            "Сгенерировано KapeIR",
             ""
         });
         return string.Join('\n', lines.Where(l => l is not null)!);

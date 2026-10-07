@@ -111,7 +111,7 @@ public partial class MainViewModel
             try
             {
                 if (StandaloneExeBuilder.TryGetEmbeddedStubInfo(out var embSize, out _))
-                    stubInfo = $"\nStub: встроен в Pack Builder ({embSize / (1024 * 1024)} МБ, GUI)";
+                    stubInfo = $"\nStub: встроен в KapeIR ({embSize / (1024 * 1024)} МБ, GUI)";
                 else
                 {
                     var stub = StandaloneExeBuilder.ResolveStubPath(root);

@@ -42,6 +42,43 @@ public class KapeRootPathsTests
         Assert.True(KapeRootPaths.SameRoot(@"C:\Kape", @"C:\Kape\"));
         Assert.False(KapeRootPaths.SameRoot(@"C:\KapeA", @"C:\KapeB"));
     }
+
+    [Fact]
+    public void LooksLikeKapeRoot_AcceptsKapeExeWithoutTargets()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_looks_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            Assert.False(KapeRootPaths.LooksLikeKapeRoot(root));
+            File.WriteAllBytes(Path.Combine(root, "kape.exe"), new byte[] { 1 });
+            Assert.True(KapeRootPaths.LooksLikeKapeRoot(root));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public void EnsureLayout_CreatesTargetsAndModules()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_layout_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            KapeRootPaths.EnsureLayout(root);
+            Assert.True(Directory.Exists(Path.Combine(root, "Targets")));
+            Assert.True(Directory.Exists(Path.Combine(root, "Modules")));
+            Assert.True(Directory.Exists(Path.Combine(root, "Modules", "bin")));
+            // Idempotent
+            KapeRootPaths.EnsureLayout(root);
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
 }
 
 public class CollectPackPathsTests
