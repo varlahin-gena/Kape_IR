@@ -3,12 +3,16 @@ using System.Reflection;
 using CommunityToolkit.Mvvm.Input;
 using KapeIR.Core.Services;
 using KapeIR.Builder.Services;
+using KapeIR.Ui.Dialogs;
 
 namespace KapeIR.Builder.ViewModels;
 
 public partial class MainViewModel
 {
     public const string ProductName = ProductIdentity.Builder;
+
+    [RelayCommand]
+    private void ShowOperatorHelp() => _dialogs.ShowOperatorHelp();
 
     [RelayCommand]
     private void ShowAbout()

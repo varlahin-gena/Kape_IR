@@ -78,7 +78,7 @@ public class CatalogTests
                 new KapeIR.Core.Models.SelectionEntry { Name = "Prefetch", Category = "Prefetch", Path = "Prefetch.tkape" }
             }
         };
-        var text = KapeFileIo.RenderCompoundTarget(pkg);
+        var text = KapeCompoundIo.RenderCompoundTarget(pkg);
         Assert.Contains("Description:", text);
         Assert.Contains("Prefetch.tkape", text);
         Assert.Equal("TestPack", pkg.TargetCompoundName);
@@ -87,7 +87,7 @@ public class CatalogTests
     [Fact]
     public void SanitizeYaml_ConvertsTabs()
     {
-        var cleaned = KapeFileIo.SanitizeYamlText("a:\n\t- b");
+        var cleaned = KapeYamlReader.SanitizeYamlText("a:\n\t- b");
         Assert.DoesNotContain("\t", cleaned);
         Assert.Contains("    - b", cleaned);
     }
@@ -103,7 +103,7 @@ public class CatalogTests
                 new KapeIR.Core.Models.SelectionEntry { Name = "AmcacheParser", Category = "EZTools", Path = "AmcacheParser.mkape" }
             }
         };
-        var yaml = KapeFileIo.RenderCompoundModule(pkg);
+        var yaml = KapeCompoundIo.RenderCompoundModule(pkg);
         Assert.Contains("ExportFormat: csv", yaml);
     }
 
@@ -113,7 +113,7 @@ public class CatalogTests
     [InlineData("AmcacheParser.mkape", "AmcacheParser.mkape")]
     [InlineData("true", "'true'")]
     public void FormatYamlScalar_QuotesYamlTagLikeValues(string input, string expected)
-        => Assert.Equal(expected, KapeFileIo.FormatYamlScalar(input));
+        => Assert.Equal(expected, KapeCompoundIo.FormatYamlScalar(input));
 
     [Fact]
     public void RenderCompoundModule_QuotesBangBangToolSyncPath()
@@ -131,7 +131,7 @@ public class CatalogTests
                 }
             }
         };
-        var yaml = KapeFileIo.RenderCompoundModule(pkg);
+        var yaml = KapeCompoundIo.RenderCompoundModule(pkg);
         Assert.Contains("Executable: '!!ToolSync.mkape'", yaml);
         Assert.DoesNotContain("Executable: !!ToolSync.mkape\n", yaml.Replace("\r\n", "\n"));
     }

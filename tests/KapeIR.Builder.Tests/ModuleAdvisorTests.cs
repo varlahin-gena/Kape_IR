@@ -62,7 +62,7 @@ Targets:
 """);
         try
         {
-            var links = KapeFileIo.ExtractDocumentationLinks(tmp);
+            var links = KapeYamlReader.ExtractDocumentationLinks(tmp);
             Assert.Contains(links, u => u.Contains("example.com/docs/one"));
             Assert.Contains(links, u => u.Contains("example.com/two"));
         }

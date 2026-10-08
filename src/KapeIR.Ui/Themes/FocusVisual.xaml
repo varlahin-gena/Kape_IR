@@ -1,0 +1,45 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="Dark.xaml"/>
+  </ResourceDictionary.MergedDictionaries>
+
+  <!--
+    Keyboard focus adorner (HIG-style focus ring).
+    Applied via FocusVisualStyle — does not replace control templates.
+    Shown only for keyboard focus (WPF default FocusVisual behavior).
+  -->
+  <Style x:Key="FocusVisual.Keyboard">
+    <Setter Property="Control.Template">
+      <Setter.Value>
+        <ControlTemplate>
+          <Rectangle Margin="-3"
+                     RadiusX="8"
+                     RadiusY="8"
+                     Stroke="{StaticResource Brush.FocusRing}"
+                     StrokeThickness="2"
+                     SnapsToDevicePixels="True"
+                     IsHitTestVisible="False"/>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Tighter ring for compact rows (list / tree / checkbox) -->
+  <Style x:Key="FocusVisual.KeyboardCompact">
+    <Setter Property="Control.Template">
+      <Setter.Value>
+        <ControlTemplate>
+          <Rectangle Margin="-1"
+                     RadiusX="4"
+                     RadiusY="4"
+                     Stroke="{StaticResource Brush.FocusRing}"
+                     StrokeThickness="1.5"
+                     SnapsToDevicePixels="True"
+                     IsHitTestVisible="False"/>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+</ResourceDictionary>

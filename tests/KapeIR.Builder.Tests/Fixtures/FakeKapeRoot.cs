@@ -220,13 +220,13 @@ Processors:
 Description: WinPmem Memory Dump
 Category: Memory
 Author: FakeKapeRoot
-Version: 1.0
+Version: 4.0
 Id: 1d284835-417b-459e-a396-d228edea3808
 ExportFormat: raw
 Processors:
     -
         Executable: winpmem.exe
-        CommandLine: "%destinationDirectory%\\memory.raw"
+        CommandLine: acquire --progress "%destinationDirectory%\\memory.raw"
         ExportFormat: raw
 """);
 

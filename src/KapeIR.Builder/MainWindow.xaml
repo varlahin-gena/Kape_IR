@@ -8,6 +8,7 @@
         Background="{StaticResource Brush.SurfaceApp}"
         Foreground="{StaticResource Brush.TextPrimary}"
         Icon="pack://application:,,,/app.ico"
+        AutomationProperties.Name="KapeIR"
         Loaded="Window_Loaded">
   <Window.CommandBindings>
     <CommandBinding Command="ApplicationCommands.Find" Executed="Find_Executed"/>
@@ -15,22 +16,38 @@
   <Window.InputBindings>
     <KeyBinding Key="F" Modifiers="Control" Command="ApplicationCommands.Find"/>
     <KeyBinding Key="B" Modifiers="Control" Command="{Binding BuildPackageCommand}"/>
-    <KeyBinding Key="F5" Command="{Binding ReloadCatalogCommand}"/>
+    <KeyBinding Key="F5" Command="{Binding Catalog.ReloadCatalogCommand}"/>
   </Window.InputBindings>
 
   <DockPanel>
-    <Menu DockPanel.Dock="Top" Background="{StaticResource Brush.SurfacePanel}" Padding="4,2">
-      <MenuItem Header="_Каталог">
-        <MenuItem Header="Перечитать каталог" Command="{Binding ReloadCatalogCommand}" InputGestureText="F5"/>
-        <MenuItem Header="Убрать дубликаты" Command="{Binding FixNameCollisionsCommand}"/>
+    <Menu DockPanel.Dock="Top" Background="{StaticResource Brush.SurfacePanel}" Padding="4,2"
+          AutomationProperties.Name="Главное меню">
+      <MenuItem Header="_Каталог" AutomationProperties.Name="Меню Каталог">
+        <MenuItem Header="Перечитать каталог" Command="{Binding Catalog.ReloadCatalogCommand}" InputGestureText="F5"
+                  AutomationProperties.Name="Перечитать каталог"/>
+        <MenuItem Header="Обновить с GitHub…" Command="{Binding Sync.UpdateFromGitHubCommand}"
+                  AutomationProperties.Name="Обновить с GitHub"/>
+        <MenuItem Header="Убрать дубликаты" Command="{Binding Catalog.FixNameCollisionsCommand}"
+                  AutomationProperties.Name="Убрать дубликаты имён"/>
       </MenuItem>
-      <MenuItem Header="_Пакет">
-        <MenuItem Header="Сохранить сессию" Command="{Binding SaveSessionCommand}"/>
-        <MenuItem Header="Загрузить сессию…" Command="{Binding LoadSessionCommand}"/>
+      <MenuItem Header="_Пакет" AutomationProperties.Name="Меню Пакет">
+        <MenuItem Header="Новый пакет" Command="{Binding PackageEditor.NewPackCommand}"
+                  AutomationProperties.Name="Новый пакет"/>
+        <MenuItem Header="Сохранить сессию" Command="{Binding PackageEditor.SaveSessionCommand}"
+                  AutomationProperties.Name="Сохранить сессию"/>
+        <MenuItem Header="Загрузить сессию…" Command="{Binding PackageEditor.LoadSessionCommand}"
+                  AutomationProperties.Name="Загрузить сессию"/>
+        <Separator/>
+        <MenuItem Header="Собрать EXE" Command="{Binding BuildPackageCommand}" InputGestureText="Ctrl+B"
+                  AutomationProperties.Name="Собрать EXE"/>
       </MenuItem>
-      <MenuItem Header="_Справка">
-        <MenuItem Header="Журнал" Command="{Binding OpenAppLogFolderCommand}"/>
-        <MenuItem Header="О программе" Command="{Binding ShowAboutCommand}"/>
+      <MenuItem Header="_Справка" AutomationProperties.Name="Меню Справка">
+        <MenuItem Header="Журнал" Command="{Binding OpenAppLogFolderCommand}"
+                  AutomationProperties.Name="Открыть папку журнала"/>
+        <MenuItem Header="Справка" Command="{Binding ShowOperatorHelpCommand}"
+                  AutomationProperties.Name="Справка по системе"/>
+        <MenuItem Header="О программе" Command="{Binding ShowAboutCommand}"
+                  AutomationProperties.Name="О программе"/>
       </MenuItem>
     </Menu>
 
@@ -48,20 +65,32 @@
         <TextBlock Text="Корень KAPE" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
         <TextBox x:Name="KapeRootBox" Grid.Column="1"
                  Text="{Binding KapeRoot, UpdateSourceTrigger=PropertyChanged}"
-                 VerticalAlignment="Center" Margin="0,0,8,0"/>
-        <Button Grid.Column="2" Content="Обзор…" Command="{Binding BrowseKapeRootCommand}" Margin="0,0,8,0"/>
-        <Button Grid.Column="3" Content="Обновить с GitHub…" Command="{Binding UpdateFromGitHubCommand}"
-                Margin="0,0,8,0" ToolTip="KapeFiles, EZ Tools, Chainsaw"/>
-        <Button Grid.Column="4" Content="Отмена" Command="{Binding CancelSyncCommand}"
+                 VerticalAlignment="Center" Margin="0,0,8,0"
+                 ToolTip="Папка с kape.exe, Targets и Modules"
+                 AutomationProperties.Name="Корень KAPE"
+                 AutomationProperties.HelpText="Папка с kape.exe, Targets и Modules"/>
+        <Button Grid.Column="2" Content="Обзор…" Command="{Binding Catalog.BrowseKapeRootCommand}" Margin="0,0,8,0"
+                AutomationProperties.Name="Обзор корня KAPE"
+                AutomationProperties.HelpText="Выбрать папку установки KAPE"/>
+        <Button Grid.Column="3" Content="Обновить с GitHub…" Command="{Binding Sync.UpdateFromGitHubCommand}"
+                Margin="0,0,8,0"
+                ToolTip="Скачать обновления Targets/Modules, EZ Tools, Chainsaw и Hayabusa с GitHub"
+                AutomationProperties.Name="Обновить с GitHub"
+                AutomationProperties.HelpText="Скачать обновления Targets, Modules, EZ Tools, Chainsaw и Hayabusa с GitHub"/>
+        <Button Grid.Column="4" Content="Отмена" Command="{Binding Sync.CancelSyncCommand}"
                 Visibility="{Binding IsSyncing, Converter={StaticResource BoolToVis}}"
-                Style="{StaticResource DangerButton}" Margin="0"/>
+                Style="{StaticResource DangerButton}" Margin="0"
+                AutomationProperties.Name="Отменить обновление с GitHub"/>
       </Grid>
     </Border>
 
     <Border DockPanel.Dock="Bottom" Background="{StaticResource Brush.SurfacePanel}"
             BorderBrush="{StaticResource Brush.BorderSubtle}" BorderThickness="0,1,0,0"
             Padding="12,8">
-      <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
+      <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"
+                 AutomationProperties.Name="Строка состояния"
+                 AutomationProperties.LiveSetting="Polite"
+                 AutomationProperties.HelpText="{Binding StatusText}"/>
     </Border>
 
     <Grid Margin="12">
@@ -71,8 +100,9 @@
         <ColumnDefinition Width="2*" MinWidth="320"/>
       </Grid.ColumnDefinitions>
 
-      <TabControl Grid.Column="0" Background="{StaticResource Brush.SurfaceApp}">
-        <TabItem Header="Таргеты">
+      <TabControl Grid.Column="0" Background="{StaticResource Brush.SurfaceApp}"
+                  AutomationProperties.Name="Каталог Targets и Modules">
+        <TabItem Header="Таргеты" AutomationProperties.Name="Вкладка Таргеты">
           <DockPanel Margin="8">
             <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
               <Grid.ColumnDefinitions>
@@ -80,39 +110,44 @@
                 <ColumnDefinition Width="160"/>
               </Grid.ColumnDefinitions>
               <TextBox x:Name="TargetSearchBox"
-                       Text="{Binding TargetSearch, UpdateSourceTrigger=PropertyChanged}"
+                       Text="{Binding Catalog.TargetSearch, UpdateSourceTrigger=PropertyChanged}"
                        ToolTip="Поиск таргетов (Ctrl+F)"
-                       ui:Watermark.Text="Поиск таргетов…"/>
+                       ui:Watermark.Text="Поиск таргетов…"
+                       AutomationProperties.Name="Поиск таргетов"
+                       AutomationProperties.HelpText="Поиск таргетов, Ctrl+F"/>
               <ComboBox Grid.Column="1" Margin="8,0,0,0"
-                        ItemsSource="{Binding FilterOptions}"
-                        SelectedItem="{Binding TargetFilter}"/>
+                        ItemsSource="{Binding Catalog.FilterOptions}"
+                        SelectedItem="{Binding Catalog.TargetFilter}"
+                        AutomationProperties.Name="Фильтр таргетов"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-              <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding CheckVisibleTargetsCommand}" Margin="0"/>
+              <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding Catalog.CheckVisibleTargetsCommand}" Margin="0"
+                      AutomationProperties.Name="Выбрать видимые таргеты"/>
             </DockPanel>
             <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
               <TextBlock DockPanel.Dock="Top" Text="Документация" FontWeight="SemiBold" Margin="0,0,0,4"
-                         Visibility="{Binding HasDocumentationLinks, Converter={StaticResource BoolToVis}}"/>
+                         Visibility="{Binding Catalog.HasDocumentationLinks, Converter={StaticResource BoolToVis}}"/>
               <ScrollViewer DockPanel.Dock="Top" MaxHeight="72" Margin="0,0,0,6"
-                            Visibility="{Binding HasDocumentationLinks, Converter={StaticResource BoolToVis}}">
-                <ItemsControl ItemsSource="{Binding DocumentationLinks}">
+                            Visibility="{Binding Catalog.HasDocumentationLinks, Converter={StaticResource BoolToVis}}">
+                <ItemsControl ItemsSource="{Binding Catalog.DocumentationLinks}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <Button Content="{Binding}" Style="{StaticResource LinkButton}"
-                              Command="{Binding DataContext.OpenDocumentationLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.OpenDocumentationLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                               CommandParameter="{Binding}" ToolTip="Открыть в браузере"/>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
               <TextBox Height="88" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                       Text="{Binding DetailText}" Background="{StaticResource Brush.SurfacePanel}"/>
+                       Text="{Binding Catalog.DetailText}" Background="{StaticResource Brush.SurfacePanel}"/>
             </DockPanel>
-            <ListView x:Name="TargetList" ItemsSource="{Binding TargetRows}"
+            <ListView x:Name="TargetList" ItemsSource="{Binding Catalog.TargetRows}"
                       SelectionChanged="TargetList_SelectionChanged"
                       PreviewMouseLeftButtonDown="TargetList_PreviewMouseLeftButtonDown"
                       MouseDoubleClick="Catalog_MouseDoubleClick"
-                      VirtualizingPanel.IsVirtualizing="True">
+                      VirtualizingPanel.IsVirtualizing="True"
+                      AutomationProperties.Name="Список таргетов">
               <ListView.View>
                 <GridView>
                   <GridViewColumn Width="40">
@@ -133,7 +168,7 @@
           </DockPanel>
         </TabItem>
 
-        <TabItem Header="Модули">
+        <TabItem Header="Модули" AutomationProperties.Name="Вкладка Модули">
           <DockPanel Margin="8">
             <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
               <Grid.ColumnDefinitions>
@@ -141,43 +176,50 @@
                 <ColumnDefinition Width="160"/>
               </Grid.ColumnDefinitions>
               <TextBox x:Name="ModuleSearchBox"
-                       Text="{Binding ModuleSearch, UpdateSourceTrigger=PropertyChanged}"
+                       Text="{Binding Catalog.ModuleSearch, UpdateSourceTrigger=PropertyChanged}"
                        ToolTip="Поиск модулей"
-                       ui:Watermark.Text="Поиск модулей…"/>
+                       ui:Watermark.Text="Поиск модулей…"
+                       AutomationProperties.Name="Поиск модулей"
+                       AutomationProperties.HelpText="Поиск модулей по имени"/>
               <ComboBox Grid.Column="1" Margin="8,0,0,0"
-                        ItemsSource="{Binding FilterOptions}"
-                        SelectedItem="{Binding ModuleFilter}"/>
+                        ItemsSource="{Binding Catalog.FilterOptions}"
+                        SelectedItem="{Binding Catalog.ModuleFilter}"
+                        AutomationProperties.Name="Фильтр модулей"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
               <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                <Button Content="Подсказать" Command="{Binding SuggestModulesCommand}"
-                        ToolTip="Подобрать парсеры под выбранные таргеты"/>
-                <Button Content="Выбрать видимые" Command="{Binding CheckVisibleModulesCommand}" Margin="0"/>
+                <Button Content="Подсказать" Command="{Binding Catalog.SuggestModulesCommand}"
+                        ToolTip="Подобрать парсеры под выбранные таргеты"
+                        AutomationProperties.Name="Подсказать модули"
+                        AutomationProperties.HelpText="Подобрать парсеры под выбранные таргеты"/>
+                <Button Content="Выбрать видимые" Command="{Binding Catalog.CheckVisibleModulesCommand}" Margin="0"
+                        AutomationProperties.Name="Выбрать видимые модули"/>
               </StackPanel>
             </DockPanel>
             <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
               <TextBlock DockPanel.Dock="Top" Text="Документация" FontWeight="SemiBold" Margin="0,0,0,4"
-                         Visibility="{Binding HasDocumentationLinks, Converter={StaticResource BoolToVis}}"/>
+                         Visibility="{Binding Catalog.HasDocumentationLinks, Converter={StaticResource BoolToVis}}"/>
               <ScrollViewer DockPanel.Dock="Top" MaxHeight="72" Margin="0,0,0,6"
-                            Visibility="{Binding HasDocumentationLinks, Converter={StaticResource BoolToVis}}">
-                <ItemsControl ItemsSource="{Binding DocumentationLinks}">
+                            Visibility="{Binding Catalog.HasDocumentationLinks, Converter={StaticResource BoolToVis}}">
+                <ItemsControl ItemsSource="{Binding Catalog.DocumentationLinks}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <Button Content="{Binding}" Style="{StaticResource LinkButton}"
-                              Command="{Binding DataContext.OpenDocumentationLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.OpenDocumentationLinkCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                               CommandParameter="{Binding}" ToolTip="Открыть в браузере"/>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </ScrollViewer>
               <TextBox Height="88" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                       Text="{Binding DetailText}" Background="{StaticResource Brush.SurfacePanel}"/>
+                       Text="{Binding Catalog.DetailText}" Background="{StaticResource Brush.SurfacePanel}"/>
             </DockPanel>
-            <ListView ItemsSource="{Binding ModuleRows}"
+            <ListView ItemsSource="{Binding Catalog.ModuleRows}"
                       SelectionChanged="ModuleList_SelectionChanged"
                       PreviewMouseLeftButtonDown="ModuleList_PreviewMouseLeftButtonDown"
                       MouseDoubleClick="Module_MouseDoubleClick"
-                      VirtualizingPanel.IsVirtualizing="True">
+                      VirtualizingPanel.IsVirtualizing="True"
+                      AutomationProperties.Name="Список модулей">
               <ListView.View>
                 <GridView>
                   <GridViewColumn Width="40">
@@ -198,7 +240,7 @@
           </DockPanel>
         </TabItem>
 
-        <TabItem Header="Дерево compound">
+        <TabItem Header="Дерево compound" AutomationProperties.Name="Вкладка Дерево compound">
           <DockPanel Margin="8">
             <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
               <Grid.ColumnDefinitions>
@@ -206,26 +248,34 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
-              <TextBox Text="{Binding TreeSearch, UpdateSourceTrigger=PropertyChanged}"
+              <TextBox Text="{Binding Catalog.TreeSearch, UpdateSourceTrigger=PropertyChanged}"
                        ToolTip="Поиск в дереве"
-                       ui:Watermark.Text="Поиск в дереве…"/>
-              <CheckBox Grid.Column="1" Content="Только общие" IsChecked="{Binding TreeSharedOnly}"
-                        VerticalAlignment="Center" Margin="8,0"/>
+                       ui:Watermark.Text="Поиск в дереве…"
+                       AutomationProperties.Name="Поиск в дереве compound"/>
+              <CheckBox Grid.Column="1" Content="Только общие" IsChecked="{Binding Catalog.TreeSharedOnly}"
+                        VerticalAlignment="Center" Margin="8,0"
+                        AutomationProperties.Name="Только общие элементы дерева"/>
               <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                 <RadioButton Content="Таргеты" GroupName="TreeKind"
-                             IsChecked="{Binding TreeIsTargets, Mode=TwoWay}" Margin="0,0,10,0"/>
+                             IsChecked="{Binding Catalog.TreeIsTargets, Mode=TwoWay}" Margin="0,0,10,0"
+                             AutomationProperties.Name="Дерево таргетов"/>
                 <RadioButton Content="Модули" GroupName="TreeKind"
-                             IsChecked="{Binding TreeIsModules, Mode=TwoWay}"/>
+                             IsChecked="{Binding Catalog.TreeIsModules, Mode=TwoWay}"
+                             AutomationProperties.Name="Дерево модулей"/>
               </StackPanel>
             </Grid>
             <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-              <Button Content="Добавить в пакет" Command="{Binding MergeTreeIntoPackageCommand}"/>
-              <Button Content="Заменить пакет" Command="{Binding ReplacePackageFromTreeCommand}"/>
-              <TextBlock Text="{Binding TreeStats}" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"
-                         VerticalAlignment="Center" Margin="12,0,0,0"/>
+              <Button Content="Добавить в пакет" Command="{Binding Catalog.MergeTreeIntoPackageCommand}"
+                      AutomationProperties.Name="Добавить выбранное из дерева в пакет"/>
+              <Button Content="Заменить пакет" Command="{Binding Catalog.ReplacePackageFromTreeCommand}"
+                      AutomationProperties.Name="Заменить пакет содержимым дерева"/>
+              <TextBlock Text="{Binding Catalog.TreeStats}" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"
+                         VerticalAlignment="Center" Margin="12,0,0,0"
+                         AutomationProperties.Name="{Binding Catalog.TreeStats}"/>
             </DockPanel>
-            <TreeView ItemsSource="{Binding TreeRoots}" VirtualizingPanel.IsVirtualizing="True"
-                      MouseDoubleClick="Tree_MouseDoubleClick">
+            <TreeView ItemsSource="{Binding Catalog.TreeRoots}" VirtualizingPanel.IsVirtualizing="True"
+                      MouseDoubleClick="Tree_MouseDoubleClick"
+                      AutomationProperties.Name="Дерево compound">
               <TreeView.ItemTemplate>
                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                   <StackPanel Orientation="Horizontal">
@@ -246,13 +296,15 @@
           </DockPanel>
         </TabItem>
 
-        <TabItem Header="Готовые пакеты">
+        <TabItem Header="Готовые пакеты" AutomationProperties.Name="Вкладка Готовые пакеты">
           <DockPanel Margin="8">
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
-              <Button Content="Загрузить выбранный" Command="{Binding LoadSelectedCompoundCommand}" Margin="0"/>
+              <Button Content="Загрузить выбранный" Command="{Binding Catalog.LoadSelectedCompoundCommand}" Margin="0"
+                      AutomationProperties.Name="Загрузить выбранный готовый пакет"/>
             </StackPanel>
-            <ListView ItemsSource="{Binding ExistingPacks}" SelectedItem="{Binding SelectedExisting}"
-                      VirtualizingPanel.IsVirtualizing="True">
+            <ListView ItemsSource="{Binding Catalog.ExistingPacks}" SelectedItem="{Binding PackageEditor.SelectedExisting}"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      AutomationProperties.Name="Список готовых пакетов">
               <ListView.View>
                 <GridView>
                   <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="180"/>
@@ -267,29 +319,35 @@
           </DockPanel>
         </TabItem>
 
-        <TabItem Header="Утилиты">
+        <TabItem Header="Утилиты" AutomationProperties.Name="Вкладка Утилиты">
           <DockPanel Margin="8">
             <TextBlock DockPanel.Dock="Top" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12" Margin="0,0,0,8"
-                       Text="Modules\bin: EZ Tools, Chainsaw, winpmem. ★ — ключевой парсер triage."/>
-            <TextBlock DockPanel.Dock="Top" Text="{Binding BinariesSummary}" Margin="0,0,0,8" FontWeight="SemiBold"/>
+                       Text="Modules\bin: EZ Tools, Chainsaw, Hayabusa, winpmem, dfir_ntfs, RegRipper. ★ — ключевой парсер triage."/>
+            <TextBlock DockPanel.Dock="Top" Text="{Binding Binaries.BinariesSummary}" Margin="0,0,0,8" FontWeight="SemiBold"
+                       AutomationProperties.Name="{Binding Binaries.BinariesSummary}"/>
             <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="160"/>
                 <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
-              <TextBox Text="{Binding BinarySearch, UpdateSourceTrigger=PropertyChanged}"
+              <TextBox Text="{Binding Binaries.BinarySearch, UpdateSourceTrigger=PropertyChanged}"
                        ToolTip="Поиск по имени, пути, версии"
-                       ui:Watermark.Text="Поиск утилит…"/>
+                       ui:Watermark.Text="Поиск утилит…"
+                       AutomationProperties.Name="Поиск утилит"
+                       AutomationProperties.HelpText="Поиск по имени, пути, версии"/>
               <ComboBox Grid.Column="1" Margin="8,0,0,0"
-                        ItemsSource="{Binding BinaryFilterOptions}" SelectedItem="{Binding BinaryFilter}"/>
-              <Button Grid.Column="2" Content="Открыть папку" Command="{Binding OpenModulesBinFolderCommand}" Margin="8,0,0,0"/>
+                        ItemsSource="{Binding Binaries.BinaryFilterOptions}" SelectedItem="{Binding Binaries.BinaryFilter}"
+                        AutomationProperties.Name="Фильтр утилит"/>
+              <Button Grid.Column="2" Content="Открыть папку" Command="{Binding Binaries.OpenModulesBinFolderCommand}" Margin="8,0,0,0"
+                      AutomationProperties.Name="Открыть папку Modules bin"/>
             </Grid>
             <TextBox DockPanel.Dock="Bottom" Height="100" IsReadOnly="True" TextWrapping="Wrap"
                      VerticalScrollBarVisibility="Auto" Margin="0,8,0,0"
-                     Text="{Binding BinaryDetailText}" Background="{StaticResource Brush.SurfacePanel}"/>
-            <ListView ItemsSource="{Binding BinaryRows}" SelectedItem="{Binding SelectedBinary}"
-                      VirtualizingPanel.IsVirtualizing="True">
+                     Text="{Binding Binaries.BinaryDetailText}" Background="{StaticResource Brush.SurfacePanel}"/>
+            <ListView ItemsSource="{Binding Binaries.BinaryRows}" SelectedItem="{Binding Binaries.SelectedBinary}"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      AutomationProperties.Name="Список утилит Modules bin">
               <ListView.View>
                 <GridView>
                   <GridViewColumn Header="" Width="28">
@@ -314,11 +372,18 @@
         </TabItem>
       </TabControl>
 
-      <Border Grid.Column="2" Style="{StaticResource CardBorder}" Padding="0">
+      <Border Grid.Column="2" Style="{StaticResource CardBorder}" Padding="0"
+              AutomationProperties.Name="Редактор пакета">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="14,12,14,8"
                   BorderBrush="{StaticResource Brush.BorderSubtle}" BorderThickness="0,0,0,1">
-            <TextBlock Text="Пакет" FontSize="18" FontWeight="SemiBold"/>
+            <DockPanel>
+              <TextBlock Text="Пакет" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+              <TextBlock DockPanel.Dock="Right" Text="{Binding PackageEditor.PackageCompositionSummary}"
+                         Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"
+                         VerticalAlignment="Center" Margin="12,0,0,0"
+                         AutomationProperties.Name="{Binding PackageEditor.PackageCompositionSummary}"/>
+            </DockPanel>
           </Border>
 
           <Border DockPanel.Dock="Bottom" Padding="12,10"
@@ -326,17 +391,23 @@
                   BorderBrush="{StaticResource Brush.BorderSubtle}" BorderThickness="0,1,0,0">
             <Grid>
               <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="1.6*"/>
                 <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
-              <Button Grid.Column="0" Content="Новый" Command="{Binding NewPackCommand}" Margin="0,0,6,0"/>
+              <Button Grid.Column="0" Content="Новый" Command="{Binding PackageEditor.NewPackCommand}" Margin="0,0,8,0"
+                      ToolTip="Очистить пакет и начать заново"
+                      AutomationProperties.Name="Новый пакет"
+                      AutomationProperties.HelpText="Очистить пакет и начать заново"/>
               <Button Grid.Column="1" Content="Собрать EXE" Command="{Binding BuildPackageCommand}"
-                      Style="{StaticResource PrimaryButton}" Margin="0,0,6,0"
-                      ToolTip="Автономный KapeIR.Triage EXE (Ctrl+B)"/>
+                      Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
+                      ToolTip="Собрать автономный полевой EXE (Ctrl+B)"
+                      AutomationProperties.Name="Собрать EXE"
+                      AutomationProperties.HelpText="Собрать автономный полевой EXE, Ctrl+B"/>
               <Button Grid.Column="2" Content="Отмена" Command="{Binding CancelBuildCommand}"
                       Visibility="{Binding IsBuilding, Converter={StaticResource BoolToVis}}"
-                      Style="{StaticResource DangerButton}" Margin="0"/>
+                      Style="{StaticResource DangerButton}" Margin="0"
+                      AutomationProperties.Name="Отменить сборку"/>
             </Grid>
           </Border>
 
@@ -345,28 +416,49 @@
               <Expander Header="Метаданные" IsExpanded="True" Margin="0,0,0,4">
                 <StackPanel Margin="0,8,0,0">
                   <TextBlock Text="Имя" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
-                  <TextBox Text="{Binding PackageName, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"/>
+                  <TextBox Text="{Binding PackageEditor.PackageName, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"
+                           AutomationProperties.Name="Имя пакета"/>
                   <TextBlock Text="Описание" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
-                  <TextBox Text="{Binding PackageDescription, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"/>
+                  <TextBox Text="{Binding PackageEditor.PackageDescription, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"
+                           AutomationProperties.Name="Описание пакета"/>
                   <TextBlock Text="Автор" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
-                  <TextBox Text="{Binding PackageAuthor, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"/>
+                  <TextBox Text="{Binding PackageEditor.PackageAuthor, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"
+                           AutomationProperties.Name="Автор пакета"/>
                   <TextBlock Text="Версия" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
-                  <TextBox Text="{Binding PackageVersion, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,4"/>
+                  <TextBox Text="{Binding PackageEditor.PackageVersion, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,4"
+                           AutomationProperties.Name="Версия пакета"/>
                 </StackPanel>
               </Expander>
 
-              <Expander Header="Сбор" IsExpanded="True" Margin="0,0,0,4">
+              <Expander Header="Сбор" IsExpanded="True" Margin="0,0,0,4"
+                        AutomationProperties.Name="Параметры сбора">
                 <StackPanel Margin="0,8,0,0">
-                  <TextBlock Text="tsource" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
-                  <TextBox Text="{Binding Tsource, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"/>
+                  <TextBlock Text="Диск-источник" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
+                  <TextBox Text="{Binding PackageEditor.Tsource, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"
+                           ToolTip="Том на целевой системе, с которого собирать артефакты (например C:)"
+                           AutomationProperties.Name="Диск-источник"
+                           AutomationProperties.HelpText="Том на целевой системе для сбора"/>
                   <WrapPanel Margin="0,0,0,8">
-                    <CheckBox Content="Упаковать в ZIP" IsChecked="{Binding ZipOutput}" ToolTip="KAPE --zip"/>
-                    <CheckBox Content="Теневые копии (VSS)" IsChecked="{Binding Vss}" ToolTip="KAPE --vss"/>
+                    <CheckBox Content="Архивировать результаты" IsChecked="{Binding PackageEditor.ZipOutput}"
+                              ToolTip="Упаковать папку RESULTS в ZIP после сбора"
+                              AutomationProperties.Name="Архивировать результаты"
+                              AutomationProperties.HelpText="Упаковать RESULTS в ZIP после сбора"/>
+                    <CheckBox Content="Теневые копии" IsChecked="{Binding PackageEditor.Vss}"
+                              ToolTip="Читать файлы через Volume Shadow Copy, если доступно"
+                              AutomationProperties.Name="Теневые копии"
+                              AutomationProperties.HelpText="Читать через Volume Shadow Copy"/>
                   </WrapPanel>
-                  <CheckBox Content="Двухфазный IR (volatile → disk)" IsChecked="{Binding TwoPhaseCollection}"
-                            Margin="0,0,0,8"/>
-                  <TextBlock Text="Case ID (для CoC)" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
-                  <TextBox Text="{Binding CaseId, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,4"/>
+                  <CheckBox Content="Двухфазный IR (volatile → disk)" IsChecked="{Binding PackageEditor.TwoPhaseCollection}"
+                            Margin="0,0,0,8"
+                            ToolTip="Сначала оперативный сбор, затем дисковый триаж"
+                            AutomationProperties.Name="Двухфазный IR"
+                            AutomationProperties.HelpText="Сначала volatile, затем disk"/>
+                  <TextBlock Text="Case ID" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
+                  <TextBox Text="{Binding PackageEditor.CaseId, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,4"
+                           ui:Watermark.Text="INC-2026-0142"
+                           ToolTip="Идентификатор дела для chain of custody"
+                           AutomationProperties.Name="Case ID"
+                           AutomationProperties.HelpText="Идентификатор дела для chain of custody"/>
                 </StackPanel>
               </Expander>
 
@@ -374,19 +466,19 @@
                 <StackPanel Margin="0,8,0,0">
                   <DockPanel Margin="0,0,0,4">
                     <TextBlock Text="Таргеты" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                    <Button DockPanel.Dock="Right" Content="Очистить" Command="{Binding ClearTargetsCommand}"
+                    <Button DockPanel.Dock="Right" Content="Очистить" Command="{Binding Catalog.ClearTargetsCommand}"
                             Margin="0" Padding="8,4" MinHeight="26"/>
                   </DockPanel>
-                  <TextBox Text="{Binding SelectedTargetsText}" IsReadOnly="True" Height="100"
+                  <TextBox Text="{Binding PackageEditor.SelectedTargetsText}" IsReadOnly="True" Height="100"
                            TextWrapping="NoWrap" FontFamily="Consolas" FontSize="12"
                            HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                            Margin="0,0,0,10" Background="{StaticResource Brush.SurfaceControl}"/>
                   <DockPanel Margin="0,0,0,4">
                     <TextBlock Text="Модули" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                    <Button DockPanel.Dock="Right" Content="Очистить" Command="{Binding ClearModulesCommand}"
+                    <Button DockPanel.Dock="Right" Content="Очистить" Command="{Binding Catalog.ClearModulesCommand}"
                             Margin="0" Padding="8,4" MinHeight="26"/>
                   </DockPanel>
-                  <TextBox Text="{Binding SelectedModulesText}" IsReadOnly="True" Height="90"
+                  <TextBox Text="{Binding PackageEditor.SelectedModulesText}" IsReadOnly="True" Height="90"
                            TextWrapping="NoWrap" FontFamily="Consolas" FontSize="12"
                            HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                            Margin="0,0,0,4" Background="{StaticResource Brush.SurfaceControl}"/>
@@ -394,7 +486,7 @@
               </Expander>
 
               <Expander Header="Заметки" IsExpanded="False">
-                <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" Height="72"
+                <TextBox Text="{Binding PackageEditor.Notes, UpdateSourceTrigger=PropertyChanged}" Height="72"
                          TextWrapping="Wrap" AcceptsReturn="True" Margin="0,8,0,0"/>
               </Expander>
             </StackPanel>

@@ -8,4 +8,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="KapeIR.Builder.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Help\*.md" />
+  </ItemGroup>
 </Project>

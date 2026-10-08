@@ -35,6 +35,31 @@ public class EvidenceWrapUpTests
     }
 
     [Fact]
+    public void WriteManifest_SkipsMfteCmdResidentBulk()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_evid_res_" + Guid.NewGuid().ToString("N"));
+        var resident = Path.Combine(root, "Phase2_Disk", "ModuleOutput", "FileSystem", "Resident");
+        var fs = Path.Combine(root, "Phase2_Disk", "ModuleOutput", "FileSystem");
+        Directory.CreateDirectory(resident);
+        try
+        {
+            File.WriteAllText(Path.Combine(fs, "20261008_MFTECmd_$MFT_Output.csv"), "mft");
+            File.WriteAllBytes(Path.Combine(resident, "1-1-1_x.bin"), new byte[] { 1, 2, 3 });
+            File.WriteAllBytes(Path.Combine(resident, "2-2-2_y.bin"), new byte[] { 4, 5 });
+
+            var path = EvidenceWrapUp.WriteManifest(root);
+            var text = File.ReadAllText(path);
+            Assert.Contains("MFTECmd_$MFT_Output.csv", text);
+            Assert.Contains("# skipped-bulk", text);
+            Assert.DoesNotContain("1-1-1_x.bin", text);
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
     public void WriteAll_IncludesHostTimeZoneInLogAndCoC()
     {
         var dir = Path.Combine(Path.GetTempPath(), "kape_tz_" + Guid.NewGuid().ToString("N"));

@@ -26,7 +26,7 @@ public class TriageRunCoordinatorTests
 
         Assert.Equal(0, r.ExitCode);
         Assert.True(r.Simulate);
-        Assert.Contains("--sim", r.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Оценка объёма", r.StatusMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

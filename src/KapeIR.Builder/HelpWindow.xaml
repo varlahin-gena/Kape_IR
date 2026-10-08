@@ -1,0 +1,208 @@
+<Window x:Class="KapeIR.Builder.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mdxam="clr-namespace:MdXaml;assembly=MdXaml"
+        xmlns:ui="clr-namespace:KapeIR.Ui;assembly=KapeIR.Ui"
+        xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        Title="Справка"
+        Height="560" Width="880"
+        MinHeight="420" MinWidth="720"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Brush.SurfaceApp}"
+        Foreground="{StaticResource Brush.TextPrimary}"
+        Icon="pack://application:,,,/app.ico">
+  <Window.Resources>
+    <!-- MdXaml fenced code → AvalonEdit TextEditor in BlockUIContainer (not Paragraph). -->
+    <Style TargetType="avalonEdit:TextEditor">
+      <Setter Property="Background" Value="{StaticResource Brush.SurfaceControl}"/>
+      <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="FontFamily" Value="Consolas"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="HorizontalScrollBarVisibility" Value="Disabled"/>
+      <Setter Property="VerticalScrollBarVisibility" Value="Disabled"/>
+      <Setter Property="WordWrap" Value="True"/>
+    </Style>
+
+    <!-- Dark overrides on MdXaml Standard: headings/code were near-black / white-box. -->
+    <Style x:Key="HelpMarkdownDark" TargetType="FlowDocument"
+           BasedOn="{x:Static mdxam:MarkdownStyle.Standard}">
+      <Setter Property="FontFamily" Value="Segoe UI"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="TextAlignment" Value="Left"/>
+      <Setter Property="PagePadding" Value="0"/>
+      <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+      <Setter Property="Background" Value="{StaticResource Brush.LogBg}"/>
+      <Style.Resources>
+        <Style TargetType="Paragraph">
+          <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+          <Setter Property="FontSize" Value="13"/>
+          <Setter Property="Margin" Value="0,0,0,8"/>
+          <Style.Triggers>
+            <Trigger Property="Tag" Value="Heading1">
+              <Setter Property="FontSize" Value="22"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+              <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+              <Setter Property="Margin" Value="0,4,0,12"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="Heading2">
+              <Setter Property="FontSize" Value="17"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+              <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+              <Setter Property="Margin" Value="0,14,0,8"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="Heading3">
+              <Setter Property="FontSize" Value="15"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+              <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+              <Setter Property="Margin" Value="0,12,0,6"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="Heading4">
+              <Setter Property="FontSize" Value="14"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+              <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="Heading5">
+              <Setter Property="FontSize" Value="13"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+              <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="Heading6">
+              <Setter Property="FontSize" Value="12"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+              <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="Note">
+              <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}"/>
+              <Setter Property="Background" Value="{StaticResource Brush.SurfacePanel}"/>
+              <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderSubtle}"/>
+              <Setter Property="BorderThickness" Value="1,0,0,0"/>
+              <Setter Property="Padding" Value="10,6"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+
+        <Style TargetType="BlockUIContainer">
+          <Setter Property="Margin" Value="0,8,0,12"/>
+          <Style.Triggers>
+            <Trigger Property="Tag" Value="CodeBlock">
+              <Setter Property="Margin" Value="0,8,0,12"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+
+        <Style TargetType="Span">
+          <Style.Triggers>
+            <Trigger Property="Tag" Value="CodeSpan">
+              <Setter Property="FontFamily" Value="Consolas"/>
+              <Setter Property="Foreground" Value="{StaticResource Brush.AccentHover}"/>
+              <Setter Property="Background" Value="{StaticResource Brush.SurfaceElevated}"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+
+        <Style TargetType="Run">
+          <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+          <Style.Triggers>
+            <Trigger Property="Tag" Value="CodeSpan">
+              <Setter Property="FontFamily" Value="Consolas"/>
+              <Setter Property="Foreground" Value="{StaticResource Brush.AccentHover}"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+
+        <Style TargetType="Hyperlink">
+          <Setter Property="Foreground" Value="{StaticResource Brush.Link}"/>
+          <Setter Property="TextDecorations" Value="Underline"/>
+        </Style>
+
+        <Style TargetType="List">
+          <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+          <Setter Property="MarkerStyle" Value="Disc"/>
+          <Setter Property="Margin" Value="0,0,0,8"/>
+          <Setter Property="Padding" Value="20,0,0,0"/>
+        </Style>
+
+        <Style TargetType="ListItem">
+          <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+          <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+        <Style TargetType="Table">
+          <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+          <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderSubtle}"/>
+          <Setter Property="BorderThickness" Value="1"/>
+          <Setter Property="CellSpacing" Value="0"/>
+        </Style>
+
+        <Style TargetType="TableCell">
+          <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+          <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderSubtle}"/>
+          <Setter Property="BorderThickness" Value="0,0,1,1"/>
+          <Setter Property="Padding" Value="6,4"/>
+        </Style>
+      </Style.Resources>
+    </Style>
+  </Window.Resources>
+
+  <DockPanel Margin="14">
+    <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" LastChildFill="False">
+      <Button Content="Закрыть" IsCancel="True" Click="Close_Click"
+              HorizontalAlignment="Right" MinWidth="100" Margin="0"/>
+    </DockPanel>
+
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" LastChildFill="True">
+      <TextBlock DockPanel.Dock="Left"
+                 Text="Поиск"
+                 VerticalAlignment="Center"
+                 Margin="0,0,10,0"
+                 Foreground="{StaticResource Brush.TextSecondary}"
+                 FontWeight="SemiBold"/>
+      <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+               ui:Watermark.Text="Раздел или фраза…"
+               AutomationProperties.Name="Поиск по справке"
+               AutomationProperties.HelpText="Фильтр разделов по заголовку и тексту"/>
+    </DockPanel>
+
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="220" MinWidth="160"/>
+        <ColumnDefinition Width="10"/>
+        <ColumnDefinition Width="*" MinWidth="320"/>
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0"
+              Background="{StaticResource Brush.SurfacePanel}"
+              BorderBrush="{StaticResource Brush.BorderSubtle}"
+              BorderThickness="1"
+              CornerRadius="{StaticResource Radius.Sm}">
+        <ListBox ItemsSource="{Binding VisibleSections}"
+                 SelectedItem="{Binding SelectedSection}"
+                 DisplayMemberPath="Title"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 AutomationProperties.Name="Разделы справки"/>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Width="10" HorizontalAlignment="Stretch"
+                    Background="Transparent" ShowsPreview="True"/>
+
+      <Border Grid.Column="2"
+              Background="{StaticResource Brush.LogBg}"
+              BorderBrush="{StaticResource Brush.BorderSubtle}"
+              BorderThickness="1"
+              CornerRadius="{StaticResource Radius.Sm}"
+              Padding="12,8">
+        <mdxam:MarkdownScrollViewer x:Name="HelpMarkdown"
+                                    Markdown="{Binding Markdown}"
+                                    MarkdownStyle="{StaticResource HelpMarkdownDark}"
+                                    ClickAction="OpenBrowser"
+                                    Foreground="{StaticResource Brush.TextPrimary}"
+                                    Background="{StaticResource Brush.LogBg}"
+                                    VerticalScrollBarVisibility="Auto"
+                                    HorizontalScrollBarVisibility="Disabled"/>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>

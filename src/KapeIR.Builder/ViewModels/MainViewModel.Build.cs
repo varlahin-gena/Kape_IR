@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.Input;
 using KapeIR.Core.Models;
 using KapeIR.Core.Services;
 using KapeIR.Builder.Services;
+using KapeIR.Ui.Dialogs;
 using Microsoft.Extensions.Logging;
 
 namespace KapeIR.Builder.ViewModels;
@@ -11,9 +12,9 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(CanBuildPackage))]
     private async Task BuildPackageAsync()
     {
-        PullFormToPackage();
+        PackageEditor.PullFormToPackage();
         // Two-phase packs may ship Phase1-only (empty disk targets) for --phase 1.
-        if (Package.Targets.Count == 0 && !TwoPhaseCollection)
+        if (Package.Targets.Count == 0 && !PackageEditor.TwoPhaseCollection)
         {
             _dialogs.ShowMessage("Добавьте хотя бы один таргет (или включите двухфазный IR для только-volatile).", "Сборка", DialogIcon.Error);
             return;
@@ -32,18 +33,18 @@ public partial class MainViewModel
         }
 
         // Preflight: missing Modules\bin before picking output folder (cancel / continue).
-        var includeModuleBinPreview = TwoPhaseCollection || Package.Modules.Count > 0;
+        var includeModuleBinPreview = PackageEditor.TwoPhaseCollection || Package.Modules.Count > 0;
         if (includeModuleBinPreview)
         {
             StatusText = "Проверка Modules\\bin…";
             var preflightPkg = Package.Clone();
-            var catalogForCheck = _catalog;
-            var preflight = await Task.Run(() => ModulesBinPreflight.Check(catalogForCheck, preflightPkg));
+            var catalogForCheck = _catalogWs.Catalog;
+            var preflight = await _build.CheckModulesBinAsync(catalogForCheck, preflightPkg);
             if (preflight.HasIssues)
             {
                 StatusText = "Недостающие бинарники — подтвердите сборку";
                 var ok = _dialogs.Confirm(
-                    ModulesBinPreflight.FormatConfirmMessage(preflight),
+                    _build.FormatModulesBinConfirm(preflight),
                     "Недостающие бинарники",
                     DialogIcon.Warning);
                 if (!ok)
@@ -73,13 +74,13 @@ public partial class MainViewModel
         }
 
         // Cancel any in-flight catalog reload so Export reads a stable catalog instance.
-        _catalogReloadCts?.Cancel();
+        Catalog.CancelPendingReload();
 
         // Modules\bin: auto for two_phase (Phase1 needs winpmem/live tools) or any selected modules (parsers).
-        var includeModuleBin = TwoPhaseCollection || pkg.Modules.Count > 0;
+        var includeModuleBin = PackageEditor.TwoPhaseCollection || pkg.Modules.Count > 0;
 
         // Snapshot: Export must not see mid-reload mutations (reload blocked while IsBuilding).
-        var catalogSnapshot = _catalog;
+        var catalogSnapshot = _catalogWs.Catalog;
         var pkgSnapshot = pkg.Clone();
 
         _buildCts?.Cancel();
@@ -99,50 +100,26 @@ public partial class MainViewModel
                 BuildStandaloneExe = true,
                 OverwriteExisting = overwriteExisting
             };
-            var result = await Task.Run(() =>
-            {
-                var exporter = _exporterFactory.ForCatalog(catalogSnapshot);
-                return exporter.Export(
-                    pkgSnapshot,
-                    outputDir,
-                    exportOptions,
-                    progress,
-                    ct);
-            }, ct);
+            var result = await _build.ExportAsync(
+                catalogSnapshot,
+                pkgSnapshot,
+                outputDir,
+                exportOptions,
+                progress,
+                ct);
 
-            var stubInfo = "";
-            try
-            {
-                if (StandaloneExeBuilder.TryGetEmbeddedStubInfo(out var embSize, out _))
-                    stubInfo = $"\nStub: встроен в KapeIR ({embSize / (1024 * 1024)} МБ, GUI)";
-                else
-                {
-                    var stub = StandaloneExeBuilder.ResolveStubPath(root);
-                    stubInfo = $"\nStub: {stub} ({new FileInfo(stub).Length / (1024 * 1024)} МБ, GUI)";
-                }
-            }
-            catch { /* ignore */ }
-
-            var msg = result.StandaloneExe is not null
-                ? $"Автономный EXE:\n{result.StandaloneExe}{stubInfo}\n"
-                : "";
-            if (result.StandaloneExe is not null && File.Exists(result.StandaloneExe + ".sha256"))
-                msg += $"\nSHA256: {result.StandaloneExe}.sha256\n";
-            if (!string.IsNullOrEmpty(result.PackageDir))
-                msg += $"\nПапка пакета:\n{result.PackageDir}";
-            if (result.ZipFile is not null) msg += $"\nZIP: {result.ZipFile}";
-            if (result.Warnings.Count > 0)
-                msg += "\n\nПредупреждения:\n - " + string.Join("\n - ", result.Warnings.Take(12));
-            _dialogs.ShowMessage(msg.Trim(), "Сборка завершена");
+            _dialogs.ShowMessage(
+                _build.FormatExportSuccessMessage(result, root),
+                "Сборка завершена");
             StatusText = result.StandaloneExe is not null
                 ? $"Собран EXE: {Path.GetFileName(result.StandaloneExe)}"
                 : $"Собран пакет: {Package.Name}";
-            await ReloadCatalogAsync();
+            await Catalog.ReloadCatalogAsync(promptIfMissing: true);
         }
         catch (OperationCanceledException)
         {
             StatusText = "Сборка отменена";
-            TryCleanupPartialExport(packageDirPreview);
+            _build.CleanupPartialExport(packageDirPreview);
             _dialogs.ShowMessage(
                 "Сборка отменена. Неполная папка/EXE удалена (если не была занята).",
                 "Сборка",
@@ -150,7 +127,7 @@ public partial class MainViewModel
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Build failed for package {PackageName}", pkgSnapshot.Name);
+            LogBuildFailed(ex, pkgSnapshot.Name);
             AppLog.Error(ex, "Build failed for package {PackageName}", pkgSnapshot.Name);
             _dialogs.ShowMessage(ex.Message, "Ошибка сборки", DialogIcon.Error);
             StatusText = "Ошибка сборки";
@@ -163,31 +140,8 @@ public partial class MainViewModel
         }
     }
 
-    private static void TryCleanupPartialExport(string packageDir)
-    {
-        try
-        {
-            if (Directory.Exists(packageDir))
-                Directory.Delete(packageDir, true);
-        }
-        catch (Exception ex)
-        {
-            AppLog.Warn("Partial export cleanup failed: " + ex.Message);
-        }
-
-        try
-        {
-            var exe = packageDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + ".exe";
-            if (File.Exists(exe))
-                File.Delete(exe);
-            if (File.Exists(exe + ".sha256"))
-                File.Delete(exe + ".sha256");
-        }
-        catch (Exception ex)
-        {
-            AppLog.Warn("Partial EXE cleanup failed: " + ex.Message);
-        }
-    }
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Error, Message = "Build failed for package {PackageName}")]
+    private partial void LogBuildFailed(Exception ex, string packageName);
 
     [RelayCommand(CanExecute = nameof(CanCancelBuild))]
     private void CancelBuild() => _buildCts?.Cancel();

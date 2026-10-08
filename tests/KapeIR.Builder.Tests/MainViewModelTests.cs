@@ -1,5 +1,6 @@
 using KapeIR.Builder.Services;
 using KapeIR.Builder.ViewModels;
+using KapeIR.Ui.Dialogs;
 
 namespace KapeIR.Builder.Tests;
 
@@ -86,19 +87,19 @@ public class MainViewModelTests
         using var vm = new MainViewModel(dialogs);
 
         Assert.True(vm.BuildPackageCommand.CanExecute(null));
-        Assert.True(vm.UpdateFromGitHubCommand.CanExecute(null));
-        Assert.True(vm.ReloadCatalogCommand.CanExecute(null));
+        Assert.True(vm.Sync.UpdateFromGitHubCommand.CanExecute(null));
+        Assert.True(vm.Catalog.ReloadCatalogCommand.CanExecute(null));
 
         vm.IsSyncing = true;
         Assert.False(vm.BuildPackageCommand.CanExecute(null));
-        Assert.False(vm.UpdateFromGitHubCommand.CanExecute(null));
-        Assert.False(vm.ReloadCatalogCommand.CanExecute(null));
+        Assert.False(vm.Sync.UpdateFromGitHubCommand.CanExecute(null));
+        Assert.False(vm.Catalog.ReloadCatalogCommand.CanExecute(null));
 
         vm.IsSyncing = false;
         vm.IsBuilding = true;
         Assert.False(vm.BuildPackageCommand.CanExecute(null));
-        Assert.False(vm.UpdateFromGitHubCommand.CanExecute(null));
-        Assert.False(vm.ReloadCatalogCommand.CanExecute(null));
+        Assert.False(vm.Sync.UpdateFromGitHubCommand.CanExecute(null));
+        Assert.False(vm.Catalog.ReloadCatalogCommand.CanExecute(null));
         Assert.True(vm.CancelBuildCommand.CanExecute(null));
     }
 
@@ -109,7 +110,7 @@ public class MainViewModelTests
         dialogs.ConfirmResults.Enqueue(true);
         using var vm = new MainViewModel(dialogs) { KapeRoot = "", IsBuilding = true };
 
-        await vm.ReloadCatalogCommand.ExecuteAsync(null);
+        await vm.Catalog.ReloadCatalogCommand.ExecuteAsync(null);
 
         Assert.Empty(dialogs.Confirms);
         Assert.Contains("сборк", vm.StatusText, StringComparison.OrdinalIgnoreCase);
@@ -120,7 +121,7 @@ public class MainViewModelTests
     {
         using var vm = new MainViewModel(new FakeDialogService());
         vm.Package.Phase1ModuleName = "";
-        vm.TwoPhaseCollection = true;
+        vm.PackageEditor.TwoPhaseCollection = true;
         Assert.False(string.IsNullOrWhiteSpace(vm.Package.Phase1ModuleName));
     }
 }

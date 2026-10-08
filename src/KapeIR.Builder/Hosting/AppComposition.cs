@@ -2,6 +2,7 @@ using KapeIR.Core.Services;
 using KapeIR.Builder.Services;
 using KapeIR.Builder.ViewModels;
 using KapeIR.Builder.Workspaces;
+using KapeIR.Ui.Scheduling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -35,8 +36,19 @@ public static class AppComposition
 
         // Serilog rolling: kapeir-YYYYMMDD.log
         var todayPath = Path.Combine(AppLog.LogDirectory, $"kapeir-{DateTime.Now:yyyyMMdd}.log");
-        ILoggerFactory factory = new SerilogLoggerFactory(Log.Logger, dispose: false);
-        return new LoggingSetup(factory, todayPath);
+        SerilogLoggerFactory? factory = null;
+        try
+        {
+            // dispose: false — Serilog root logger is closed by App via Log.CloseAndFlush.
+            factory = new SerilogLoggerFactory(Log.Logger, dispose: false);
+            var setup = new LoggingSetup(factory, todayPath);
+            factory = null; // ownership transferred to caller (App / tests)
+            return setup;
+        }
+        finally
+        {
+            factory?.Dispose();
+        }
     }
 
     public static ServiceProvider BuildServices(ILoggerFactory loggerFactory)
@@ -50,13 +62,18 @@ public static class AppComposition
             builder.AddSerilog(Log.Logger, dispose: false);
         });
 
-        services.AddSingleton<IDialogService, WpfDialogService>();
+        services.AddSingleton<IBuilderDialogService, WpfBuilderDialogService>();
+        services.AddSingleton<IUiScheduler, WpfUiScheduler>();
         services.AddSingleton<IPackageExporterFactory, PackageExporterFactory>();
+        services.AddSingleton<IPackageBuildFacade, PackageBuildFacade>();
+        services.AddSingleton<ICatalogOpsFacade, CatalogOpsFacade>();
         services.AddSingleton<IToolkitUpdateService, ToolkitUpdateService>();
         services.AddSingleton<ToolkitUpdateWorkspace>();
         services.AddSingleton(_ => AppSettings.Load());
         // Per MainViewModel instance — owns suppress-depth for checkbox re-entrancy.
         services.AddTransient<CatalogSelectionCoordinator>();
+        // Per MainViewModel — catalog rebinds when the UI KAPE root changes.
+        services.AddTransient<CatalogWorkspace>();
 
         services.AddTransient<MainViewModel>();
         services.AddTransient<MainWindow>();

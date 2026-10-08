@@ -221,6 +221,34 @@ Processors:
         Assert.Contains("--module", full);
         Assert.Contains("PSBCollection_Modules", full);
         Assert.Contains("--zip", full);
+        // ModuleOutput sits under tdest — --zm would double-zip and hang on huge FileSystem dumps.
+        Assert.DoesNotContain("--zm", full);
+    }
+
+    [Fact]
+    public void KapeCliArgs_ModuleOnly_ZipsWithZm_NotTargetZip()
+    {
+        var args = KapeCliArgs.Build(new KapeCliArgs.Options(
+            "C:",
+            Target: null,
+            Module: "VolatileFirst",
+            ZipOutput: true,
+            ModuleOnly: true));
+        Assert.Contains("--msource", args);
+        Assert.Contains("--module", args);
+        Assert.Contains("--zm", args);
+        Assert.DoesNotContain("--zip", args);
+        Assert.DoesNotContain("--target", args);
+    }
+
+    [Fact]
+    public void KapeCliArgs_ZipOutputFalse_OmitsZipAndZm()
+    {
+        var args = KapeCliArgs.Build(new KapeCliArgs.Options(
+            "C:", "T1", Module: "M1", ZipOutput: false));
+        Assert.DoesNotContain("--zip", args);
+        Assert.DoesNotContain("--zm", args);
+        Assert.Contains("--module", args);
     }
 
     [Fact]

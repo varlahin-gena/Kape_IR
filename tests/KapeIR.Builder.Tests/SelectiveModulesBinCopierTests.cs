@@ -313,7 +313,7 @@ Processors:
         @"CrowdResponse\CrowdResponse.exe")]
     public void ExtractBinRefsFromCommandLine_ParsesKapeBinPaths(string cmd, string expected)
     {
-        var refs = KapeFileIo.ExtractBinRefsFromCommandLine(cmd).ToList();
+        var refs = KapeCompoundIo.ExtractBinRefsFromCommandLine(cmd).ToList();
         Assert.Contains(expected, refs, StringComparer.OrdinalIgnoreCase);
     }
 

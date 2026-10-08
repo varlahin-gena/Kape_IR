@@ -3,11 +3,18 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Threading;
+using KapeIR.Triage.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace KapeIR.Triage;
 
 public partial class App : Application
 {
+    private ServiceProvider? _services;
+
+    /// <summary>GUI DI container (null in silent / help paths).</summary>
+    public IServiceProvider? Services => _services;
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AttachConsole(int dwProcessId);
 
@@ -63,10 +70,29 @@ public partial class App : Application
             return;
         }
 
+        _services = AppComposition.BuildGuiServices();
         base.OnStartup(e);
-        var window = new MainWindow();
+        var window = _services.GetRequiredService<MainWindow>();
         MainWindow = window;
         window.Show();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        try
+        {
+            _services?.Dispose();
+        }
+        catch
+        {
+            /* ignore */
+        }
+        finally
+        {
+            _services = null;
+        }
+
+        base.OnExit(e);
     }
 
     private static void ReportFatal(string source, Exception ex)
@@ -76,11 +102,11 @@ public partial class App : Application
         {
             var dir = Path.GetDirectoryName(Environment.ProcessPath)
                       ?? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            var path = Path.Combine(dir, "KapePack_crash.log");
+            var path = Path.Combine(dir, "KapeIR.Triage_crash.log");
             File.AppendAllText(path, DateTime.Now.ToString("s") + " " + text + Environment.NewLine + Environment.NewLine,
                 Encoding.UTF8);
             MessageBox.Show(
-                ex.Message + "\n\nПодробности: " + path,
+                ex.Message + "\n\nПодробности записаны в:\n" + path,
                 "KapeIR.Triage — ошибка",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);

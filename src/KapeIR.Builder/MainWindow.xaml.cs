@@ -30,19 +30,19 @@ public partial class MainWindow : Window
     private void TargetCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (sender is CheckBox { DataContext: CatalogRowVm row })
-            Vm.ToggleCatalogRow(row, KapeIR.Core.Models.ItemKind.Target);
+            Vm.Catalog.ToggleCatalogRow(row, KapeIR.Core.Models.ItemKind.Target);
     }
 
     private void ModuleCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (sender is CheckBox { DataContext: CatalogRowVm row })
-            Vm.ToggleCatalogRow(row, KapeIR.Core.Models.ItemKind.Module);
+            Vm.Catalog.ToggleCatalogRow(row, KapeIR.Core.Models.ItemKind.Module);
     }
 
     private void TreeCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (sender is CheckBox { DataContext: TreeNodeVm node })
-            Vm.ToggleTreeNode(node);
+            Vm.Catalog.ToggleTreeNode(node);
     }
 
     private void TargetList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -59,37 +59,37 @@ public partial class MainWindow : Window
 
         var row = FindRowVm(e.OriginalSource as DependencyObject);
         if (row is null) return;
-        Vm.ShowItemInfo(row.Item);
+        Vm.Catalog.ShowItemInfo(row.Item);
     }
 
     private void Catalog_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is ListView { SelectedItem: CatalogRowVm row })
-            Vm.ShowItemInfo(row.Item);
+            Vm.Catalog.ShowItemInfo(row.Item);
     }
 
     private void Module_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is ListView { SelectedItem: CatalogRowVm row })
-            Vm.ShowItemInfo(row.Item);
+            Vm.Catalog.ShowItemInfo(row.Item);
     }
 
     private void TargetList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (sender is ListView { SelectedItem: CatalogRowVm row })
-            Vm.ShowItemInfo(row.Item);
+            Vm.Catalog.ShowItemInfo(row.Item);
     }
 
     private void ModuleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (sender is ListView { SelectedItem: CatalogRowVm row })
-            Vm.ShowItemInfo(row.Item);
+            Vm.Catalog.ShowItemInfo(row.Item);
     }
 
     private void Tree_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is TreeView { SelectedItem: TreeNodeVm node })
-            Vm.ShowItemInfo(node.Item);
+            Vm.Catalog.ShowItemInfo(node.Item);
     }
 
     private static CatalogRowVm? FindRowVm(DependencyObject? start)

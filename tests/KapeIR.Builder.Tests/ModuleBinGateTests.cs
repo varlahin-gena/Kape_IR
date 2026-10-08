@@ -163,5 +163,5 @@ Processors:
     [InlineData("yes", "'yes'")]
     [InlineData("", "\"\"")]
     public void FormatYamlScalar_RegressionMatrix(string input, string expected)
-        => Assert.Equal(expected, KapeFileIo.FormatYamlScalar(input));
+        => Assert.Equal(expected, KapeCompoundIo.FormatYamlScalar(input));
 }

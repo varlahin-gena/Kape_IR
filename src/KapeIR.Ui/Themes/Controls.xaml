@@ -3,11 +3,12 @@
   <!-- Dark must be nested here so StaticResource in this file can resolve Brush.*/Color.* -->
   <ResourceDictionary.MergedDictionaries>
     <ResourceDictionary Source="Dark.xaml"/>
+    <ResourceDictionary Source="FocusVisual.xaml"/>
     <ResourceDictionary Source="Menu.xaml"/>
     <ResourceDictionary Source="ComboBox.xaml"/>
   </ResourceDictionary.MergedDictionaries>
 
-  <!-- Popups (Menu / ComboBox) use SystemColors; force dark so light text stays legible -->
+  <!-- Popups (Menu / ComboBox / ToolTip) use SystemColors; force dark so light text stays legible -->
   <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="{StaticResource Color.SurfaceControl}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="{StaticResource Color.TextPrimary}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.MenuBarBrushKey}" Color="{StaticResource Color.SurfacePanel}"/>
@@ -19,6 +20,19 @@
   <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="{StaticResource Color.SurfaceControl}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="{StaticResource Color.TextPrimary}"/>
   <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="{StaticResource Color.TextSecondary}"/>
+  <SolidColorBrush x:Key="{x:Static SystemColors.InfoBrushKey}" Color="{StaticResource Color.SurfaceElevated}"/>
+  <SolidColorBrush x:Key="{x:Static SystemColors.InfoTextBrushKey}" Color="{StaticResource Color.TextPrimary}"/>
+
+  <!-- Default ToolTip keeps a light system chrome; pin dark surface + primary text -->
+  <Style TargetType="ToolTip">
+    <Setter Property="Background" Value="{StaticResource Brush.SurfaceElevated}"/>
+    <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderSubtle}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="10,6"/>
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="HasDropShadow" Value="False"/>
+  </Style>
 
   <Style TargetType="TextBlock">
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
@@ -49,6 +63,7 @@
     <Setter Property="Padding" Value="{StaticResource Pad.Control}"/>
     <Setter Property="CaretBrush" Value="{StaticResource Brush.TextPrimary}"/>
     <Setter Property="SelectionBrush" Value="{StaticResource Brush.AccentMuted}"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Keyboard}"/>
   </Style>
 
   <Style TargetType="PasswordBox">
@@ -56,6 +71,7 @@
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
     <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderSubtle}"/>
     <Setter Property="Padding" Value="{StaticResource Pad.Control}"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Keyboard}"/>
   </Style>
 
   <!-- ComboBox / ComboBoxItem templates live in ComboBox.xaml -->
@@ -64,11 +80,13 @@
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
     <Setter Property="Margin" Value="0,0,12,0"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.KeyboardCompact}"/>
   </Style>
 
   <Style TargetType="RadioButton">
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.KeyboardCompact}"/>
   </Style>
 
   <!-- Default / Quiet button -->
@@ -81,6 +99,7 @@
     <Setter Property="BorderBrush" Value="{StaticResource Brush.BorderSubtle}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Keyboard}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
@@ -170,6 +189,7 @@
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
     <Setter Property="Background" Value="{StaticResource Brush.SurfacePanel}"/>
     <Setter Property="Padding" Value="14,8"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Keyboard}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="TabItem">
@@ -214,6 +234,7 @@
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
     <Setter Property="Padding" Value="4,3"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.KeyboardCompact}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ListViewItem">
@@ -262,6 +283,7 @@
   <Style TargetType="TreeViewItem">
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
     <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.KeyboardCompact}"/>
     <Style.Triggers>
       <Trigger Property="IsSelected" Value="True">
         <Setter Property="Background" Value="{StaticResource Brush.Selection}"/>
@@ -283,6 +305,7 @@
     <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="Margin" Value="0,0,0,8"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual.Keyboard}"/>
   </Style>
 
   <Style x:Key="CardBorder" TargetType="Border">

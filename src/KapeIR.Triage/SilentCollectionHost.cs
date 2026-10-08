@@ -32,7 +32,7 @@ internal static class SilentCollectionHost
             Console.CancelKeyPress += (_, e) =>
             {
                 e.Cancel = true;
-                Write("Отмена (Ctrl+C)…");
+                Write("Отмена по Ctrl+C…");
                 try { cts.Cancel(); } catch { /* disposed */ }
             };
 
@@ -72,9 +72,16 @@ internal static class SilentCollectionHost
                 skipMemory: opt.SkipMemory,
                 caseIdOverride: opt.CaseId);
 
+            EstimateSummaryParser? estimate = opt.SimOnly ? new EstimateSummaryParser() : null;
+            void WriteObserved(string msg)
+            {
+                estimate?.Observe(msg);
+                Write(msg);
+            }
+
             var result = await coord.RunAsync(
                 new TriageRunCoordinator.RunOptions(session, rt),
-                Write,
+                WriteObserved,
                 cts.Token);
 
             if (cts.IsCancellationRequested)
@@ -85,6 +92,9 @@ internal static class SilentCollectionHost
             }
 
             Write(result.StatusMessage);
+            var estimateBlock = estimate?.FormatLogBlock();
+            if (!string.IsNullOrEmpty(estimateBlock))
+                Write(estimateBlock);
             FlushLog(logPath, log);
             return result.ExitCode;
         }

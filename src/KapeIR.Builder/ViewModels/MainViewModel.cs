@@ -1,104 +1,94 @@
-using System.Collections.ObjectModel;
-using System.Windows;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KapeIR.Core.Models;
 using KapeIR.Core.Services;
 using KapeIR.Builder.Services;
 using KapeIR.Builder.Workspaces;
+using KapeIR.Ui.Dialogs;
+using KapeIR.Ui.Scheduling;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace KapeIR.Builder.ViewModels;
 
-public partial class MainViewModel : ObservableObject, IDisposable
+public partial class MainViewModel : ObservableObject, IBuilderShell, IDisposable
 {
-    private readonly IDialogService _dialogs;
-    private readonly IPackageExporterFactory _exporterFactory;
+    private readonly IBuilderDialogService _dialogs;
+    private readonly IPackageBuildFacade _build;
+    private readonly ICatalogOpsFacade _catalogOps;
     private readonly AppSettings _settings;
     private readonly CatalogWorkspace _catalogWs;
     private readonly CatalogSelectionCoordinator _selection;
-    private readonly ToolkitUpdateWorkspace _toolkitWs;
+    private readonly IUiScheduler _ui;
     private readonly ILogger<MainViewModel> _logger;
-    private DispatcherTimer? _targetSearchTimer;
-    private DispatcherTimer? _moduleSearchTimer;
-    private DispatcherTimer? _treeSearchTimer;
-    private CancellationTokenSource? _syncCts;
+    private readonly IUiDebounce _kapeRootDebounce;
     private CancellationTokenSource? _buildCts;
-    private CancellationTokenSource? _catalogReloadCts;
-    private DispatcherTimer? _kapeRootReloadTimer;
     private bool _suppressKapeRootReload;
     private bool _disposed;
-
-    private KapeCatalog _catalog => _catalogWs.Catalog;
 
     [ObservableProperty] private string _kapeRoot = "";
     [ObservableProperty] private string _statusText = "Готово";
     [ObservableProperty] private bool _isSyncing;
     [ObservableProperty] private bool _isBuilding;
-    [ObservableProperty] private string _targetSearch = "";
-    [ObservableProperty] private string _moduleSearch = "";
-    [ObservableProperty] private string _treeSearch = "";
-    [ObservableProperty] private string _targetFilter = "Все";
-    [ObservableProperty] private string _moduleFilter = "Все";
-    [ObservableProperty] private bool _treeSharedOnly;
-    [ObservableProperty] private bool _treeIsTargets = true;
 
-    [ObservableProperty] private string _packageName = "";
-    [ObservableProperty] private string _packageDescription = "";
-    [ObservableProperty] private string _packageAuthor = "";
-    [ObservableProperty] private string _packageVersion = "";
-    [ObservableProperty] private string _tsource = "C:";
-    [ObservableProperty] private string _notes = "";
-    [ObservableProperty] private bool _zipOutput = true;
-    [ObservableProperty] private bool _vss;
-    [ObservableProperty] private bool _twoPhaseCollection;
-    [ObservableProperty] private string _caseId = "";
-    [ObservableProperty] private bool _copyDeps = true;
+    /// <summary>True while sync or build runs — drives compact status near the KAPE toolbar.</summary>
+    public bool IsBusy => IsSyncing || IsBuilding;
 
-    [ObservableProperty] private string _selectedTargetsText = "";
-    [ObservableProperty] private string _selectedModulesText = "";
-    [ObservableProperty] private string _detailText = "Выберите элемент, чтобы увидеть сведения.";
-    [ObservableProperty] private CatalogRowVm? _selectedExisting;
-    [ObservableProperty] private string _treeStats = "";
-    [ObservableProperty] private bool _hasDocumentationLinks;
+    public PackageDefinition Package { get; set; } = new();
 
-    public ObservableCollection<CatalogRowVm> TargetRows { get; } = new();
-    public ObservableCollection<CatalogRowVm> ModuleRows { get; } = new();
-    public ObservableCollection<CatalogRowVm> ExistingPacks { get; } = new();
-    public ObservableCollection<TreeNodeVm> TreeRoots { get; } = new();
-    public ObservableCollection<string> DocumentationLinks { get; } = new();
-    public List<string> FilterOptions { get; } = new() { "Все", "Только выбранные", "Только compound", "Только leaf" };
+    public CatalogBrowserViewModel Catalog { get; }
+    public PackageEditorViewModel PackageEditor { get; }
+    public BinariesViewModel Binaries { get; }
+    public SyncViewModel Sync { get; }
 
-    public PackageDefinition Package { get; private set; } = new();
+    CatalogWorkspace IBuilderShell.CatalogWorkspace => _catalogWs;
+    CatalogSelectionCoordinator IBuilderShell.Selection => _selection;
+    IBuilderDialogService IBuilderShell.Dialogs => _dialogs;
+    ICatalogOpsFacade IBuilderShell.CatalogOps => _catalogOps;
+    AppSettings IBuilderShell.Settings => _settings;
+    IUiScheduler IBuilderShell.Ui => _ui;
 
     /// <summary>Test helper — dialogs only; other deps use defaults.</summary>
-    public MainViewModel(IDialogService dialogs)
+    public MainViewModel(IBuilderDialogService dialogs)
         : this(
             dialogs,
-            new PackageExporterFactory(),
+            new PackageBuildFacade(new PackageExporterFactory()),
+            new CatalogOpsFacade(),
             new ToolkitUpdateWorkspace(),
             new CatalogSelectionCoordinator(),
+            new CatalogWorkspace(),
             AppSettings.Load(),
+            ImmediateUiScheduler.Instance,
             NullLogger<MainViewModel>.Instance)
     {
     }
 
     /// <summary>DI primary constructor.</summary>
     public MainViewModel(
-        IDialogService dialogs,
-        IPackageExporterFactory exporterFactory,
+        IBuilderDialogService dialogs,
+        IPackageBuildFacade build,
+        ICatalogOpsFacade catalogOps,
         ToolkitUpdateWorkspace toolkitWorkspace,
         CatalogSelectionCoordinator selection,
+        CatalogWorkspace catalogWorkspace,
         AppSettings settings,
+        IUiScheduler ui,
         ILogger<MainViewModel> logger)
     {
         _dialogs = dialogs;
-        _exporterFactory = exporterFactory;
-        _toolkitWs = toolkitWorkspace;
+        _build = build ?? throw new ArgumentNullException(nameof(build));
+        _catalogOps = catalogOps ?? throw new ArgumentNullException(nameof(catalogOps));
         _selection = selection;
+        _catalogWs = catalogWorkspace ?? throw new ArgumentNullException(nameof(catalogWorkspace));
         _settings = settings;
+        _ui = ui ?? throw new ArgumentNullException(nameof(ui));
         _logger = logger;
+        _kapeRootDebounce = _ui.CreateDebounce(IUiScheduler.DefaultDebounceDelay);
+
+        Catalog = new CatalogBrowserViewModel(this, logger);
+        PackageEditor = new PackageEditorViewModel(this);
+        Binaries = new BinariesViewModel(this);
+        Sync = new SyncViewModel(this, toolkitWorkspace);
+
         // Do not schedule catalog reload from the initial assignment — InitializeAsync owns first load.
         _suppressKapeRootReload = true;
         try
@@ -110,17 +100,41 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _suppressKapeRootReload = false;
         }
         // Catalog must track the UI root only — never Environment.CurrentDirectory.
-        _catalogWs = new CatalogWorkspace(string.IsNullOrWhiteSpace(KapeRoot) ? "" : KapeRoot);
+        SyncCatalogWorkspaceToUiRoot();
+    }
+
+    /// <summary>Rebind catalog when the DI workspace started empty / on a different root.</summary>
+    private void SyncCatalogWorkspaceToUiRoot()
+    {
+        if (string.IsNullOrWhiteSpace(KapeRoot))
+            return;
+        if (_catalogWs.IsBoundTo(KapeRoot))
+            return;
+        try
+        {
+            _catalogWs.Catalog.Rebind(KapeRootPaths.Normalize(KapeRoot));
+        }
+        catch
+        {
+            _catalogWs.Catalog.Rebind(KapeRoot);
+        }
     }
 
     public async Task InitializeAsync()
     {
         // First launch / no known root: quiet status only — never prompt before the user can Browse.
-        await ReloadCatalogAsync(promptIfMissing: false);
+        await Catalog.ReloadCatalogAsync(promptIfMissing: false);
     }
 
-    /// <summary>Normalize UI root and ensure <see cref="_catalog"/> is bound to it.</summary>
-    internal async Task<string?> EnsureCatalogBoundToUiRootAsync()
+    public void SetKapeRootQuiet(string root)
+    {
+        _suppressKapeRootReload = true;
+        try { KapeRoot = root; }
+        finally { _suppressKapeRootReload = false; }
+    }
+
+    /// <summary>Normalize UI root and ensure catalog is bound to it.</summary>
+    public async Task<string?> EnsureCatalogBoundToUiRootAsync()
     {
         var raw = (KapeRoot ?? "").Trim();
         if (string.IsNullOrEmpty(raw))
@@ -164,19 +178,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         if (!string.Equals(KapeRoot, root, StringComparison.OrdinalIgnoreCase))
-        {
-            _suppressKapeRootReload = true;
-            try { KapeRoot = root; }
-            finally { _suppressKapeRootReload = false; }
-        }
+            SetKapeRootQuiet(root);
 
         if (!_catalogWs.IsBoundTo(root))
-            await ReloadCatalogAsync(promptIfMissing: false);
+            await Catalog.ReloadCatalogAsync(promptIfMissing: false);
 
         if (!_catalogWs.IsBoundTo(root))
         {
             _dialogs.ShowMessage(
-                $"Каталог не привязан к выбранному корню.\nUI: {root}\nКаталог: {_catalog.KapeRoot}",
+                $"Каталог не привязан к выбранному корню.\nUI: {root}\nКаталог: {_catalogWs.Catalog.KapeRoot}",
                 "Корень KAPE",
                 DialogIcon.Error);
             return null;
@@ -188,124 +198,46 @@ public partial class MainViewModel : ObservableObject, IDisposable
     partial void OnKapeRootChanged(string value)
     {
         if (_suppressKapeRootReload) return;
-        Debounce(ref _kapeRootReloadTimer, ScheduleReloadCatalog);
+        _kapeRootDebounce.Schedule(() => Catalog.ScheduleReloadCatalog());
     }
 
-    partial void OnTargetSearchChanged(string value) => Debounce(ref _targetSearchTimer, RefreshTargetRows);
-    partial void OnModuleSearchChanged(string value) => Debounce(ref _moduleSearchTimer, RefreshModuleRows);
-    partial void OnTreeSearchChanged(string value) => Debounce(ref _treeSearchTimer, RebuildTree);
-    partial void OnTargetFilterChanged(string value) => RefreshTargetRows();
-    partial void OnModuleFilterChanged(string value) => RefreshModuleRows();
-    partial void OnTreeSharedOnlyChanged(bool value) => RebuildTree();
-    partial void OnTreeIsTargetsChanged(bool value)
-    {
-        OnPropertyChanged(nameof(TreeIsModules));
-        RebuildTree();
-    }
-
-    /// <summary>Inverse of TreeIsTargets for the Modules radio button.</summary>
-    public bool TreeIsModules
-    {
-        get => !TreeIsTargets;
-        set
-        {
-            if (value)
-                TreeIsTargets = false;
-        }
-    }
-
-    partial void OnTwoPhaseCollectionChanged(bool value)
-    {
-        if (value && string.IsNullOrWhiteSpace(Package.Phase1ModuleName))
-            Package.Phase1ModuleName = PackageDefinition.DefaultPhase1Module;
-    }
-
-    private void Debounce(ref DispatcherTimer? timer, Action action)
-    {
-        timer?.Stop();
-        var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
-        timer = t;
-        t.Tick += (_, _) =>
-        {
-            t.Stop();
-            action();
-        };
-        t.Start();
-    }
-
-    /// <summary>Fire-and-forget reload with exception logging (UI triggers).</summary>
-    private void ScheduleReloadCatalog()
-    {
-        _ = ReloadCatalogSafeAsync();
-    }
-
-    private async Task ReloadCatalogSafeAsync()
-    {
-        try
-        {
-            await ReloadCatalogAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Catalog reload failed");
-            AppLog.Error(ex, "Catalog reload failed");
-            StatusText = "Ошибка загрузки каталога";
-        }
-    }
-
-    /// <summary>Marshal to WPF dispatcher when present; run inline in unit tests (no Application).</summary>
-    private static Task InvokeOnUiAsync(Action action)
-    {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
-        {
-            action();
-            return Task.CompletedTask;
-        }
-
-        return dispatcher.InvokeAsync(action).Task;
-    }
+    public Task InvokeOnUiAsync(Action action) => _ui.InvokeAsync(action);
 
     private bool CanBuildPackage() => !IsBuilding && !IsSyncing;
 
     private bool CanCancelBuild() => IsBuilding;
 
-    private bool CanUpdateFromGitHub() => !IsSyncing && !IsBuilding;
-
-    private bool CanReloadCatalog() => !IsBuilding && !IsSyncing;
-
-    partial void OnIsBuildingChanged(bool value)
+    public void NotifyBusyCanExecute()
     {
         BuildPackageCommand.NotifyCanExecuteChanged();
         CancelBuildCommand.NotifyCanExecuteChanged();
-        UpdateFromGitHubCommand.NotifyCanExecuteChanged();
-        ReloadCatalogCommand.NotifyCanExecuteChanged();
+        Sync.UpdateFromGitHubCommand.NotifyCanExecuteChanged();
+        Catalog.ReloadCatalogCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsBuildingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsBusy));
+        NotifyBusyCanExecute();
     }
 
     partial void OnIsSyncingChanged(bool value)
     {
-        BuildPackageCommand.NotifyCanExecuteChanged();
-        UpdateFromGitHubCommand.NotifyCanExecuteChanged();
-        ReloadCatalogCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsBusy));
+        NotifyBusyCanExecute();
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        _syncCts?.Cancel();
-        _syncCts?.Dispose();
-        _syncCts = null;
         _buildCts?.Cancel();
         _buildCts?.Dispose();
         _buildCts = null;
-        _catalogReloadCts?.Cancel();
-        _catalogReloadCts?.Dispose();
-        _catalogReloadCts = null;
-        _targetSearchTimer?.Stop();
-        _moduleSearchTimer?.Stop();
-        _treeSearchTimer?.Stop();
-        _kapeRootReloadTimer?.Stop();
+        _kapeRootDebounce.Dispose();
+        Catalog.Dispose();
+        Binaries.Dispose();
+        Sync.Dispose();
         GC.SuppressFinalize(this);
     }
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Builder **Справка → Справка**: окно с навигацией по разделам, поиском и Markdown (MdXaml); разделы про Builder/Triage, оценку, RESULTS, min requirements Chainsaw/Hayabusa, wrap-up файлы (в Triage GUI справки нет)
+- Builder «Обновить с GitHub…»: автоматическая установка/обновление **Hayabusa** + `config` + `rules` (~4500) в `Modules\bin\hayabusa\` (Yamato-Security releases, полный `win-x64` ZIP)
+- Triage journal: восстановление UTF-8 баннеров (Chainsaw box-art) при OEM-захвате stdout + снятие ANSI color codes
+- Triage: после **оценки объёма** (`--sim`) — короткий свод в конце журнала (найдено / к копированию / deferred)
+
+### Notes
+- Локальные модули Hayabusa **v4.1** (`Modules\Apps\Local\Hayabusa\*_v41.mkape`, compound `Hayabusa_Offline_v41`) — stock GitHub `.mkape` не меняются
+- Захват stdout kape.exe: UTF-8 по умолчанию (баннеры Chainsaw); sanitizer — fallback OEM→UTF-8
+
 ## [1.8.8] — 2026-10-07
 
 ### Rename

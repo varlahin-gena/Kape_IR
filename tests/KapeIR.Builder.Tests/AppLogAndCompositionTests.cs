@@ -2,6 +2,7 @@ using KapeIR.Core.Services;
 using KapeIR.Builder.Hosting;
 using KapeIR.Builder.Services;
 using KapeIR.Builder.ViewModels;
+using KapeIR.Builder.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -54,10 +55,13 @@ public class AppLogAndCompositionTests : IDisposable
 
         var vm = sp.GetRequiredService<MainViewModel>();
         Assert.NotNull(vm);
-        Assert.Same(sp.GetRequiredService<IDialogService>(), sp.GetRequiredService<IDialogService>());
-        Assert.IsType<WpfDialogService>(sp.GetRequiredService<IDialogService>());
+        Assert.Same(sp.GetRequiredService<IBuilderDialogService>(), sp.GetRequiredService<IBuilderDialogService>());
+        Assert.IsType<WpfBuilderDialogService>(sp.GetRequiredService<IBuilderDialogService>());
+        Assert.IsType<PackageBuildFacade>(sp.GetRequiredService<IPackageBuildFacade>());
+        Assert.IsType<CatalogOpsFacade>(sp.GetRequiredService<ICatalogOpsFacade>());
         Assert.NotNull(sp.GetRequiredService<IPackageExporterFactory>());
         Assert.NotNull(sp.GetRequiredService<ILogger<MainViewModel>>());
+        Assert.NotNull(sp.GetRequiredService<CatalogWorkspace>());
 
         // MainWindow needs STA; skip constructing WPF Window in default xunit threads if not STA.
         // Resolving the type registration is enough here — factory is validated on BuildServices.

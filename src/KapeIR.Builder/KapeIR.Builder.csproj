@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MdXaml" Version="1.27.0" />
     <ProjectReference Include="..\KapeIR.Core\KapeIR.Core.csproj" />
     <ProjectReference Include="..\KapeIR.Ui\KapeIR.Ui.csproj" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
@@ -37,8 +38,7 @@
       <Link>KapeIR.Triage.exe</Link>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </None>
-    <EmbeddedResource Include="..\..\tools\KapeIR.Triage.exe" Condition="Exists('..\..\tools\KapeIR.Triage.exe')"
-                      LogicalName="KapeIR.Triage.exe" />
+    <EmbeddedResource Include="..\..\tools\KapeIR.Triage.exe" Condition="Exists('..\..\tools\KapeIR.Triage.exe')" LogicalName="KapeIR.Triage.exe" />
   </ItemGroup>
 
 </Project>

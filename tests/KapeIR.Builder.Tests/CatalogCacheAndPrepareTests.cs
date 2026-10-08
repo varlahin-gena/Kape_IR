@@ -10,8 +10,6 @@ public class CatalogCacheTests
     [Fact]
     public void Refresh_SecondPass_UsesFileCache()
     {
-        // Self-contained tree: avoid racing FakeKapeRoot.Dispose → ClearFileCache from parallel tests.
-        KapeCatalog.ClearFileCache();
         var root = Path.Combine(Path.GetTempPath(), "kape_cache_" + Guid.NewGuid().ToString("N"));
         var apps = Path.Combine(root, "Targets", "Apps");
         Directory.CreateDirectory(apps);
@@ -31,15 +29,20 @@ Targets:
 """);
         try
         {
-            var cat = new KapeCatalog(root);
-            cat.Refresh();
-            Assert.True(cat.LastRefreshStats.CacheMisses >= 1);
-            Assert.Equal(0, cat.LastRefreshStats.CacheHits);
+            // Hold the gate across both Refresh passes so parallel ClearFileCache cannot wipe hits.
+            KapeCatalog.WithFileCacheLock(() =>
+            {
+                KapeCatalog.ClearFileCache();
+                var cat = new KapeCatalog(root);
+                cat.Refresh();
+                Assert.True(cat.LastRefreshStats.CacheMisses >= 1);
+                Assert.Equal(0, cat.LastRefreshStats.CacheHits);
 
-            cat.Refresh();
-            Assert.True(cat.LastRefreshStats.CacheHits >= 1);
-            Assert.Equal(0, cat.LastRefreshStats.CacheMisses);
-            Assert.Contains(cat.Targets, t => t.Name == "Leaf");
+                cat.Refresh();
+                Assert.True(cat.LastRefreshStats.CacheHits >= 1);
+                Assert.Equal(0, cat.LastRefreshStats.CacheMisses);
+                Assert.Contains(cat.Targets, t => t.Name == "Leaf");
+            });
         }
         finally
         {
@@ -51,7 +54,6 @@ Targets:
     [Fact]
     public void Refresh_AfterFileChange_IsCacheMiss()
     {
-        KapeCatalog.ClearFileCache();
         var root = Path.Combine(Path.GetTempPath(), "kape_cache2_" + Guid.NewGuid().ToString("N"));
         var apps = Path.Combine(root, "Targets", "Apps");
         Directory.CreateDirectory(apps);
@@ -60,14 +62,18 @@ Targets:
         File.WriteAllText(leaf, "Description: v1\nAuthor: a\nVersion: 1\nId: 11111111-1111-1111-1111-111111111111\nTargets: []\n");
         try
         {
-            var cat = new KapeCatalog(root);
-            cat.Refresh();
-            File.WriteAllText(leaf, "Description: v2-changed\nAuthor: a\nVersion: 2\nId: 11111111-1111-1111-1111-111111111111\nTargets: []\n");
-            // Ensure mtime/size differs on coarse FS.
-            File.SetLastWriteTimeUtc(leaf, DateTime.UtcNow.AddSeconds(2));
-            cat.Refresh();
-            Assert.True(cat.LastRefreshStats.CacheMisses >= 1);
-            Assert.Equal("v2-changed", cat.FindTarget("Leaf")!.Description);
+            KapeCatalog.WithFileCacheLock(() =>
+            {
+                KapeCatalog.ClearFileCache();
+                var cat = new KapeCatalog(root);
+                cat.Refresh();
+                File.WriteAllText(leaf, "Description: v2-changed\nAuthor: a\nVersion: 2\nId: 11111111-1111-1111-1111-111111111111\nTargets: []\n");
+                // Ensure mtime/size differs on coarse FS.
+                File.SetLastWriteTimeUtc(leaf, DateTime.UtcNow.AddSeconds(2));
+                cat.Refresh();
+                Assert.True(cat.LastRefreshStats.CacheMisses >= 1);
+                Assert.Equal("v2-changed", cat.FindTarget("Leaf")!.Description);
+            });
         }
         finally
         {

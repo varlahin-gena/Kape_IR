@@ -17,6 +17,8 @@
     <ProjectReference Include="..\KapeIR.Core\KapeIR.Core.csproj" />
     <ProjectReference Include="..\KapeIR.Ui\KapeIR.Ui.csproj" />
     <Resource Include="app.ico" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>

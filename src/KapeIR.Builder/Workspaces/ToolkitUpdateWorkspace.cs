@@ -27,4 +27,10 @@ public sealed class ToolkitUpdateWorkspace
         CancellationToken ct = default,
         HttpMessageHandler? httpHandler = null)
         => _toolkit.ApplyAsync(kapeRoot, options, progress, ct, httpHandler);
+
+    public IReadOnlyDictionary<string, string>? ReadLastSync(string kapeRoot)
+        => GitHubKapeFilesSync.ReadLastSync(kapeRoot);
+
+    public string? ReadLastZipSha256(string kapeRoot)
+        => GitHubKapeFilesSync.ReadLastZipSha256(kapeRoot);
 }

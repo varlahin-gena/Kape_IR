@@ -77,6 +77,36 @@ Processors:
 
         var pre = ModulesBinPreflight.Check(fx.Catalog, pkg);
         Assert.True(pre.WinpmemMissing);
+        Assert.False(pre.WinpmemSuspectMini);
         Assert.True(pre.HasIssues);
+        Assert.Equal(WinPmemBinaryStatus.Missing, pre.Winpmem!.Status);
+    }
+
+    [Fact]
+    public void Check_TwoPhase_FlagsSuspectMiniWinpmem()
+    {
+        using var fx = FakeKapeRoot.Create(FakeKapeProfile.TwoPhaseIr);
+
+        var pkg = new PackageDefinition
+        {
+            Name = "TwoPhaseMini",
+            CollectionMode = IrCollectionMode.TwoPhase,
+            Targets =
+            {
+                new SelectionEntry
+                {
+                    Name = FakeKapeRoot.DemoLeafName,
+                    Path = FakeKapeRoot.DemoLeafName + ".tkape"
+                }
+            }
+        };
+
+        // FakeKapeRoot writes a tiny placeholder winpmem.exe.
+        var pre = ModulesBinPreflight.Check(fx.Catalog, pkg);
+        Assert.False(pre.WinpmemMissing);
+        Assert.True(pre.WinpmemSuspectMini);
+        Assert.True(pre.HasIssues);
+        var msg = ModulesBinPreflight.FormatConfirmMessage(pre);
+        Assert.Contains("unsigned mini", msg, StringComparison.OrdinalIgnoreCase);
     }
 }
