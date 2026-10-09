@@ -30,13 +30,11 @@
         <MenuItem Header="Убрать дубликаты" Command="{Binding Catalog.FixNameCollisionsCommand}"
                   AutomationProperties.Name="Убрать дубликаты имён"/>
       </MenuItem>
-      <MenuItem Header="_Пакет" AutomationProperties.Name="Меню Пакет">
-        <MenuItem Header="Новый пакет" Command="{Binding PackageEditor.NewPackCommand}"
-                  AutomationProperties.Name="Новый пакет"/>
-        <MenuItem Header="Сохранить сессию" Command="{Binding PackageEditor.SaveSessionCommand}"
-                  AutomationProperties.Name="Сохранить сессию"/>
-        <MenuItem Header="Загрузить сессию…" Command="{Binding PackageEditor.LoadSessionCommand}"
-                  AutomationProperties.Name="Загрузить сессию"/>
+      <MenuItem Header="_Сборка" AutomationProperties.Name="Меню Сборка">
+        <MenuItem Header="Новая сборка" Command="{Binding PackageEditor.NewPackCommand}"
+                  AutomationProperties.Name="Новая сборка"/>
+        <MenuItem Header="Сохранить сборку" Command="{Binding PackageEditor.SaveAssemblyCommand}"
+                  AutomationProperties.Name="Сохранить сборку"/>
         <Separator/>
         <MenuItem Header="Собрать EXE" Command="{Binding BuildPackageCommand}" InputGestureText="Ctrl+B"
                   AutomationProperties.Name="Собрать EXE"/>
@@ -111,10 +109,10 @@
               </Grid.ColumnDefinitions>
               <TextBox x:Name="TargetSearchBox"
                        Text="{Binding Catalog.TargetSearch, UpdateSourceTrigger=PropertyChanged}"
-                       ToolTip="Поиск таргетов (Ctrl+F)"
-                       ui:Watermark.Text="Поиск таргетов…"
-                       AutomationProperties.Name="Поиск таргетов"
-                       AutomationProperties.HelpText="Поиск таргетов, Ctrl+F"/>
+                       ToolTip="Поиск по имени (Ctrl+F)"
+                       ui:Watermark.Text="Поиск по имени…"
+                       AutomationProperties.Name="Поиск таргетов по имени"
+                       AutomationProperties.HelpText="Поиск по имени таргета, Ctrl+F"/>
               <ComboBox Grid.Column="1" Margin="8,0,0,0"
                         ItemsSource="{Binding Catalog.FilterOptions}"
                         SelectedItem="{Binding Catalog.TargetFilter}"
@@ -124,6 +122,23 @@
               <Button DockPanel.Dock="Right" Content="Выбрать видимые" Command="{Binding Catalog.CheckVisibleTargetsCommand}" Margin="0"
                       AutomationProperties.Name="Выбрать видимые таргеты"/>
             </DockPanel>
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="40"/>
+                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBox Grid.Column="1" Margin="0,0,4,0"
+                       Text="{Binding Catalog.TargetColFilterName, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Имя…" AutomationProperties.Name="Фильтр столбца Имя таргеты"/>
+              <TextBox Grid.Column="2" Margin="0,0,4,0"
+                       Text="{Binding Catalog.TargetColFilterOrigin, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Источник…" AutomationProperties.Name="Фильтр столбца Источник таргеты"/>
+              <TextBox Grid.Column="3"
+                       Text="{Binding Catalog.TargetColFilterMeta, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Категория / путь…" AutomationProperties.Name="Фильтр столбца Мета таргеты"/>
+            </Grid>
             <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
               <TextBlock DockPanel.Dock="Top" Text="Документация" FontWeight="SemiBold" Margin="0,0,0,4"
                          Visibility="{Binding Catalog.HasDocumentationLinks, Converter={StaticResource BoolToVis}}"/>
@@ -159,9 +174,30 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="220"/>
-                  <GridViewColumn Header="Источник" DisplayMemberBinding="{Binding OriginLabel}" Width="90"/>
-                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="280"/>
+                  <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Width="220">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.TargetSortNameHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortTargetsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Name"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding OriginLabel}" Width="90">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.TargetSortOriginHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortTargetsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Origin"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding Meta}" Width="280">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.TargetSortMetaHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortTargetsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Meta"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -177,9 +213,9 @@
               </Grid.ColumnDefinitions>
               <TextBox x:Name="ModuleSearchBox"
                        Text="{Binding Catalog.ModuleSearch, UpdateSourceTrigger=PropertyChanged}"
-                       ToolTip="Поиск модулей"
-                       ui:Watermark.Text="Поиск модулей…"
-                       AutomationProperties.Name="Поиск модулей"
+                       ToolTip="Поиск по имени"
+                       ui:Watermark.Text="Поиск по имени…"
+                       AutomationProperties.Name="Поиск модулей по имени"
                        AutomationProperties.HelpText="Поиск модулей по имени"/>
               <ComboBox Grid.Column="1" Margin="8,0,0,0"
                         ItemsSource="{Binding Catalog.FilterOptions}"
@@ -196,6 +232,23 @@
                         AutomationProperties.Name="Выбрать видимые модули"/>
               </StackPanel>
             </DockPanel>
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="40"/>
+                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBox Grid.Column="1" Margin="0,0,4,0"
+                       Text="{Binding Catalog.ModuleColFilterName, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Имя…" AutomationProperties.Name="Фильтр столбца Имя модули"/>
+              <TextBox Grid.Column="2" Margin="0,0,4,0"
+                       Text="{Binding Catalog.ModuleColFilterOrigin, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Источник…" AutomationProperties.Name="Фильтр столбца Источник модули"/>
+              <TextBox Grid.Column="3"
+                       Text="{Binding Catalog.ModuleColFilterMeta, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Категория / путь…" AutomationProperties.Name="Фильтр столбца Мета модули"/>
+            </Grid>
             <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
               <TextBlock DockPanel.Dock="Top" Text="Документация" FontWeight="SemiBold" Margin="0,0,0,4"
                          Visibility="{Binding Catalog.HasDocumentationLinks, Converter={StaticResource BoolToVis}}"/>
@@ -231,9 +284,30 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="220"/>
-                  <GridViewColumn Header="Источник" DisplayMemberBinding="{Binding OriginLabel}" Width="90"/>
-                  <GridViewColumn Header="Категория / путь" DisplayMemberBinding="{Binding Meta}" Width="280"/>
+                  <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Width="220">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.ModuleSortNameHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortModulesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Name"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding OriginLabel}" Width="90">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.ModuleSortOriginHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortModulesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Origin"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding Meta}" Width="280">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.ModuleSortMetaHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortModulesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Meta"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -265,10 +339,10 @@
               </StackPanel>
             </Grid>
             <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
-              <Button Content="Добавить в пакет" Command="{Binding Catalog.MergeTreeIntoPackageCommand}"
-                      AutomationProperties.Name="Добавить выбранное из дерева в пакет"/>
-              <Button Content="Заменить пакет" Command="{Binding Catalog.ReplacePackageFromTreeCommand}"
-                      AutomationProperties.Name="Заменить пакет содержимым дерева"/>
+              <Button Content="Добавить в сборку" Command="{Binding Catalog.MergeTreeIntoPackageCommand}"
+                      AutomationProperties.Name="Добавить выбранное из дерева в сборку"/>
+              <Button Content="Заменить сборку" Command="{Binding Catalog.ReplacePackageFromTreeCommand}"
+                      AutomationProperties.Name="Заменить сборку содержимым дерева"/>
               <TextBlock Text="{Binding Catalog.TreeStats}" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"
                          VerticalAlignment="Center" Margin="12,0,0,0"
                          AutomationProperties.Name="{Binding Catalog.TreeStats}"/>
@@ -296,23 +370,96 @@
           </DockPanel>
         </TabItem>
 
-        <TabItem Header="Готовые пакеты" AutomationProperties.Name="Вкладка Готовые пакеты">
+        <TabItem Header="Готовые сборки" AutomationProperties.Name="Вкладка Готовые сборки">
           <DockPanel Margin="8">
+            <TextBox DockPanel.Dock="Top" Margin="0,0,0,8"
+                     Text="{Binding Catalog.PackSearch, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Поиск по имени"
+                     ui:Watermark.Text="Поиск по имени…"
+                     AutomationProperties.Name="Поиск готовых сборок по имени"/>
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="50"/>
+                <ColumnDefinition Width="260"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBox Grid.Column="0" Margin="0,0,4,0" Text="{Binding Catalog.PackColFilterName, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Имя…" AutomationProperties.Name="Фильтр столбца Имя сборки"/>
+              <TextBox Grid.Column="1" Margin="0,0,4,0" Text="{Binding Catalog.PackColFilterRole, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Роль…" AutomationProperties.Name="Фильтр столбца Роль"/>
+              <TextBox Grid.Column="2" Margin="0,0,4,0" Text="{Binding Catalog.PackColFilterChildren, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="N…" AutomationProperties.Name="Фильтр столбца Детей"/>
+              <TextBox Grid.Column="3" Margin="0,0,4,0" Text="{Binding Catalog.PackColFilterUsedBy, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Используется…" AutomationProperties.Name="Фильтр столбца Используется в"/>
+              <TextBox Grid.Column="4" Margin="0,0,4,0" Text="{Binding Catalog.PackColFilterOrigin, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Источник…" AutomationProperties.Name="Фильтр столбца Источник сборки"/>
+              <TextBox Grid.Column="5" Text="{Binding Catalog.PackColFilterDescription, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Описание…" AutomationProperties.Name="Фильтр столбца Описание"/>
+            </Grid>
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
-              <Button Content="Загрузить выбранный" Command="{Binding Catalog.LoadSelectedCompoundCommand}" Margin="0"
-                      AutomationProperties.Name="Загрузить выбранный готовый пакет"/>
+              <Button Content="Загрузить" Command="{Binding Catalog.LoadSelectedCompoundCommand}" Margin="0,0,8,0"
+                      AutomationProperties.Name="Загрузить выбранную готовую сборку"/>
+              <Button Content="Сохранить" Command="{Binding PackageEditor.SaveAssemblyCommand}" Margin="0,0,8,0"
+                      AutomationProperties.Name="Сохранить сборку в каталог"/>
+              <Button Content="Удалить" Command="{Binding PackageEditor.DeleteAssemblyCommand}" Margin="0"
+                      AutomationProperties.Name="Удалить локальную сборку"/>
             </StackPanel>
             <ListView ItemsSource="{Binding Catalog.ExistingPacks}" SelectedItem="{Binding PackageEditor.SelectedExisting}"
                       VirtualizingPanel.IsVirtualizing="True"
-                      AutomationProperties.Name="Список готовых пакетов">
+                      AutomationProperties.Name="Список готовых сборок">
               <ListView.View>
                 <GridView>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding DisplayName}" Width="180"/>
-                  <GridViewColumn Header="Роль" DisplayMemberBinding="{Binding NestingRole}" Width="80"/>
-                  <GridViewColumn Header="Детей" DisplayMemberBinding="{Binding ChildCount}" Width="50"/>
-                  <GridViewColumn Header="Используется в" DisplayMemberBinding="{Binding UsedByDisplay}" Width="260"/>
-                  <GridViewColumn Header="Источник" DisplayMemberBinding="{Binding OriginLabel}" Width="80"/>
-                  <GridViewColumn Header="Описание" DisplayMemberBinding="{Binding Item.Description}" Width="280"/>
+                  <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Width="180">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.PackSortNameHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Name"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding NestingRole}" Width="80">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.PackSortRoleHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Role"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding ChildCount}" Width="50">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.PackSortChildrenHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Children"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding UsedByDisplay}" Width="260">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.PackSortUsedByHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="UsedBy"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding OriginLabel}" Width="80">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.PackSortOriginHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Origin"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding Item.Description}" Width="280">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Catalog.PackSortDescriptionHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Description"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -332,15 +479,41 @@
                 <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
               <TextBox Text="{Binding Binaries.BinarySearch, UpdateSourceTrigger=PropertyChanged}"
-                       ToolTip="Поиск по имени, пути, версии"
-                       ui:Watermark.Text="Поиск утилит…"
-                       AutomationProperties.Name="Поиск утилит"
-                       AutomationProperties.HelpText="Поиск по имени, пути, версии"/>
+                       ToolTip="Поиск по имени"
+                       ui:Watermark.Text="Поиск по имени…"
+                       AutomationProperties.Name="Поиск утилит по имени"
+                       AutomationProperties.HelpText="Поиск утилит по имени"/>
               <ComboBox Grid.Column="1" Margin="8,0,0,0"
                         ItemsSource="{Binding Binaries.BinaryFilterOptions}" SelectedItem="{Binding Binaries.BinaryFilter}"
                         AutomationProperties.Name="Фильтр утилит"/>
               <Button Grid.Column="2" Content="Открыть папку" Command="{Binding Binaries.OpenModulesBinFolderCommand}" Margin="8,0,0,0"
                       AutomationProperties.Name="Открыть папку Modules bin"/>
+            </Grid>
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="28"/>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="140"/>
+                <ColumnDefinition Width="110"/>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBox Grid.Column="1" Margin="0,0,4,0" Text="{Binding Binaries.ColFilterName, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Имя…" AutomationProperties.Name="Фильтр столбца Имя утилиты"/>
+              <TextBox Grid.Column="2" Margin="0,0,4,0" Text="{Binding Binaries.ColFilterCategory, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Категория…" AutomationProperties.Name="Фильтр столбца Категория"/>
+              <TextBox Grid.Column="3" Margin="0,0,4,0" Text="{Binding Binaries.ColFilterGroup, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Группа…" AutomationProperties.Name="Фильтр столбца Группа"/>
+              <TextBox Grid.Column="4" Margin="0,0,4,0" Text="{Binding Binaries.ColFilterVersion, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Версия…" AutomationProperties.Name="Фильтр столбца Версия"/>
+              <TextBox Grid.Column="5" Margin="0,0,4,0" Text="{Binding Binaries.ColFilterSize, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Размер…" AutomationProperties.Name="Фильтр столбца Размер"/>
+              <TextBox Grid.Column="6" Margin="0,0,4,0" Text="{Binding Binaries.ColFilterModified, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Изменён…" AutomationProperties.Name="Фильтр столбца Изменён"/>
+              <TextBox Grid.Column="7" Text="{Binding Binaries.ColFilterPath, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Путь…" AutomationProperties.Name="Фильтр столбца Путь"/>
             </Grid>
             <TextBox DockPanel.Dock="Bottom" Height="100" IsReadOnly="True" TextWrapping="Wrap"
                      VerticalScrollBarVisibility="Auto" Margin="0,8,0,0"
@@ -358,13 +531,62 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn Header="Имя" DisplayMemberBinding="{Binding Name}" Width="180"/>
-                  <GridViewColumn Header="Категория" DisplayMemberBinding="{Binding Category}" Width="100"/>
-                  <GridViewColumn Header="Группа" DisplayMemberBinding="{Binding Group}" Width="140"/>
-                  <GridViewColumn Header="Версия" DisplayMemberBinding="{Binding VersionDisplay}" Width="110"/>
-                  <GridViewColumn Header="Размер" DisplayMemberBinding="{Binding SizeDisplay}" Width="80"/>
-                  <GridViewColumn Header="Изменён" DisplayMemberBinding="{Binding ModifiedDisplay}" Width="120"/>
-                  <GridViewColumn Header="Путь" DisplayMemberBinding="{Binding RelativePath}" Width="220"/>
+                  <GridViewColumn DisplayMemberBinding="{Binding Name}" Width="180">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Binaries.SortNameHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Name"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding Category}" Width="100">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Binaries.SortCategoryHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Category"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding Group}" Width="140">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Binaries.SortGroupHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Group"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding VersionDisplay}" Width="110">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Binaries.SortVersionHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Version"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding SizeDisplay}" Width="80">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Binaries.SortSizeHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Size"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding ModifiedDisplay}" Width="120">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Binaries.SortModifiedHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Modified"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding RelativePath}" Width="220">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding DataContext.Binaries.SortPathHeader, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              CommandParameter="Path"/>
+                    </GridViewColumn.Header>
+                  </GridViewColumn>
                 </GridView>
               </ListView.View>
             </ListView>
@@ -373,12 +595,12 @@
       </TabControl>
 
       <Border Grid.Column="2" Style="{StaticResource CardBorder}" Padding="0"
-              AutomationProperties.Name="Редактор пакета">
+              AutomationProperties.Name="Редактор сборки">
         <DockPanel>
           <Border DockPanel.Dock="Top" Padding="14,12,14,8"
                   BorderBrush="{StaticResource Brush.BorderSubtle}" BorderThickness="0,0,0,1">
             <DockPanel>
-              <TextBlock Text="Пакет" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+              <TextBlock Text="Сборка" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
               <TextBlock DockPanel.Dock="Right" Text="{Binding PackageEditor.PackageCompositionSummary}"
                          Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"
                          VerticalAlignment="Center" Margin="12,0,0,0"
@@ -396,9 +618,9 @@
                 <ColumnDefinition Width="Auto"/>
               </Grid.ColumnDefinitions>
               <Button Grid.Column="0" Content="Новый" Command="{Binding PackageEditor.NewPackCommand}" Margin="0,0,8,0"
-                      ToolTip="Очистить пакет и начать заново"
-                      AutomationProperties.Name="Новый пакет"
-                      AutomationProperties.HelpText="Очистить пакет и начать заново"/>
+                      ToolTip="Очистить сборку и начать заново"
+                      AutomationProperties.Name="Новая сборка"
+                      AutomationProperties.HelpText="Очистить сборку и начать заново"/>
               <Button Grid.Column="1" Content="Собрать EXE" Command="{Binding BuildPackageCommand}"
                       Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"
                       ToolTip="Собрать автономный полевой EXE (Ctrl+B)"
@@ -417,16 +639,16 @@
                 <StackPanel Margin="0,8,0,0">
                   <TextBlock Text="Имя" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
                   <TextBox Text="{Binding PackageEditor.PackageName, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"
-                           AutomationProperties.Name="Имя пакета"/>
+                           AutomationProperties.Name="Имя сборки"/>
                   <TextBlock Text="Описание" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
                   <TextBox Text="{Binding PackageEditor.PackageDescription, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"
-                           AutomationProperties.Name="Описание пакета"/>
+                           AutomationProperties.Name="Описание сборки"/>
                   <TextBlock Text="Автор" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
                   <TextBox Text="{Binding PackageEditor.PackageAuthor, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,8"
-                           AutomationProperties.Name="Автор пакета"/>
+                           AutomationProperties.Name="Автор сборки"/>
                   <TextBlock Text="Версия" Foreground="{StaticResource Brush.TextSecondary}" FontSize="12"/>
                   <TextBox Text="{Binding PackageEditor.PackageVersion, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,4"
-                           AutomationProperties.Name="Версия пакета"/>
+                           AutomationProperties.Name="Версия сборки"/>
                 </StackPanel>
               </Expander>
 

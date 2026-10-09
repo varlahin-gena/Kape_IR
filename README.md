@@ -43,7 +43,7 @@
 
 | Компонент | Роль |
 |-----------|------|
-| **KapeIR** | Каталог Targets/Modules, фильтры, подсказки модулей, сессии, sync с GitHub KapeFiles, EZ Tools / Chainsaw |
+| **KapeIR** | Каталог Targets/Modules, фильтры, подсказки модулей, готовые сборки (CRUD), sync с GitHub KapeFiles, EZ Tools / Chainsaw |
 | **KapeIR.Triage** | Портативный сборщик: распаковка рядом с EXE, запуск `kape.exe`, GUI-прогресс или silent |
 | **Two-phase IR** | Phase 1 volatile → Phase 2 disk (RFC 3227 / Order of Volatility), Case ID, манифесты |
 
@@ -121,7 +121,7 @@ KAPE остаётся движком сбора; KapeIR — оболочка н�
 - Сборка автономного KapeIR.Triage (GUI + silent); **selective Modules\bin** — в пакет только нужные парсеры
 - Вкладка **«Утилиты»** — инвентаризация `Modules\bin`
 - **Перечитать каталог** / **Обновить с GitHub…** (KapeFiles, EZ Tools, Chainsaw)
-- Дерево compound, сессии
+- Дерево compound, готовые сборки (локальные compounds + sidecar)
 - Опциональная Authenticode-подпись (`KAPEPACK_SIGN_CERT`)
 
 ---

@@ -385,26 +385,27 @@ Targets:
     }
 }
 
-public class PackageSessionStoreTests
+public class PackageAssemblyStoreTests
 {
     [Fact]
-    public void SaveLoad_RoundTripsPackageDefinition()
+    public void SaveLocal_WritesCompoundsSidecar_AndRoundTripsIrFields()
     {
-        var root = Path.Combine(Path.GetTempPath(), "kape_sess_" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "kape_asm_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
             var pkg = new PackageDefinition
             {
-                Name = "SessionPack",
+                Name = "MyPack",
                 Description = "desc",
-                Author = "author",
+                Author = "analyst",
                 Version = "2.1",
                 Tsource = "D:",
                 ZipOutput = false,
-                Flush = true,
                 Vss = true,
                 Notes = "note",
+                CollectionMode = IrCollectionMode.TwoPhase,
+                CaseId = "IR-9",
                 Targets =
                 {
                     new SelectionEntry { Name = "T1", Category = "Apps", Path = "T1.tkape", Comments = "c" }
@@ -415,26 +416,103 @@ public class PackageSessionStoreTests
                 }
             };
 
-            PackageSessionStore.Save(root, "My Session!", pkg);
-            Assert.Contains("My_Session", PackageSessionStore.ListSessionNames(root));
+            var saved = PackageAssemblyStore.SaveLocal(root, pkg);
+            Assert.False(saved.CreatedLocalCopy);
+            Assert.True(File.Exists(saved.TargetFile));
+            Assert.True(File.Exists(saved.ModuleFile!));
+            Assert.True(File.Exists(saved.SidecarFile));
+            Assert.StartsWith("KapeIR", saved.Package.Author, StringComparison.OrdinalIgnoreCase);
 
-            var loaded = PackageSessionStore.Load(root, "My Session!");
-            Assert.Equal("SessionPack", loaded.Name);
-            Assert.Equal("desc", loaded.Description);
-            Assert.Equal("author", loaded.Author);
-            Assert.Equal("2.1", loaded.Version);
-            Assert.Equal("D:", loaded.Tsource);
-            Assert.False(loaded.ZipOutput);
-            Assert.True(loaded.Flush);
-            Assert.True(loaded.Vss);
-            Assert.Equal("note", loaded.Notes);
-            Assert.Single(loaded.Targets);
-            Assert.Equal("T1", loaded.Targets[0].Name);
-            Assert.Equal("Apps", loaded.Targets[0].Category);
-            Assert.Single(loaded.Modules);
+            var fromYaml = KapeCompoundIo.PackageFromCompoundTarget(saved.TargetFile);
+            Assert.Equal("MyPack", fromYaml.Name);
+            Assert.Single(fromYaml.Targets);
 
-            Assert.True(PackageSessionStore.Delete(root, "My Session!"));
-            Assert.Empty(PackageSessionStore.ListSessionNames(root));
+            PackageAssemblyStore.MergeSidecarIntoPackage(fromYaml, root);
+            Assert.Equal("D:", fromYaml.Tsource);
+            Assert.False(fromYaml.ZipOutput);
+            Assert.True(fromYaml.Vss);
+            Assert.Equal("note", fromYaml.Notes);
+            Assert.Equal(IrCollectionMode.TwoPhase, fromYaml.CollectionMode);
+            Assert.Equal("IR-9", fromYaml.CaseId);
+
+            Assert.True(PackageAssemblyStore.DeleteLocal(root, "MyPack"));
+            Assert.False(File.Exists(saved.TargetFile));
+            Assert.False(File.Exists(saved.SidecarFile));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public void SaveLocal_ForksWhenUpstreamPathListed()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_fork_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Targets", "Compound"));
+        Directory.CreateDirectory(Path.Combine(root, "PackBuilder"));
+        try
+        {
+            var ghPath = Path.Combine(root, "Targets", "Compound", "StockPack.tkape");
+            File.WriteAllText(ghPath, "Description: stock\nAuthor: EZ\nVersion: 1.0\nId: " + Guid.NewGuid() + "\nRecreateDirectories: true\nTargets:\n");
+            GitHubKapeFilesSync.WriteUpstreamPaths(root, new[] { "Targets/Compound/StockPack.tkape" });
+
+            var pkg = new PackageDefinition
+            {
+                Name = "StockPack",
+                Description = "edited",
+                Targets = { new SelectionEntry { Name = "T1", Path = "T1.tkape", Category = "General" } }
+            };
+
+            var saved = PackageAssemblyStore.SaveLocal(root, pkg);
+            Assert.True(saved.CreatedLocalCopy);
+            Assert.Equal("StockPack_Local", saved.Package.Name);
+            Assert.True(File.Exists(ghPath));
+            Assert.True(File.Exists(saved.TargetFile));
+            Assert.Contains("StockPack_Local", saved.TargetFile, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("stock", File.ReadAllText(ghPath).Split('\n')[0].Replace("Description: ", "").Trim());
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public void DeleteLocal_RefusesUpstream()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_del_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Targets", "Compound"));
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(root, "Targets", "Compound", "GhOnly.tkape"),
+                "Description: x\nAuthor: EZ\nVersion: 1.0\nId: " + Guid.NewGuid() + "\nRecreateDirectories: true\nTargets:\n");
+            GitHubKapeFilesSync.WriteUpstreamPaths(root, new[] { "Targets/Compound/GhOnly.tkape" });
+
+            Assert.Throws<InvalidOperationException>(() => PackageAssemblyStore.DeleteLocal(root, "GhOnly"));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public void MigrateSessions_CopiesMissingSidecars()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_mig_" + Guid.NewGuid().ToString("N"));
+        var sessions = Path.Combine(root, "PackBuilder", "sessions");
+        Directory.CreateDirectory(sessions);
+        try
+        {
+            File.WriteAllText(Path.Combine(sessions, "OldSess.json"),
+                """{"name":"OldSess","description":"","author":"a","version":"1.0","targets":[],"modules":[]}""");
+
+            var n = PackageAssemblyStore.MigrateSessionsIfNeeded(root);
+            Assert.Equal(1, n);
+            Assert.True(File.Exists(PackageAssemblyStore.SidecarPath(root, "OldSess")));
+            Assert.Equal(0, PackageAssemblyStore.MigrateSessionsIfNeeded(root));
         }
         finally
         {

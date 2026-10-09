@@ -59,6 +59,25 @@ public sealed class CatalogOpsFacade : ICatalogOpsFacade
             }
         }
 
+        var root = catalog.KapeRoot;
+        if (!string.IsNullOrWhiteSpace(root))
+        {
+            PackageAssemblyStore.MigrateSessionsIfNeeded(root);
+            PackageAssemblyStore.MergeSidecarIntoPackage(loaded, root);
+        }
+
         return loaded;
+    }
+
+    public SaveAssemblyResult SaveLocalAssembly(string kapeRoot, PackageDefinition pkg, bool forceLocalCopy = false)
+    {
+        PackageAssemblyStore.MigrateSessionsIfNeeded(kapeRoot);
+        return PackageAssemblyStore.SaveLocal(kapeRoot, pkg, forceLocalCopy: forceLocalCopy);
+    }
+
+    public bool DeleteLocalAssembly(string kapeRoot, string name)
+    {
+        PackageAssemblyStore.MigrateSessionsIfNeeded(kapeRoot);
+        return PackageAssemblyStore.DeleteLocal(kapeRoot, name);
     }
 }

@@ -103,7 +103,7 @@ public class EvidenceWrapUpTests
     {
         var text = string.Join('\n', EvidenceWrapUp.PostCollectionChecklistRu);
         Assert.Contains("collection_log.txt", text);
-        Assert.Contains("TimeZone", text);
+        Assert.Contains("Часовой пояс", text);
         Assert.Contains("evidence_manifest.sha256", text);
         Assert.Contains("findings_template.csv", text);
         Assert.True(EvidenceWrapUp.PostCollectionChecklistRu.Count >= 6);

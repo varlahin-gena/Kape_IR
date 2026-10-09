@@ -66,8 +66,8 @@ public partial class MainViewModel
         if (Directory.Exists(packageDirPreview))
         {
             if (!_dialogs.Confirm(
-                    $"Папка пакета уже существует и будет полностью удалена:\n{packageDirPreview}\n\nПродолжить?",
-                    "Перезапись пакета",
+                    $"Папка сборки уже существует и будет полностью удалена:\n{packageDirPreview}\n\nПродолжить?",
+                    "Перезапись сборки",
                     DialogIcon.Warning))
                 return;
             overwriteExisting = true;
@@ -113,7 +113,7 @@ public partial class MainViewModel
                 "Сборка завершена");
             StatusText = result.StandaloneExe is not null
                 ? $"Собран EXE: {Path.GetFileName(result.StandaloneExe)}"
-                : $"Собран пакет: {Package.Name}";
+                : $"EXE готов: {Package.Name}";
             await Catalog.ReloadCatalogAsync(promptIfMissing: true);
         }
         catch (OperationCanceledException)

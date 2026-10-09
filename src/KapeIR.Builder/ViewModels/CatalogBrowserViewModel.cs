@@ -18,6 +18,8 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     private readonly IUiDebounce _targetSearchDebounce;
     private readonly IUiDebounce _moduleSearchDebounce;
     private readonly IUiDebounce _treeSearchDebounce;
+    private readonly IUiDebounce _packSearchDebounce;
+    private readonly IUiDebounce _colFilterDebounce;
     private CancellationTokenSource? _catalogReloadCts;
     private bool _disposed;
 
@@ -25,6 +27,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
 
     [ObservableProperty] private string _targetSearch = "";
     [ObservableProperty] private string _moduleSearch = "";
+    [ObservableProperty] private string _packSearch = "";
     [ObservableProperty] private string _treeSearch = "";
     [ObservableProperty] private string _targetFilter = "Все";
     [ObservableProperty] private string _moduleFilter = "Все";
@@ -34,12 +37,42 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     [ObservableProperty] private string _treeStats = "";
     [ObservableProperty] private bool _hasDocumentationLinks;
 
+    [ObservableProperty] private string _targetColFilterName = "";
+    [ObservableProperty] private string _targetColFilterOrigin = "";
+    [ObservableProperty] private string _targetColFilterMeta = "";
+    [ObservableProperty] private string _moduleColFilterName = "";
+    [ObservableProperty] private string _moduleColFilterOrigin = "";
+    [ObservableProperty] private string _moduleColFilterMeta = "";
+    [ObservableProperty] private string _packColFilterName = "";
+    [ObservableProperty] private string _packColFilterRole = "";
+    [ObservableProperty] private string _packColFilterChildren = "";
+    [ObservableProperty] private string _packColFilterUsedBy = "";
+    [ObservableProperty] private string _packColFilterOrigin = "";
+    [ObservableProperty] private string _packColFilterDescription = "";
+
+    private readonly ColumnSortState _targetSort = new();
+    private readonly ColumnSortState _moduleSort = new();
+    private readonly ColumnSortState _packSort = new();
+
     public ObservableCollection<CatalogRowVm> TargetRows { get; } = new();
     public ObservableCollection<CatalogRowVm> ModuleRows { get; } = new();
     public ObservableCollection<CatalogRowVm> ExistingPacks { get; } = new();
     public ObservableCollection<TreeNodeVm> TreeRoots { get; } = new();
     public ObservableCollection<string> DocumentationLinks { get; } = new();
     public List<string> FilterOptions { get; } = new() { "Все", "Только выбранные", "Только compound", "Только leaf" };
+
+    public string TargetSortNameHeader => _targetSort.Label("Имя", "Name");
+    public string TargetSortOriginHeader => _targetSort.Label("Источник", "Origin");
+    public string TargetSortMetaHeader => _targetSort.Label("Категория / путь", "Meta");
+    public string ModuleSortNameHeader => _moduleSort.Label("Имя", "Name");
+    public string ModuleSortOriginHeader => _moduleSort.Label("Источник", "Origin");
+    public string ModuleSortMetaHeader => _moduleSort.Label("Категория / путь", "Meta");
+    public string PackSortNameHeader => _packSort.Label("Имя", "Name");
+    public string PackSortRoleHeader => _packSort.Label("Роль", "Role");
+    public string PackSortChildrenHeader => _packSort.Label("Детей", "Children");
+    public string PackSortUsedByHeader => _packSort.Label("Используется в", "UsedBy");
+    public string PackSortOriginHeader => _packSort.Label("Источник", "Origin");
+    public string PackSortDescriptionHeader => _packSort.Label("Описание", "Description");
 
     internal CatalogBrowserViewModel(IBuilderShell shell, ILogger logger)
     {
@@ -48,14 +81,29 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         var delay = IUiScheduler.DefaultDebounceDelay;
         _targetSearchDebounce = _shell.Ui.CreateDebounce(delay);
         _moduleSearchDebounce = _shell.Ui.CreateDebounce(delay);
+        _packSearchDebounce = _shell.Ui.CreateDebounce(delay);
         _treeSearchDebounce = _shell.Ui.CreateDebounce(delay);
+        _colFilterDebounce = _shell.Ui.CreateDebounce(delay);
     }
 
     partial void OnTargetSearchChanged(string value) => _targetSearchDebounce.Schedule(RefreshTargetRows);
     partial void OnModuleSearchChanged(string value) => _moduleSearchDebounce.Schedule(RefreshModuleRows);
+    partial void OnPackSearchChanged(string value) => _packSearchDebounce.Schedule(RefreshExisting);
     partial void OnTreeSearchChanged(string value) => _treeSearchDebounce.Schedule(RebuildTree);
     partial void OnTargetFilterChanged(string value) => RefreshTargetRows();
     partial void OnModuleFilterChanged(string value) => RefreshModuleRows();
+    partial void OnTargetColFilterNameChanged(string value) => _colFilterDebounce.Schedule(RefreshTargetRows);
+    partial void OnTargetColFilterOriginChanged(string value) => _colFilterDebounce.Schedule(RefreshTargetRows);
+    partial void OnTargetColFilterMetaChanged(string value) => _colFilterDebounce.Schedule(RefreshTargetRows);
+    partial void OnModuleColFilterNameChanged(string value) => _colFilterDebounce.Schedule(RefreshModuleRows);
+    partial void OnModuleColFilterOriginChanged(string value) => _colFilterDebounce.Schedule(RefreshModuleRows);
+    partial void OnModuleColFilterMetaChanged(string value) => _colFilterDebounce.Schedule(RefreshModuleRows);
+    partial void OnPackColFilterNameChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
+    partial void OnPackColFilterRoleChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
+    partial void OnPackColFilterChildrenChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
+    partial void OnPackColFilterUsedByChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
+    partial void OnPackColFilterOriginChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
+    partial void OnPackColFilterDescriptionChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
     partial void OnTreeSharedOnlyChanged(bool value) => RebuildTree();
     partial void OnTreeIsTargetsChanged(bool value)
     {
@@ -170,6 +218,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         _shell.StatusText = "Сканирование каталога…";
         try
         {
+            PackageAssemblyStore.MigrateSessionsIfNeeded(root);
             var stats = await Task.Run(() =>
             {
                 ct.ThrowIfCancellationRequested();
@@ -307,7 +356,9 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         {
             CatalogUiHelpers.FillObservable(
                 TargetRows,
-                CatalogUiHelpers.BuildFilteredRows(Catalog, ItemKind.Target, TargetSearch, TargetFilter, _shell.Package.Targets));
+                CatalogUiHelpers.BuildFilteredRows(
+                    Catalog, ItemKind.Target, TargetSearch, TargetFilter, _shell.Package.Targets,
+                    TargetColFilterName, TargetColFilterOrigin, TargetColFilterMeta, _targetSort));
         }
     }
 
@@ -317,13 +368,77 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         {
             CatalogUiHelpers.FillObservable(
                 ModuleRows,
-                CatalogUiHelpers.BuildFilteredRows(Catalog, ItemKind.Module, ModuleSearch, ModuleFilter, _shell.Package.Modules));
+                CatalogUiHelpers.BuildFilteredRows(
+                    Catalog, ItemKind.Module, ModuleSearch, ModuleFilter, _shell.Package.Modules,
+                    ModuleColFilterName, ModuleColFilterOrigin, ModuleColFilterMeta, _moduleSort));
         }
     }
 
     private void RefreshExisting()
     {
-        CatalogUiHelpers.FillObservable(ExistingPacks, CatalogUiHelpers.BuildExistingPackRows(Catalog));
+        CatalogUiHelpers.FillObservable(
+            ExistingPacks,
+            CatalogUiHelpers.BuildExistingPackRows(
+                Catalog,
+                PackSearch,
+                PackColFilterName,
+                PackColFilterRole,
+                PackColFilterChildren,
+                PackColFilterUsedBy,
+                PackColFilterOrigin,
+                PackColFilterDescription,
+                _packSort));
+    }
+
+    [RelayCommand]
+    private void SortTargets(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+        _targetSort.Toggle(key);
+        NotifyTargetSortHeaders();
+        RefreshTargetRows();
+    }
+
+    [RelayCommand]
+    private void SortModules(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+        _moduleSort.Toggle(key);
+        NotifyModuleSortHeaders();
+        RefreshModuleRows();
+    }
+
+    [RelayCommand]
+    private void SortPacks(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+        _packSort.Toggle(key);
+        NotifyPackSortHeaders();
+        RefreshExisting();
+    }
+
+    private void NotifyTargetSortHeaders()
+    {
+        OnPropertyChanged(nameof(TargetSortNameHeader));
+        OnPropertyChanged(nameof(TargetSortOriginHeader));
+        OnPropertyChanged(nameof(TargetSortMetaHeader));
+    }
+
+    private void NotifyModuleSortHeaders()
+    {
+        OnPropertyChanged(nameof(ModuleSortNameHeader));
+        OnPropertyChanged(nameof(ModuleSortOriginHeader));
+        OnPropertyChanged(nameof(ModuleSortMetaHeader));
+    }
+
+    private void NotifyPackSortHeaders()
+    {
+        OnPropertyChanged(nameof(PackSortNameHeader));
+        OnPropertyChanged(nameof(PackSortRoleHeader));
+        OnPropertyChanged(nameof(PackSortChildrenHeader));
+        OnPropertyChanged(nameof(PackSortUsedByHeader));
+        OnPropertyChanged(nameof(PackSortOriginHeader));
+        OnPropertyChanged(nameof(PackSortDescriptionHeader));
     }
 
     public void RebuildTree()
@@ -421,7 +536,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     private void UpdateTreeStats(ItemKind kind, HashSet<string> keys)
     {
         var count = kind == ItemKind.Target ? _shell.Package.Targets.Count : _shell.Package.Modules.Count;
-        TreeStats = $"В пакете {(kind == ItemKind.Target ? "таргетов" : "модулей")}: {count}";
+        TreeStats = $"В сборке {(kind == ItemKind.Target ? "таргетов" : "модулей")}: {count}";
     }
 
     public void ToggleCatalogRow(CatalogRowVm row, ItemKind kind)
@@ -529,7 +644,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         _shell.Selection.MergeEntries(_shell.Package, ItemKind.Module, chosen.Select(_shell.Selection.ToSelectionEntry));
         ModuleFilter = "Только выбранные";
         SyncAllViews();
-        _shell.StatusText = $"Добавлено модулей из подсказок: {chosen.Count} (в пакете {_shell.Package.Modules.Count})";
+        _shell.StatusText = $"Добавлено модулей из подсказок: {chosen.Count} (в сборке {_shell.Package.Modules.Count})";
     }
 
     [RelayCommand]
@@ -552,18 +667,22 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     {
         if (_shell.PackageEditor.SelectedExisting is null)
         {
-            _shell.Dialogs.ShowMessage("Сначала выберите compound-таргет.", "Загрузка");
+            _shell.Dialogs.ShowMessage("Сначала выберите готовую сборку.", "Загрузка");
             return;
         }
+        var selected = _shell.PackageEditor.SelectedExisting;
         var loaded = _shell.CatalogOps.LoadPackageFromCompound(
-            _shell.PackageEditor.SelectedExisting.Item.AbsolutePath,
+            selected.Item.AbsolutePath,
             Catalog);
         _shell.Package = loaded;
         _shell.PackageEditor.PushPackageToForm();
         TargetFilter = "Только выбранные";
         if (_shell.Package.Modules.Count > 0) ModuleFilter = "Только выбранные";
         SyncAllViews();
-        _shell.StatusText = $"Загружен {_shell.PackageEditor.SelectedExisting.Item.Name}: {_shell.Package.Targets.Count} таргетов, {_shell.Package.Modules.Count} модулей";
+        var origin = selected.Item.OriginLabel;
+        _shell.StatusText =
+            $"Загружен {selected.Item.Name} ({origin}): " +
+            $"{_shell.Package.Targets.Count} таргетов, {_shell.Package.Modules.Count} модулей";
     }
 
     [RelayCommand]
@@ -666,7 +785,9 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         _catalogReloadCts = null;
         _targetSearchDebounce.Dispose();
         _moduleSearchDebounce.Dispose();
+        _packSearchDebounce.Dispose();
         _treeSearchDebounce.Dispose();
+        _colFilterDebounce.Dispose();
         GC.SuppressFinalize(this);
     }
 }

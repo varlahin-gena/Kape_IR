@@ -292,12 +292,13 @@ public sealed class KapeCatalog
 
     private static IEnumerable<CatalogItem> Filter(IEnumerable<CatalogItem> items, string query, bool? compoundsOnly)
     {
-        var q = query.Trim().ToLowerInvariant();
+        // Top-bar catalog search matches Name only (column filters cover other fields).
+        var q = query.Trim();
         foreach (var item in items)
         {
             if (compoundsOnly == true && !item.IsCompound) continue;
             if (compoundsOnly == false && item.IsCompound) continue;
-            if (!string.IsNullOrEmpty(q) && !item.SearchBlob.Contains(q, StringComparison.Ordinal)) continue;
+            if (q.Length > 0 && !item.Name.Contains(q, StringComparison.OrdinalIgnoreCase)) continue;
             yield return item;
         }
     }

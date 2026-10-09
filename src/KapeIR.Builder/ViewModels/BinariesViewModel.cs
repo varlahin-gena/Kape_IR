@@ -24,6 +24,17 @@ public sealed partial class BinariesViewModel : ObservableObject, IDisposable
     [ObservableProperty] private BinaryRowVm? _selectedBinary;
     [ObservableProperty] private bool _isLoadingBinaries;
 
+    [ObservableProperty] private string _colFilterName = "";
+    [ObservableProperty] private string _colFilterCategory = "";
+    [ObservableProperty] private string _colFilterGroup = "";
+    [ObservableProperty] private string _colFilterVersion = "";
+    [ObservableProperty] private string _colFilterSize = "";
+    [ObservableProperty] private string _colFilterModified = "";
+    [ObservableProperty] private string _colFilterPath = "";
+
+    private readonly ColumnSortState _sort = new();
+    private readonly IUiDebounce _colFilterDebounce;
+
     public ObservableCollection<BinaryRowVm> BinaryRows { get; } = new();
     public List<string> BinaryFilterOptions { get; } = new()
     {
@@ -37,14 +48,30 @@ public sealed partial class BinariesViewModel : ObservableObject, IDisposable
         "Скрипты"
     };
 
+    public string SortNameHeader => _sort.Label("Имя", "Name");
+    public string SortCategoryHeader => _sort.Label("Категория", "Category");
+    public string SortGroupHeader => _sort.Label("Группа", "Group");
+    public string SortVersionHeader => _sort.Label("Версия", "Version");
+    public string SortSizeHeader => _sort.Label("Размер", "Size");
+    public string SortModifiedHeader => _sort.Label("Изменён", "Modified");
+    public string SortPathHeader => _sort.Label("Путь", "Path");
+
     internal BinariesViewModel(IBuilderShell shell)
     {
         _shell = shell ?? throw new ArgumentNullException(nameof(shell));
         _binarySearchDebounce = _shell.Ui.CreateDebounce(IUiScheduler.DefaultDebounceDelay);
+        _colFilterDebounce = _shell.Ui.CreateDebounce(IUiScheduler.DefaultDebounceDelay);
     }
 
     partial void OnBinarySearchChanged(string value) => _binarySearchDebounce.Schedule(RefreshBinaryRows);
     partial void OnBinaryFilterChanged(string value) => RefreshBinaryRows();
+    partial void OnColFilterNameChanged(string value) => _colFilterDebounce.Schedule(RefreshBinaryRows);
+    partial void OnColFilterCategoryChanged(string value) => _colFilterDebounce.Schedule(RefreshBinaryRows);
+    partial void OnColFilterGroupChanged(string value) => _colFilterDebounce.Schedule(RefreshBinaryRows);
+    partial void OnColFilterVersionChanged(string value) => _colFilterDebounce.Schedule(RefreshBinaryRows);
+    partial void OnColFilterSizeChanged(string value) => _colFilterDebounce.Schedule(RefreshBinaryRows);
+    partial void OnColFilterModifiedChanged(string value) => _colFilterDebounce.Schedule(RefreshBinaryRows);
+    partial void OnColFilterPathChanged(string value) => _colFilterDebounce.Schedule(RefreshBinaryRows);
 
     partial void OnSelectedBinaryChanged(BinaryRowVm? value)
     {
@@ -146,26 +173,43 @@ public sealed partial class BinariesViewModel : ObservableObject, IDisposable
             _ => list
         };
 
+        // Top search: Name only.
         if (q.Length > 0)
+            list = list.Where(i => i.Name.Contains(q, StringComparison.OrdinalIgnoreCase));
+
+        IEnumerable<BinaryRowVm> rows = list.Select(i => new BinaryRowVm(i));
+        rows = rows.Where(r =>
+            ColumnListOps.Matches(r.Name, ColFilterName) &&
+            ColumnListOps.Matches(r.Category, ColFilterCategory) &&
+            ColumnListOps.Matches(r.Group, ColFilterGroup) &&
+            ColumnListOps.Matches(r.VersionDisplay, ColFilterVersion) &&
+            ColumnListOps.Matches(r.SizeDisplay, ColFilterSize) &&
+            ColumnListOps.Matches(r.ModifiedDisplay, ColFilterModified) &&
+            ColumnListOps.Matches(r.RelativePath, ColFilterPath));
+
+        if (_sort is { Dir: not ColumnSortDir.None, Key: not null })
         {
-            list = list.Where(i =>
-                i.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                i.RelativePath.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                i.Category.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                (i.ProductName?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (i.Description?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                (i.FileVersion?.Contains(q, StringComparison.OrdinalIgnoreCase) ?? false));
+            rows = _sort.Key switch
+            {
+                "Name" => ColumnListOps.SortBy(rows, _sort, r => r.Name),
+                "Category" => ColumnListOps.SortBy(rows, _sort, r => r.Category),
+                "Group" => ColumnListOps.SortBy(rows, _sort, r => r.Group),
+                "Version" => ColumnListOps.SortBy(rows, _sort, r => r.VersionDisplay),
+                "Size" => ColumnListOps.SortByComparable(rows, _sort, r => r.Item.SizeBytes),
+                "Modified" => ColumnListOps.SortByComparable(rows, _sort, r => r.Item.ModifiedUtc),
+                "Path" => ColumnListOps.SortBy(rows, _sort, r => r.RelativePath),
+                _ => rows
+            };
         }
 
         var selectedPath = SelectedBinary?.Item.AbsolutePath;
         BinaryRows.Clear();
         BinaryRowVm? reselect = null;
-        foreach (var item in list)
+        foreach (var row in rows)
         {
-            var row = new BinaryRowVm(item);
             BinaryRows.Add(row);
             if (selectedPath is not null &&
-                item.AbsolutePath.Equals(selectedPath, StringComparison.OrdinalIgnoreCase))
+                row.Item.AbsolutePath.Equals(selectedPath, StringComparison.OrdinalIgnoreCase))
                 reselect = row;
         }
 
@@ -174,11 +218,27 @@ public sealed partial class BinariesViewModel : ObservableObject, IDisposable
             BinaryDetailText = "Нет строк по текущему фильтру/поиску.";
     }
 
+    [RelayCommand]
+    private void SortBinaries(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+        _sort.Toggle(key);
+        OnPropertyChanged(nameof(SortNameHeader));
+        OnPropertyChanged(nameof(SortCategoryHeader));
+        OnPropertyChanged(nameof(SortGroupHeader));
+        OnPropertyChanged(nameof(SortVersionHeader));
+        OnPropertyChanged(nameof(SortSizeHeader));
+        OnPropertyChanged(nameof(SortModifiedHeader));
+        OnPropertyChanged(nameof(SortPathHeader));
+        RefreshBinaryRows();
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _binarySearchDebounce.Dispose();
+        _colFilterDebounce.Dispose();
         GC.SuppressFinalize(this);
     }
 }

@@ -19,7 +19,11 @@ public static class CatalogUiHelpers
         ItemKind kind,
         string search,
         string filter,
-        IEnumerable<SelectionEntry> selection)
+        IEnumerable<SelectionEntry> selection,
+        string? colName = null,
+        string? colOrigin = null,
+        string? colMeta = null,
+        ColumnSortState? sort = null)
     {
         var compoundsOnly = ParseFilter(filter);
         var selectedOnly = filter == "Только выбранные";
@@ -31,13 +35,39 @@ public static class CatalogUiHelpers
         if (selectedOnly)
             items = items.Where(i => KapeCatalog.IsSelected(i, keys)).ToList();
 
-        return items.Select(i => new CatalogRowVm(i, KapeCatalog.IsSelected(i, keys))).ToList();
+        IEnumerable<CatalogRowVm> rows = items.Select(i => new CatalogRowVm(i, KapeCatalog.IsSelected(i, keys)));
+        rows = rows.Where(r =>
+            ColumnListOps.Matches(r.Item.Name, colName) &&
+            ColumnListOps.Matches(r.OriginLabel, colOrigin) &&
+            ColumnListOps.Matches(r.Meta, colMeta));
+
+        if (sort is { Dir: not ColumnSortDir.None, Key: not null })
+        {
+            rows = sort.Key switch
+            {
+                "Name" => ColumnListOps.SortBy(rows, sort, r => r.Item.Name),
+                "Origin" => ColumnListOps.SortBy(rows, sort, r => r.OriginLabel),
+                "Meta" => ColumnListOps.SortBy(rows, sort, r => r.Meta),
+                _ => rows
+            };
+        }
+
+        return rows.ToList();
     }
 
-    public static List<CatalogRowVm> BuildExistingPackRows(KapeCatalog catalog)
+    public static List<CatalogRowVm> BuildExistingPackRows(
+        KapeCatalog catalog,
+        string? nameSearch = null,
+        string? colName = null,
+        string? colRole = null,
+        string? colChildren = null,
+        string? colUsedBy = null,
+        string? colOrigin = null,
+        string? colDescription = null,
+        ColumnSortState? sort = null)
     {
         var rows = new List<CatalogRowVm>();
-        foreach (var c in catalog.Compounds(ItemKind.Target).OrderBy(c => c.Name))
+        foreach (var c in catalog.Compounds(ItemKind.Target))
         {
             var usedBy = catalog.IncludingCompounds(c.Name, ItemKind.Target);
             var direct = catalog.DirectParents(c.Name, ItemKind.Target);
@@ -48,7 +78,38 @@ public static class CatalogUiHelpers
                 usedBy: usedBy,
                 directParentCount: direct.Count));
         }
-        return rows;
+
+        IEnumerable<CatalogRowVm> filtered = rows;
+        if (!string.IsNullOrWhiteSpace(nameSearch))
+            filtered = filtered.Where(r => ColumnListOps.Matches(r.Item.Name, nameSearch));
+
+        filtered = filtered.Where(r =>
+            ColumnListOps.Matches(r.Item.Name, colName) &&
+            ColumnListOps.Matches(r.NestingRole, colRole) &&
+            ColumnListOps.Matches(r.ChildCount.ToString(), colChildren) &&
+            ColumnListOps.Matches(r.UsedByDisplay, colUsedBy) &&
+            ColumnListOps.Matches(r.OriginLabel, colOrigin) &&
+            ColumnListOps.Matches(r.Item.Description, colDescription));
+
+        if (sort is { Dir: not ColumnSortDir.None, Key: not null })
+        {
+            filtered = sort.Key switch
+            {
+                "Name" => ColumnListOps.SortBy(filtered, sort, r => r.Item.Name),
+                "Role" => ColumnListOps.SortBy(filtered, sort, r => r.NestingRole),
+                "Children" => ColumnListOps.SortByComparable(filtered, sort, r => r.ChildCount),
+                "UsedBy" => ColumnListOps.SortBy(filtered, sort, r => r.UsedByDisplay),
+                "Origin" => ColumnListOps.SortBy(filtered, sort, r => r.OriginLabel),
+                "Description" => ColumnListOps.SortBy(filtered, sort, r => r.Item.Description ?? ""),
+                _ => filtered.OrderBy(r => r.Item.Name, StringComparer.OrdinalIgnoreCase)
+            };
+        }
+        else
+        {
+            filtered = filtered.OrderBy(r => r.Item.Name, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return filtered.ToList();
     }
 
     public static List<TreeNodeVm> BuildTreeRoots(

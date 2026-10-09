@@ -14,7 +14,7 @@ public partial class SuggestionRowVm : ObservableObject
     public string Meta => $"{Suggestion.Score}  ·  {Suggestion.Module.Category}  ·  {Suggestion.Module.RelativePath}";
     public string Reason => Suggestion.Reason;
     public string Targets => string.Join(", ", Suggestion.MatchedTargets);
-    public string Already => Suggestion.AlreadySelected ? "уже в пакете" : "";
+    public string Already => Suggestion.AlreadySelected ? "уже в сборке" : "";
 
     public SuggestionRowVm(ModuleSuggestion suggestion, bool selected)
     {

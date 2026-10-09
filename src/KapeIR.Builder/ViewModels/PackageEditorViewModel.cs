@@ -45,77 +45,115 @@ public sealed partial class PackageEditorViewModel : ObservableObject
         _shell.Package = new PackageDefinition();
         PushPackageToForm();
         _shell.Catalog.SyncAllViews();
-        _shell.StatusText = "Новый пустой пакет";
+        _shell.StatusText = "Новая пустая сборка";
     }
 
     [RelayCommand]
-    private async Task SaveSessionAsync()
+    private async Task SaveAssemblyAsync()
     {
         PullFormToPackage();
         if (string.IsNullOrWhiteSpace(_shell.Package.Name))
         {
-            _shell.Dialogs.ShowMessage("Укажите имя пакета — оно станет именем сессии.", "Сессия");
+            _shell.Dialogs.ShowMessage("Укажите имя сборки.", "Сборка");
             return;
         }
 
         var root = await _shell.EnsureCatalogBoundToUiRootAsync();
         if (root is null) return;
 
-        var path = PackageSessionStore.SessionPath(root, _shell.Package.Name);
-        if (File.Exists(path) &&
-            !_shell.Dialogs.Confirm($"Перезаписать сессию «{PackageSessionStore.SafeSessionFileName(_shell.Package.Name)}»?", "Сессия"))
+        var forceCopy = SelectedExisting?.Item.Origin == CatalogOrigin.GitHub
+                        && string.Equals(
+                            SelectedExisting.Item.Name,
+                            _shell.Package.TargetCompoundName,
+                            StringComparison.OrdinalIgnoreCase);
+
+        var wouldFork = forceCopy
+                        || PackageAssemblyStore.WouldOverwriteUpstream(root, _shell.Package);
+        var targetPath = PackageAssemblyStore.TargetCompoundPath(root, _shell.Package.TargetCompoundName);
+        if (!wouldFork && File.Exists(targetPath) &&
+            !_shell.Dialogs.Confirm(
+                $"Перезаписать локальную сборку «{_shell.Package.TargetCompoundName}»?",
+                "Сборка"))
             return;
 
         try
         {
-            PackageSessionStore.Save(root, _shell.Package.Name, _shell.Package);
-            _shell.StatusText = $"Сессия сохранена (локальная): {PackageSessionStore.SafeSessionFileName(_shell.Package.Name)}";
-            _shell.Dialogs.ShowMessage(
-                $"Локальная сессия Pack Builder:\n{path}\n\nТаргетов: {_shell.Package.Targets.Count}, модулей: {_shell.Package.Modules.Count}",
-                "Сессия");
+            var result = _shell.CatalogOps.SaveLocalAssembly(root, _shell.Package, forceLocalCopy: forceCopy);
+            _shell.Package = result.Package;
+            PushPackageToForm();
+            await _shell.Catalog.ReloadCatalogAsync(promptIfMissing: false);
+
+            if (result.CreatedLocalCopy)
+            {
+                _shell.StatusText =
+                    $"Локальная копия: {result.PreviousName} → {result.Package.TargetCompoundName}";
+                _shell.Dialogs.ShowMessage(
+                    $"Сборка с GitHub не перезаписывается.\n" +
+                    $"Создана локальная копия «{result.Package.TargetCompoundName}».\n\n" +
+                    $"{result.TargetFile}",
+                    "Сборка");
+            }
+            else
+            {
+                _shell.StatusText =
+                    $"Сборка сохранена: {result.Package.TargetCompoundName} " +
+                    $"({result.Package.Targets.Count}t / {result.Package.Modules.Count}m)";
+            }
         }
         catch (Exception ex)
         {
-            _shell.Dialogs.ShowMessage(ex.Message, "Сессия", DialogIcon.Error);
+            _shell.Dialogs.ShowMessage(ex.Message, "Сборка", DialogIcon.Error);
         }
     }
 
     [RelayCommand]
-    private async Task LoadSessionAsync()
+    private async Task DeleteAssemblyAsync()
     {
-        var root = await _shell.EnsureCatalogBoundToUiRootAsync();
-        if (root is null) return;
-
-        var dir = PackageSessionStore.SessionsDir(root);
-        Directory.CreateDirectory(dir);
-        var names = PackageSessionStore.ListSessionNames(root);
-        if (names.Count == 0)
+        if (SelectedExisting is null)
         {
-            _shell.Dialogs.ShowMessage(
-                $"Нет сохранённых сессий в:\n{dir}\n\nСначала «Сохранить сессию».",
-                "Сессия");
+            _shell.Dialogs.ShowMessage("Сначала выберите сборку в списке.", "Удаление");
             return;
         }
 
-        var picked = _shell.Dialogs.PickOpenFile(
-            "Открыть сессию Pack Builder",
-            "Сессии (*.json)|*.json|Все файлы (*.*)|*.*",
-            dir);
-        if (picked is null) return;
+        if (SelectedExisting.Item.Origin == CatalogOrigin.GitHub)
+        {
+            _shell.Dialogs.ShowMessage(
+                "Сборки с GitHub удалять нельзя. Сохраните локальную копию и удалите её.",
+                "Удаление");
+            return;
+        }
+
+        if (SelectedExisting.Item.Origin != CatalogOrigin.Local)
+        {
+            _shell.Dialogs.ShowMessage(
+                "Удаление доступно только для локальных сборок (колонка «Источник»).\n" +
+                "Сначала «Обновить с GitHub…», чтобы метки стали точными, либо сохраните копию.",
+                "Удаление");
+            return;
+        }
+
+        var name = SelectedExisting.Item.Name;
+        if (!_shell.Dialogs.Confirm(
+                $"Удалить локальную сборку «{name}»?\n\nБудут удалены .tkape / companion _Modules.mkape и sidecar.",
+                "Удаление",
+                DialogIcon.Warning))
+            return;
+
+        var root = await _shell.EnsureCatalogBoundToUiRootAsync();
+        if (root is null) return;
 
         try
         {
-            // Prefer store load by name when file is under sessions dir; else package.json shape.
-            _shell.Package = _shell.CatalogOps.LoadPackageJson(picked);
-            PushPackageToForm();
-            _shell.Catalog.TargetFilter = _shell.Package.Targets.Count > 0 ? "Только выбранные" : "Все";
-            _shell.Catalog.ModuleFilter = _shell.Package.Modules.Count > 0 ? "Только выбранные" : "Все";
-            _shell.Catalog.SyncAllViews();
-            _shell.StatusText = $"Загружена локальная сессия: {_shell.Package.Name} ({_shell.Package.Targets.Count}t / {_shell.Package.Modules.Count}m)";
+            var deleted = _shell.CatalogOps.DeleteLocalAssembly(root, name);
+            SelectedExisting = null;
+            await _shell.Catalog.ReloadCatalogAsync(promptIfMissing: false);
+            _shell.StatusText = deleted
+                ? $"Удалена локальная сборка: {name}"
+                : $"Файлы сборки «{name}» не найдены";
         }
         catch (Exception ex)
         {
-            _shell.Dialogs.ShowMessage(ex.Message, "Сессия", DialogIcon.Error);
+            _shell.Dialogs.ShowMessage(ex.Message, "Удаление", DialogIcon.Error);
         }
     }
 

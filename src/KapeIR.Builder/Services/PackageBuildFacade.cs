@@ -64,7 +64,7 @@ public sealed class PackageBuildFacade : IPackageBuildFacade
         if (result.StandaloneExe is not null && File.Exists(result.StandaloneExe + ".sha256"))
             msg += $"\nSHA256: {result.StandaloneExe}.sha256\n";
         if (!string.IsNullOrEmpty(result.PackageDir))
-            msg += $"\nПапка пакета:\n{result.PackageDir}";
+            msg += $"\nПапка сборки:\n{result.PackageDir}";
         if (result.ZipFile is not null) msg += $"\nZIP: {result.ZipFile}";
         if (result.Warnings.Count > 0)
             msg += "\n\nПредупреждения:\n - " + string.Join("\n - ", result.Warnings.Take(12));

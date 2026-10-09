@@ -52,6 +52,9 @@ public static class KapeRootPaths
     public static string ExportsDir(string kapeRoot)
         => Path.Combine(PackBuilderDir(kapeRoot), "exports");
 
+    public static string AssembliesDir(string kapeRoot)
+        => Path.Combine(PackBuilderDir(kapeRoot), "assemblies");
+
     public static string StubCacheDir(string kapeRoot)
         => Path.Combine(PackBuilderDir(kapeRoot), "stub");
 
