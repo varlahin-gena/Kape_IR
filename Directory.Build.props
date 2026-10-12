@@ -1,9 +1,9 @@
 <Project>
   <PropertyGroup>
-    <KapePackVersion>1.8.8</KapePackVersion>
+    <KapePackVersion>1.9.0</KapePackVersion>
     <Version>$(KapePackVersion)</Version>
-    <AssemblyVersion>1.8.8.0</AssemblyVersion>
-    <FileVersion>1.8.8.0</FileVersion>
+    <AssemblyVersion>1.9.0.0</AssemblyVersion>
+    <FileVersion>1.9.0.0</FileVersion>
     <InformationalVersion>$(KapePackVersion)</InformationalVersion>
     <Product>KapeIR</Product>
     <AssemblyTitle>KapeIR</AssemblyTitle>

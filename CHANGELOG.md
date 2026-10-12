@@ -2,15 +2,20 @@
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-10-12
+
 ### Added
-- Builder **Справка → Справка**: окно с навигацией по разделам, поиском и Markdown (MdXaml); разделы про Builder/Triage, оценку, RESULTS, min requirements Chainsaw/Hayabusa, wrap-up файлы (в Triage GUI справки нет)
-- Builder «Обновить с GitHub…»: автоматическая установка/обновление **Hayabusa** + `config` + `rules` (~4500) в `Modules\bin\hayabusa\` (Yamato-Security releases, полный `win-x64` ZIP)
-- Triage journal: восстановление UTF-8 баннеров (Chainsaw box-art) при OEM-захвате stdout + снятие ANSI color codes
-- Triage: после **оценки объёма** (`--sim`) — короткий свод в конце журнала (найдено / к копированию / deferred)
+- Встроенный каталог **KapeIR** (Phase1 compounds/leaf + Hayabusa v41 + helper-скрипты): `Phase1CatalogSeeder` засевает корень KAPE при выборе / sync / two_phase export
+- `CatalogOrigin.KapeIR` — колонка «Источник»: GitHub / KapeIR / локальный
+- Опциональная фаза **1b (Vol3)**: `--skip-memory-analysis` / чекбокс «Без пост-анализа памяти» — дамп 1a остаётся
+- Toolkit: WinPmem, Volatility3, Phase1 live tools в «Обновить с GitHub…»
+- Справка Builder: разделы «Двухфазный IR / Phase1» и «Пост-анализ Event Logs» (желательно Chainsaw **и** Hayabusa)
+- Builder **Справка**: навигация по разделам, поиск, Markdown (с предыдущего цикла)
+- Sync Hayabusa exe+rules; triage journal UTF-8/ANSI; сводка после `--sim`
 
 ### Notes
-- Локальные модули Hayabusa **v4.1** (`Modules\Apps\Local\Hayabusa\*_v41.mkape`, compound `Hayabusa_Offline_v41`) — stock GitHub `.mkape` не меняются
-- Захват stdout kape.exe: UTF-8 по умолчанию (баннеры Chainsaw); sanitizer — fallback OEM→UTF-8
+- Модули Hayabusa **v4.1** — first-party KapeIR (не stock GitHub CLI)
+- Версия / Product = 1.9.0
 
 ## [1.8.8] — 2026-10-07
 
