@@ -5,10 +5,11 @@ namespace KapeIR.Builder.Tests;
 public class OperatorHelpContentTests
 {
     [Fact]
-    public void GetSections_LoadsAllEightMarkdownTopics()
+    public void GetSections_LoadsAllMarkdownTopics()
     {
         var sections = OperatorHelpContent.GetSections();
-        Assert.Equal(8, sections.Count);
+        Assert.Equal(9, sections.Count);
+        Assert.Contains(sections, s => s.Id == "03-phase1");
         Assert.Contains(sections, s => s.Id == "06-chainsaw-hayabusa");
         Assert.All(sections, s =>
         {
@@ -34,5 +35,16 @@ public class OperatorHelpContentTests
         Assert.Contains("Modules\\bin\\hayabusa", section.BodyMarkdown);
         Assert.Contains(".evtx", section.BodyMarkdown);
         Assert.Contains("dfir-timeline", section.BodyMarkdown);
+        Assert.Contains("оба", section.BodyMarkdown, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Phase1Section_ListsCompounds()
+    {
+        var section = OperatorHelpContent.GetSections()
+            .Single(s => s.Id == "03-phase1");
+        Assert.Contains("Phase1_VolatileFirst", section.BodyMarkdown);
+        Assert.Contains("Phase1_MemoryTriage", section.BodyMarkdown);
+        Assert.Contains("skip-memory-analysis", section.BodyMarkdown);
     }
 }
