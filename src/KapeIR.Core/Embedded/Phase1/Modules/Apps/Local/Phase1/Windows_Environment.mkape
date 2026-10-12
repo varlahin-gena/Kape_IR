@@ -1,0 +1,15 @@
+Description: Process environment variables snapshot
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.1
+Id: a1b2c3d4-e5f6-7890-ab12-cd34ef567805
+ExportFormat: txt
+Processors:
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -ExecutionPolicy Bypass -File "%kapeDirectory%\Modules\bin\Invoke-Utf8Capture.ps1" -Exe "cmd.exe" -Arguments "/c set" -OutputFile "%destinationDirectory%\environment_vars.txt"
+        ExportFormat: txt
+
+# Documentation
+# Captures current collector session environment (useful for PATH / attacker-set vars).
+# UTF-8 via Invoke-Utf8Capture.ps1.

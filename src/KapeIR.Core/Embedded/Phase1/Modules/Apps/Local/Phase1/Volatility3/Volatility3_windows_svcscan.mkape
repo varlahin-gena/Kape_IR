@@ -1,0 +1,16 @@
+Description: 'Volatility 3 offline — windows.svcscan'
+Category: Memory
+Author: KapeIR / digital-forensics
+Version: 1.0
+Id: b1c2d3e4-f5a6-4789-8abc-111111111014
+BinaryUrl: https://github.com/volatilityfoundation/volatility3/releases/download/v2.28.0/volatility3-win-exes-2.28.0.zip
+ExportFormat: csv
+Processors:
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -ExecutionPolicy Bypass -File "%kapeDirectory%\Modules\bin\Invoke-Volatility3Plugin.ps1" -SourceDirectory "%sourceDirectory%" -DestinationDirectory "%destinationDirectory%" -VolExe "%kapeDirectory%\Modules\bin\volatility3\vol.exe" -Plugin windows.svcscan -OutputFileName volatility3_svcscan.csv -Renderer csv
+        ExportFormat: csv
+
+# Documentation
+# Offline only (lab). Services from memory — compare to disk RegistryHives / sc.exe live.
+# Setup: Modules\bin\volatility3\README.txt

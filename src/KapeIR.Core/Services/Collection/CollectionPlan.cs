@@ -17,6 +17,11 @@ public static class CollectionPlan
         /// <summary>1, 2, or null for all phases.</summary>
         int? PhaseFilter = null,
         bool SkipMemory = false,
+        /// <summary>
+        /// Skip Phase 1b (Volatility3 triage/deep) while still collecting a RAM dump in 1a.
+        /// Implied when <see cref="SkipMemory"/> is true.
+        /// </summary>
+        bool SkipMemoryAnalysis = false,
         string? CaseIdOverride = null,
         /// <summary>
         /// Parent folder for RESULTS\&lt;host&gt;\… Absolute paths are passed to kape.
@@ -54,14 +59,15 @@ public static class CollectionPlan
                     ? PackageDefinition.DefaultPhase1Module
                     : cfg.Phase1Module.Trim());
 
-            // Prefer NoMemory compound when skip requested but Phase1 was already NoMemory.
-            if (rt.SkipMemory &&
-                phase1Name.Equals(PackageDefinition.DefaultPhase1Module, StringComparison.OrdinalIgnoreCase))
+            // Prefer NoMemory compound when skip requested but Phase1 was collect-with-memory.
+            if (rt.SkipMemory && PackageDefinition.IsPhase1CollectWithMemory(phase1Name))
                 phase1Name = PackageDefinition.DefaultPhase1ModuleNoMemory;
+
+            var phase1Volatile = resultsPrefix + @"RESULTS\%m\Phase1_Volatile";
 
             phases.Add(new Phase(
                 "1",
-                "Фаза 1 — оперативный сбор (память, сеть, процессы)",
+                "Фаза 1a — оперативный сбор (память, сеть, процессы)",
                 new KapeCliArgs.Options(
                     cfg.Tsource,
                     Target: null,
@@ -70,8 +76,42 @@ public static class CollectionPlan
                     Flush: cfg.Flush,
                     Vss: false,
                     Simulate: rt.Simulate,
-                    Mdest: resultsPrefix + @"RESULTS\%m\Phase1_Volatile",
+                    Mdest: phase1Volatile,
                     ModuleOnly: true)));
+
+            // Phase 1b — Vol3 post against collected dump (skipped when no dump or analysis opted out).
+            if (!rt.SkipMemory && !rt.SkipMemoryAnalysis)
+            {
+                phases.Add(new Phase(
+                    "1b-triage",
+                    "Фаза 1b — Volatility3 triage (MemoryAnalysis)",
+                    new KapeCliArgs.Options(
+                        cfg.Tsource,
+                        Target: null,
+                        Module: PackageDefinition.DefaultPhase1MemoryTriage,
+                        ZipOutput: false,
+                        Flush: false,
+                        Vss: false,
+                        Simulate: rt.Simulate,
+                        Mdest: phase1Volatile + @"\MemoryAnalysis",
+                        Msource: phase1Volatile,
+                        ModuleOnly: true)));
+
+                phases.Add(new Phase(
+                    "1b-deep",
+                    "Фаза 1b — Volatility3 deep (MemoryDeep)",
+                    new KapeCliArgs.Options(
+                        cfg.Tsource,
+                        Target: null,
+                        Module: PackageDefinition.DefaultPhase1MemoryDeep,
+                        ZipOutput: false,
+                        Flush: false,
+                        Vss: false,
+                        Simulate: rt.Simulate,
+                        Mdest: phase1Volatile + @"\MemoryDeep",
+                        Msource: phase1Volatile,
+                        ModuleOnly: true)));
+            }
 
             var phase2Module = string.IsNullOrWhiteSpace(cfg.Phase2Module) ? null : cfg.Phase2Module.Trim();
             phases.Add(new Phase(
@@ -115,10 +155,26 @@ public static class CollectionPlan
         }
 
         if (rt.PhaseFilter is 1 or 2 && cfg.CollectionMode == IrCollectionMode.TwoPhase)
-            return phases.Where(p => p.Name == rt.PhaseFilter.Value.ToString()).ToList();
+        {
+            return phases.Where(p => MatchesPhaseFilter(p.Name, rt.PhaseFilter.Value)).ToList();
+        }
 
         return phases;
     }
+
+    /// <summary>--phase 1 includes 1a + 1b-*; --phase 2 is disk only.</summary>
+    public static bool MatchesPhaseFilter(string phaseName, int filter)
+    {
+        if (filter == 2)
+            return phaseName.Equals("2", StringComparison.Ordinal);
+        if (filter == 1)
+            return phaseName.Equals("1", StringComparison.Ordinal) ||
+                   phaseName.StartsWith("1b", StringComparison.OrdinalIgnoreCase);
+        return true;
+    }
+
+    public static bool IsPhase1b(string phaseName)
+        => phaseName.StartsWith("1b", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Absolute prefix ending with '\' for tdest/mdest, or empty for package-relative RESULTS.

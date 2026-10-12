@@ -1,0 +1,15 @@
+Description: Hayabusa v4.1+ offline logon-summary (-U instead of --UTC)
+Category: EventLogs
+Author: KapeIR
+Version: 1.0
+Id: a1b2c3d4-e5f6-4789-a012-3456789abc03
+BinaryUrl: https://github.com/Yamato-Security/hayabusa/releases
+ExportFormat: csv
+Processors:
+    -
+        Executable: hayabusa\hayabusa.exe
+        CommandLine: logon-summary -d %sourceDirectory% -U -o %destinationDirectory%\hayabusa_logon_summary_offline_v41.csv
+        ExportFormat: csv
+
+# Documentation
+# Local copy for Hayabusa 4.1+ (stock module still uses --UTC).

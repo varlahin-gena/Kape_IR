@@ -38,8 +38,21 @@ public class SilentCollectionHostTests
         Assert.Equal("CASE-1", o.CaseId);
         Assert.Equal(1, o.Phase);
         Assert.True(o.SkipMemory);
+        Assert.False(o.SkipMemoryAnalysis);
         Assert.True(o.VerifySha256);
         Assert.Equal("x.log", o.LogPath);
+        Assert.Empty(o.Errors);
+    }
+
+    [Fact]
+    public void RunnerCliOptions_Parse_SkipMemoryAnalysis()
+    {
+        var o = RunnerCliOptions.Parse(new[]
+        {
+            "--silent", "--tsource", "C:", "--skip-memory-analysis"
+        });
+        Assert.True(o.SkipMemoryAnalysis);
+        Assert.False(o.SkipMemory);
         Assert.Empty(o.Errors);
     }
 }

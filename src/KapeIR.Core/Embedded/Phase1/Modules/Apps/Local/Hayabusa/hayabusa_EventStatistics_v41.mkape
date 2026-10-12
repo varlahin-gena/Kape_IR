@@ -1,0 +1,15 @@
+Description: Hayabusa v4.1+ eid-metrics (offline) (-U instead of --UTC)
+Category: EventLogs
+Author: KapeIR
+Version: 1.0
+Id: a1b2c3d4-e5f6-4789-a012-3456789abc04
+BinaryUrl: https://github.com/Yamato-Security/hayabusa/releases
+ExportFormat: csv
+Processors:
+    -
+        Executable: hayabusa\hayabusa.exe
+        CommandLine: eid-metrics -d %sourceDirectory% -U -o %destinationDirectory%\hayabusa_event_statistics_v41.csv
+        ExportFormat: csv
+
+# Documentation
+# Local copy for Hayabusa 4.1+ (stock hayabusa_EventStatistics.mkape still uses --UTC).

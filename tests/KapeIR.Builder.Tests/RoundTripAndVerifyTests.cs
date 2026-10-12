@@ -59,7 +59,12 @@ public class PackageJsonRoundTripTests
             },
             Modules =
             {
-                new SelectionEntry { Name = "VolatileFirst", Category = "LiveResponse", Path = "VolatileFirst.mkape" },
+                new SelectionEntry
+                {
+                    Name = PackageDefinition.DefaultPhase1Module,
+                    Category = "LiveResponse",
+                    Path = PackageDefinition.DefaultPhase1Module + ".mkape"
+                },
                 new SelectionEntry { Name = "AmcacheParser", Category = "EZTools", Path = "AmcacheParser.mkape" }
             }
         };
@@ -91,16 +96,18 @@ public class PackageJsonRoundTripTests
         var phases = CollectionPlan.BuildPhases(
             manifest,
             new CollectionPlan.RuntimeOptions("E:", Simulate: false));
-        Assert.Equal(2, phases.Count);
+        Assert.Equal(4, phases.Count);
         Assert.Equal("1", phases[0].Name);
-        Assert.Equal("2", phases[1].Name);
+        Assert.Equal("1b-triage", phases[1].Name);
+        Assert.Equal("1b-deep", phases[2].Name);
+        Assert.Equal("2", phases[3].Name);
 
         var p1 = KapeCliArgs.Build(phases[0].Options);
         Assert.Contains("--module", p1);
         Assert.Contains(PackageDefinition.DefaultPhase1Module, p1);
         Assert.DoesNotContain("--target", p1);
 
-        var p2 = KapeCliArgs.Build(phases[1].Options);
+        var p2 = KapeCliArgs.Build(phases[3].Options);
         Assert.Contains("--target", p2);
         Assert.Contains("IrRoundTrip", p2);
         Assert.Contains("--tsource", p2);

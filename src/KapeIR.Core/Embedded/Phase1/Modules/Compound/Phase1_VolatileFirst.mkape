@@ -1,0 +1,38 @@
+Description: 'Phase 1a — IR volatile collect: memory → network → processes → sessions → system snapshot (RFC 3227)'
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.1
+Id: c3d4e5f6-a7b8-9012-cd34-ef5678901222
+ExportFormat: txt
+Processors:
+    -
+        Executable: Velocidex_WinPmem.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: LiveResponse_NetworkDetails.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: LiveResponse_ProcessDetails.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: LiveResponse_NetSystemInfo.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: LiveResponse_SystemSnapshot.mkape
+        CommandLine: ""
+        ExportFormat: ""
+
+# Documentation
+# Phase 1a (live collect) for two_phase IR. KapeIR.Triage then runs Phase 1b
+# (Phase1_MemoryTriage + Phase1_MemoryDeep) against Phase1_Volatile when a dump exists.
+#
+# Requires signed go-winpmem as Modules\bin\winpmem.exe (see Velocidex_WinPmem.mkape).
+# Live console modules may use Modules\bin\Invoke-Utf8Capture.ps1.
+# Without RAM: Phase1_VolatileFirst_NoMemory.mkape / --skip-memory.
+#
+# Example:
+#   kape.exe --msource C: --mdest D:\evidence\Phase1_Volatile --module Phase1_VolatileFirst

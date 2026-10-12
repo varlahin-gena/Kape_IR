@@ -1,0 +1,43 @@
+Description: 'Phase 1b — Volatility 3 offline triage: info, pslist, psscan, pstree, netscan, cmdline, malfind (no dump)'
+Category: Memory
+Author: KapeIR / digital-forensics
+Version: 1.1
+Id: b1c2d3e4-f5a6-4789-8abc-111111111000
+BinaryUrl: https://github.com/volatilityfoundation/volatility3/releases/download/v2.28.0/volatility3-win-exes-2.28.0.zip
+ExportFormat: csv
+Processors:
+    -
+        Executable: Volatility3_windows_info.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_pslist.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_psscan.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_pstree.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_netscan.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_cmdline.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_malfind.mkape
+        CommandLine: ""
+        ExportFormat: ""
+
+# Documentation
+# Auto-run by KapeIR.Triage after Phase1_VolatileFirst when memory.raw/memory.dmp exists.
+# msource = RESULTS\<host>\Phase1_Volatile ; mdest = …\Phase1_Volatile\MemoryAnalysis
+#
+# Binary: Modules\bin\volatility3\vol.exe + Invoke-Volatility3Plugin.ps1
+# Leaf modules: Modules\Apps\Local\Phase1\Volatility3\

@@ -1,0 +1,19 @@
+Description: Hayabusa v4.1+ offline timeline — verbose profile, min-level high (triage focus)
+Category: EventLogs
+Author: KapeIR
+Version: 1.0
+Id: a1b2c3d4-e5f6-4789-a012-3456789abc02
+BinaryUrl: https://github.com/Yamato-Security/hayabusa/releases
+ExportFormat: csv
+Processors:
+    -
+        Executable: hayabusa\hayabusa.exe
+        CommandLine: dfir-timeline -d %sourceDirectory% -p verbose -w -q -U -m high -o %destinationDirectory%\hayabusa_events_offline_high_v41.csv
+        ExportFormat: csv
+    -
+        Executable: hayabusa\hayabusa.exe
+        CommandLine: dfir-timeline -d %sourceDirectory% -p verbose -w -q -U -m high -t jsonl -o %destinationDirectory%\hayabusa_events_offline_high_v41.jsonl
+        ExportFormat: json
+
+# Documentation
+# Local Hayabusa 4.1+ high/critical-focused offline hunt.

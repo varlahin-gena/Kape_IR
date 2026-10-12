@@ -80,9 +80,9 @@ public static class WinPmemBinaryGuard
     {
         WinPmemBinaryStatus.Missing => new[]
         {
-            "winpmem.exe не найден в Modules\\bin — фаза 1 (VolatileFirst) не снимет дамп памяти.",
+            "winpmem.exe не найден в Modules\\bin — фаза 1a (Phase1_VolatileFirst) не снимет дамп памяти.",
             "Скачайте " + SignedArtifactHint + " (BinaryUrl в Velocidex_WinPmem.mkape) и переименуйте в winpmem.exe.",
-            "Либо запустите с --skip-memory (модуль VolatileFirst_NoMemory)."
+            "Либо запустите с --skip-memory (модуль Phase1_VolatileFirst_NoMemory)."
         },
         WinPmemBinaryStatus.SuspectMini => new[]
         {

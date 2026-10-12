@@ -41,6 +41,12 @@ public static class ToolkitUpdateCoordinator
         progress?.Report("Проверка RegRipper plugins…");
         var regripper = RegRipperPluginRepair.Check(kapeRoot);
 
+        progress?.Report("Проверка Phase1 (каталог + WinPmem + Volatility3 + live tools)…");
+        var phase1Seed = Phase1CatalogSeeder.Peek(kapeRoot);
+        var winpmem = WinPmemInstaller.Check(kapeRoot);
+        var volatility3 = Volatility3Installer.Check(kapeRoot);
+        var phase1Live = Phase1LiveToolsInstaller.Check(kapeRoot);
+
         var sb = new StringBuilder();
         sb.AppendLine("=== Возможность обновления ===");
         sb.AppendLine();
@@ -81,13 +87,31 @@ public static class ToolkitUpdateCoordinator
         sb.AppendLine(regripper.NeedsRepair
             ? "   → докачать недостающие .pl / подчистить профили"
             : "   → согласовано");
+        sb.AppendLine();
+        sb.AppendLine("7) KapeIR (Phase1 + Hayabusa v41 каталог + WinPmem + Volatility3 + Sysinternals/scripts)");
+        sb.AppendLine("   " + phase1Seed.Message);
+        sb.AppendLine("   " + winpmem.Message);
+        sb.AppendLine(winpmem.NeedsInstall
+            ? "   → скачать signed go-winpmem → Modules\\bin\\winpmem.exe"
+            : "   → WinPmem на месте");
+        sb.AppendLine("   " + volatility3.Message);
+        sb.AppendLine(volatility3.NeedsInstall
+            ? "   → скачать volatility3-win-exes → Modules\\bin\\volatility3\\"
+            : "   → Volatility3 на месте");
+        sb.AppendLine("   " + phase1Live.Message);
+        sb.AppendLine(phase1Live.NeedsInstall
+            ? "   → Sysinternals live + Get-*.ps1 → Modules\\bin\\"
+            : "   → live tools на месте");
 
         var anything = (kapefiles.Ok && cfgChanges > 0) || ez.NeedsUpdate || chainsaw.NeedsInstall
-                       || hayabusa.NeedsUpdate || dfirNtfs.NeedsInstall || regripper.NeedsRepair;
+                       || hayabusa.NeedsUpdate || dfirNtfs.NeedsInstall || regripper.NeedsRepair
+                       || winpmem.NeedsInstall || volatility3.NeedsInstall || phase1Live.NeedsInstall
+                       || !phase1Seed.SkippedUpToDate;
         return new ToolkitCheckReport
         {
             Ok = kapefiles.Ok || ez.Present.Count > 0 || chainsaw.Ok || hayabusa.Ok
-                 || dfirNtfs.Ok || regripper.Ok,
+                 || dfirNtfs.Ok || regripper.Ok || winpmem.Ok || volatility3.Ok
+                 || phase1Live.Ok || phase1Seed.Ok,
             AnythingToUpdate = anything,
             KapeFiles = kapefiles,
             EzTools = ez,
@@ -95,6 +119,10 @@ public static class ToolkitUpdateCoordinator
             Hayabusa = hayabusa,
             DfirNtfs = dfirNtfs,
             RegRipper = regripper,
+            WinPmem = winpmem,
+            Volatility3 = volatility3,
+            Phase1LiveTools = phase1Live,
+            Phase1Seed = phase1Seed,
             CachedKapeFilesZipPath = kapefiles.CachedZipPath,
             Summary = sb.ToString().TrimEnd()
         };
@@ -114,7 +142,19 @@ public static class ToolkitUpdateCoordinator
         HayabusaInstallResult? hayabusa = null;
         DfirNtfsInstallResult? dfirNtfs = null;
         RegRipperRepairResult? regripper = null;
+        Phase1CatalogSeeder.Result? phase1Seed = null;
+        WinPmemInstallResult? winpmem = null;
+        Volatility3InstallResult? volatility3 = null;
+        Phase1LiveToolsInstallResult? phase1Live = null;
         var ok = true;
+
+        if (options.SeedPhase1Catalog)
+        {
+            progress?.Report("Засев Phase1 каталога (встроенный)…");
+            phase1Seed = Phase1CatalogSeeder.Ensure(kapeRoot, force: options.ForcePhase1Seed);
+            messages.Add(phase1Seed.Message);
+            ok &= phase1Seed.Ok;
+        }
 
         if (options.UpdateKapeFiles)
         {
@@ -198,6 +238,33 @@ public static class ToolkitUpdateCoordinator
             ok &= regripper.Ok;
         }
 
+        if (options.UpdateWinPmem)
+        {
+            progress?.Report("Установка WinPmem…");
+            winpmem = await WinPmemInstaller.InstallAsync(kapeRoot, progress, ct, httpHandler)
+                .ConfigureAwait(false);
+            messages.Add(winpmem.Message);
+            ok &= winpmem.Ok;
+        }
+
+        if (options.UpdateVolatility3)
+        {
+            progress?.Report("Установка Volatility 3…");
+            volatility3 = await Volatility3Installer.InstallAsync(kapeRoot, progress, ct, httpHandler)
+                .ConfigureAwait(false);
+            messages.Add(volatility3.Message);
+            ok &= volatility3.Ok;
+        }
+
+        if (options.UpdatePhase1LiveTools)
+        {
+            progress?.Report("Установка Phase1 live tools (Sysinternals + scripts)…");
+            phase1Live = await Phase1LiveToolsInstaller.InstallAsync(kapeRoot, progress, ct, httpHandler)
+                .ConfigureAwait(false);
+            messages.Add(phase1Live.Message);
+            ok &= phase1Live.Ok;
+        }
+
         return new ToolkitApplyResult
         {
             Ok = ok,
@@ -207,7 +274,11 @@ public static class ToolkitUpdateCoordinator
             Chainsaw = chainsaw,
             Hayabusa = hayabusa,
             DfirNtfs = dfirNtfs,
-            RegRipper = regripper
+            RegRipper = regripper,
+            Phase1Seed = phase1Seed,
+            WinPmem = winpmem,
+            Volatility3 = volatility3,
+            Phase1LiveTools = phase1Live
         };
     }
 }
@@ -222,6 +293,10 @@ public sealed class ToolkitCheckReport
     public HayabusaStatus Hayabusa { get; init; } = new();
     public DfirNtfsStatus DfirNtfs { get; init; } = new();
     public RegRipperRepairStatus RegRipper { get; init; } = new();
+    public WinPmemStatus WinPmem { get; init; } = new();
+    public Volatility3Status Volatility3 { get; init; } = new();
+    public Phase1LiveToolsStatus Phase1LiveTools { get; init; } = new();
+    public Phase1CatalogSeeder.Result? Phase1Seed { get; init; }
     public string? CachedKapeFilesZipPath { get; init; }
     public string Summary { get; init; } = "";
 }
@@ -234,6 +309,11 @@ public sealed class ToolkitApplyOptions
     public bool UpdateHayabusa { get; init; } = true;
     public bool UpdateDfirNtfs { get; init; } = true;
     public bool RepairRegRipperPlugins { get; init; } = true;
+    public bool SeedPhase1Catalog { get; init; } = true;
+    public bool ForcePhase1Seed { get; init; }
+    public bool UpdateWinPmem { get; init; } = true;
+    public bool UpdateVolatility3 { get; init; } = true;
+    public bool UpdatePhase1LiveTools { get; init; } = true;
     public int EzNetVersion { get; init; } = 9;
     /// <summary>ZIP path from <see cref="ToolkitCheckReport.CachedKapeFilesZipPath"/>.</summary>
     public string? CachedKapeFilesZipPath { get; init; }
@@ -254,4 +334,8 @@ public sealed class ToolkitApplyResult
     public HayabusaInstallResult? Hayabusa { get; init; }
     public DfirNtfsInstallResult? DfirNtfs { get; init; }
     public RegRipperRepairResult? RegRipper { get; init; }
+    public Phase1CatalogSeeder.Result? Phase1Seed { get; init; }
+    public WinPmemInstallResult? WinPmem { get; init; }
+    public Volatility3InstallResult? Volatility3 { get; init; }
+    public Phase1LiveToolsInstallResult? Phase1LiveTools { get; init; }
 }

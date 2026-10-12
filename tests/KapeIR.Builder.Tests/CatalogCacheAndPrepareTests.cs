@@ -237,7 +237,7 @@ public class PackageFormMapperTests
             Name = "IR",
             CollectionMode = KapeIR.Core.Models.IrCollectionMode.TwoPhase,
             CaseId = "C-1",
-            Phase1ModuleName = "VolatileFirst"
+            Phase1ModuleName = KapeIR.Core.Models.PackageDefinition.DefaultPhase1Module
         };
         var form = PackageFormMapper.FromPackage(pkg);
         Assert.True(form.TwoPhase);

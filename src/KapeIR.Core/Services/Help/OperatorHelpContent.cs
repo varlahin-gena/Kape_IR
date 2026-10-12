@@ -12,10 +12,11 @@ public static class OperatorHelpContent
     {
         ("01-overview.md", "Обзор"),
         ("02-builder.md", "Builder"),
+        ("03-phase1.md", "Двухфазный IR / Phase1"),
         ("03-triage.md", "Triage и режимы"),
         ("04-estimate.md", "Оценка объёма"),
         ("05-results.md", "Папка RESULTS"),
-        ("06-chainsaw-hayabusa.md", "Chainsaw / Hayabusa"),
+        ("06-chainsaw-hayabusa.md", "Пост-анализ Event Logs"),
         ("07-wrapup-files.md", "Файлы после сбора"),
         ("08-checklist.md", "Чеклист"),
     };

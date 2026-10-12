@@ -15,5 +15,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Help\*.md" />
+    <!-- KapeIR catalog payload: Phase1 + Hayabusa v41 (seeded into any KAPE root). -->
+    <EmbeddedResource Include="Embedded\Phase1\**\*"
+                      LogicalName="Phase1\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

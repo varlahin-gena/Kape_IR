@@ -6,64 +6,113 @@ namespace KapeIR.Builder.Tests;
 public class CollectionPlanTests
 {
     [Fact]
-    public void TwoPhase_BuildsModuleOnlyThenDisk()
+    public void TwoPhase_BuildsCollectThenMemoryPostThenDisk()
     {
         var cfg = new CollectionPlan.LaunchManifest
         {
             Name = "IR",
             Tsource = "C:",
-            Target = "PSBCollection",
+            Target = "KapeTriage",
             CollectionMode = IrCollectionMode.TwoPhase,
-            Phase1Module = "VolatileFirst",
+            Phase1Module = PackageDefinition.DefaultPhase1Module,
             ZipOutput = true
         };
 
         var phases = CollectionPlan.BuildPhases(cfg, new CollectionPlan.RuntimeOptions("C:"));
-        Assert.Equal(2, phases.Count);
+        Assert.Equal(4, phases.Count);
         Assert.Equal("1", phases[0].Name);
-        Assert.Equal("2", phases[1].Name);
+        Assert.Equal("1b-triage", phases[1].Name);
+        Assert.Equal("1b-deep", phases[2].Name);
+        Assert.Equal("2", phases[3].Name);
 
         var p1 = KapeCliArgs.Build(phases[0].Options);
         Assert.Contains("--msource", p1);
         Assert.Contains("--module", p1);
-        Assert.Contains("VolatileFirst", p1);
+        Assert.Contains(PackageDefinition.DefaultPhase1Module, p1);
         Assert.Contains(@"RESULTS\%m\Phase1_Volatile", p1);
         Assert.DoesNotContain("--target", p1);
 
-        var p2 = KapeCliArgs.Build(phases[1].Options);
+        var p1b = KapeCliArgs.Build(phases[1].Options);
+        Assert.Contains("--msource", p1b);
+        Assert.Contains(@"RESULTS\%m\Phase1_Volatile", p1b);
+        Assert.Contains(@"MemoryAnalysis", string.Join(' ', p1b));
+        Assert.Contains(PackageDefinition.DefaultPhase1MemoryTriage, p1b);
+
+        var p1bDeep = KapeCliArgs.Build(phases[2].Options);
+        Assert.Contains(PackageDefinition.DefaultPhase1MemoryDeep, p1bDeep);
+        Assert.Contains(@"MemoryDeep", string.Join(' ', p1bDeep));
+
+        var p2 = KapeCliArgs.Build(phases[3].Options);
         Assert.Contains("--tsource", p2);
         Assert.Contains("--target", p2);
-        Assert.Contains("PSBCollection", p2);
+        Assert.Contains("KapeTriage", p2);
         Assert.Contains(@"RESULTS\%m\Phase2_Disk", p2);
         Assert.Contains("--zip", p2);
     }
 
     [Fact]
-    public void TwoPhase_SkipMemory_UsesNoMemoryCompound()
+    public void TwoPhase_SkipMemory_UsesNoMemoryAndOmitsPhase1b()
     {
         var cfg = new CollectionPlan.LaunchManifest
         {
             Target = "T",
             CollectionMode = IrCollectionMode.TwoPhase,
-            Phase1Module = "VolatileFirst"
+            Phase1Module = PackageDefinition.DefaultPhase1Module
         };
         var phases = CollectionPlan.BuildPhases(cfg,
             new CollectionPlan.RuntimeOptions("C:", SkipMemory: true));
-        Assert.Contains("VolatileFirst_NoMemory", KapeCliArgs.Build(phases[0].Options));
+        Assert.Equal(2, phases.Count);
+        Assert.Equal("1", phases[0].Name);
+        Assert.Equal("2", phases[1].Name);
+        Assert.Contains(PackageDefinition.DefaultPhase1ModuleNoMemory, KapeCliArgs.Build(phases[0].Options));
+        Assert.DoesNotContain(phases, p => CollectionPlan.IsPhase1b(p.Name));
     }
 
     [Fact]
-    public void TwoPhase_PhaseFilter_ReturnsOnePhase()
+    public void TwoPhase_SkipMemoryAnalysis_KeepsDumpModuleOmitsPhase1b()
     {
         var cfg = new CollectionPlan.LaunchManifest
         {
             Target = "T",
             CollectionMode = IrCollectionMode.TwoPhase,
-            Phase1Module = "VolatileFirst"
+            Phase1Module = PackageDefinition.DefaultPhase1Module
+        };
+        var phases = CollectionPlan.BuildPhases(cfg,
+            new CollectionPlan.RuntimeOptions("C:", SkipMemoryAnalysis: true));
+        Assert.Equal(2, phases.Count);
+        Assert.Equal("1", phases[0].Name);
+        Assert.Equal("2", phases[1].Name);
+        Assert.Contains(PackageDefinition.DefaultPhase1Module, KapeCliArgs.Build(phases[0].Options));
+        Assert.DoesNotContain(PackageDefinition.DefaultPhase1ModuleNoMemory, KapeCliArgs.Build(phases[0].Options));
+        Assert.DoesNotContain(phases, p => CollectionPlan.IsPhase1b(p.Name));
+    }
+
+    [Fact]
+    public void TwoPhase_SkipMemory_LegacyVolatileFirstName_MapsToNoMemory()
+    {
+        var cfg = new CollectionPlan.LaunchManifest
+        {
+            Target = "T",
+            CollectionMode = IrCollectionMode.TwoPhase,
+            Phase1Module = PackageDefinition.LegacyPhase1Module
+        };
+        var phases = CollectionPlan.BuildPhases(cfg,
+            new CollectionPlan.RuntimeOptions("C:", SkipMemory: true));
+        Assert.Contains(PackageDefinition.DefaultPhase1ModuleNoMemory, KapeCliArgs.Build(phases[0].Options));
+    }
+
+    [Fact]
+    public void TwoPhase_PhaseFilter_Phase1Includes1b()
+    {
+        var cfg = new CollectionPlan.LaunchManifest
+        {
+            Target = "T",
+            CollectionMode = IrCollectionMode.TwoPhase,
+            Phase1Module = PackageDefinition.DefaultPhase1Module
         };
         var only1 = CollectionPlan.BuildPhases(cfg, new CollectionPlan.RuntimeOptions("C:", PhaseFilter: 1));
-        Assert.Single(only1);
-        Assert.Equal("1", only1[0].Name);
+        Assert.Equal(3, only1.Count);
+        Assert.All(only1, p => Assert.True(CollectionPlan.MatchesPhaseFilter(p.Name, 1)));
 
         var only2 = CollectionPlan.BuildPhases(cfg, new CollectionPlan.RuntimeOptions("C:", PhaseFilter: 2));
         Assert.Single(only2);
@@ -77,13 +126,13 @@ public class CollectionPlanTests
         {
             Target = "T",
             CollectionMode = IrCollectionMode.TwoPhase,
-            Phase1Module = "VolatileFirst"
+            Phase1Module = PackageDefinition.DefaultPhase1Module
         };
         var root = @"E:\Evidence\Case1";
         var phases = CollectionPlan.BuildPhases(cfg,
             new CollectionPlan.RuntimeOptions("C:", ResultsRoot: root));
         var p1 = KapeCliArgs.Build(phases[0].Options);
-        var p2 = KapeCliArgs.Build(phases[1].Options);
+        var p2 = KapeCliArgs.Build(phases[^1].Options);
         Assert.Contains(p1, a => a.Contains(@"E:\Evidence\Case1\RESULTS\%m\Phase1_Volatile", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(p2, a => a.Contains(@"E:\Evidence\Case1\RESULTS\%m\Phase2_Disk", StringComparison.OrdinalIgnoreCase));
     }
@@ -156,20 +205,24 @@ public class CollectionPlanTests
     }
 
     [Fact]
-    public void PackageDefinition_TwoPhase_ModuleName_IsVolatileFirst()
+    public void PackageDefinition_TwoPhase_ModuleName_IsPhase1VolatileFirst()
     {
         var pkg = new PackageDefinition
         {
-            Name = "IR_VolatileFirst",
+            Name = "IR_Phase1",
             CollectionMode = IrCollectionMode.TwoPhase,
-            Phase1ModuleName = "VolatileFirst",
+            Phase1ModuleName = PackageDefinition.DefaultPhase1Module,
             Modules =
             {
-                new SelectionEntry { Name = "VolatileFirst", Path = "VolatileFirst.mkape" }
+                new SelectionEntry
+                {
+                    Name = PackageDefinition.DefaultPhase1Module,
+                    Path = PackageDefinition.DefaultPhase1Module + ".mkape"
+                }
             }
         };
-        Assert.Equal("VolatileFirst", pkg.ModuleCompoundName);
-        Assert.Equal("IR_VolatileFirst", pkg.TargetCompoundName);
+        Assert.Equal(PackageDefinition.DefaultPhase1Module, pkg.ModuleCompoundName);
+        Assert.Equal("IR_Phase1", pkg.TargetCompoundName);
     }
 
     [Fact]
@@ -179,23 +232,36 @@ public class CollectionPlanTests
         {
             Name = "MyIR",
             CollectionMode = IrCollectionMode.TwoPhase,
-            Phase1ModuleName = "VolatileFirst",
+            Phase1ModuleName = PackageDefinition.DefaultPhase1Module,
             Modules =
             {
-                new SelectionEntry { Name = "VolatileFirst", Path = "VolatileFirst.mkape" },
-                new SelectionEntry { Name = "VolatileFirst_NoMemory", Path = "VolatileFirst_NoMemory.mkape" },
+                new SelectionEntry
+                {
+                    Name = PackageDefinition.DefaultPhase1Module,
+                    Path = PackageDefinition.DefaultPhase1Module + ".mkape"
+                },
+                new SelectionEntry
+                {
+                    Name = PackageDefinition.DefaultPhase1ModuleNoMemory,
+                    Path = PackageDefinition.DefaultPhase1ModuleNoMemory + ".mkape"
+                },
+                new SelectionEntry
+                {
+                    Name = PackageDefinition.DefaultPhase1MemoryTriage,
+                    Path = PackageDefinition.DefaultPhase1MemoryTriage + ".mkape"
+                },
                 new SelectionEntry { Name = "Hayabusa", Path = "Hayabusa.mkape" },
                 new SelectionEntry { Name = "PECmd", Path = "PECmd.mkape" }
             }
         };
-        Assert.Equal("VolatileFirst", pkg.ModuleCompoundName);
+        Assert.Equal(PackageDefinition.DefaultPhase1Module, pkg.ModuleCompoundName);
         var p2 = pkg.GetPhase2ModuleEntries();
         Assert.Equal(2, p2.Count);
         Assert.Equal("MyIR_Modules", pkg.ResolvePhase2ModuleName());
     }
 
     [Fact]
-    public void PackageDefinition_TwoPhase_OnlyVolatile_NoPhase2Module()
+    public void PackageDefinition_TwoPhase_OnlyPhase1_NoPhase2Module()
     {
         var pkg = new PackageDefinition
         {
@@ -203,7 +269,11 @@ public class CollectionPlanTests
             CollectionMode = IrCollectionMode.TwoPhase,
             Modules =
             {
-                new SelectionEntry { Name = "VolatileFirst", Path = "VolatileFirst.mkape" }
+                new SelectionEntry
+                {
+                    Name = PackageDefinition.DefaultPhase1Module,
+                    Path = PackageDefinition.DefaultPhase1Module + ".mkape"
+                }
             }
         };
         Assert.Null(pkg.ResolvePhase2ModuleName());
@@ -211,16 +281,17 @@ public class CollectionPlanTests
     }
 
     [Fact]
-    public void KapeCliArgs_ModuleOnly_UsesMsource()
+    public void KapeCliArgs_ModuleOnly_UsesMsourceOverride()
     {
         var args = KapeCliArgs.Build(new KapeCliArgs.Options(
             "C:",
             Target: null,
-            Module: "VolatileFirst",
+            Module: PackageDefinition.DefaultPhase1MemoryTriage,
             ModuleOnly: true,
-            Mdest: @"RESULTS\%m\Phase1_Volatile"));
+            Mdest: @"RESULTS\%m\Phase1_Volatile\MemoryAnalysis",
+            Msource: @"RESULTS\%m\Phase1_Volatile"));
         Assert.Contains("--msource", args);
-        Assert.Contains("--mdest", args);
+        Assert.Contains(@"RESULTS\%m\Phase1_Volatile", args);
         Assert.DoesNotContain("--tsource", args);
         Assert.DoesNotContain("--target", args);
     }

@@ -1,0 +1,26 @@
+Description: Hayabusa v4.1+ offline EVTX hunt — timeline + logon summary + eid-metrics
+Category: EventLogs
+Author: KapeIR
+Version: 1.0
+Id: a1b2c3d4-e5f6-4789-a012-3456789abc10
+BinaryUrl: https://github.com/Yamato-Security/hayabusa/releases
+ExportFormat: csv
+Processors:
+    -
+        Executable: hayabusa_OfflineEventLogs_v41.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: hayabusa_OfflineLogonSummary_v41.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: hayabusa_EventStatistics_v41.mkape
+        CommandLine: ""
+        ExportFormat: ""
+
+# Documentation
+# Hayabusa 4.1+ compound module. Does not replace stock Compound\Hayabusa.mkape (live).
+# Use after collecting EventLogs / CombinedLogs (msource = collected EVTX tree).
+# Leaf modules live under Modules\Apps\Local\Hayabusa\.
+# Optional: hayabusa_OfflineEventLogs_High_v41.mkape instead of / in addition to standard timeline.

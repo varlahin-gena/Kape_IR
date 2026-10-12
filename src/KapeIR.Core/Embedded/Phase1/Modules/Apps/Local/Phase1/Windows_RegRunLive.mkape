@@ -1,0 +1,31 @@
+Description: Live export of HKLM/HKCU Run and RunOnce autostart keys
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.0
+Id: a1b2c3d4-e5f6-7890-ab12-cd34ef567810
+ExportFormat: reg
+Processors:
+    -
+        Executable: C:\Windows\System32\reg.exe
+        CommandLine: export "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "%destinationDirectory%\reg_run_hklm.reg" /y
+        ExportFormat: reg
+        ExportFile: reg_run_hklm.reg
+    -
+        Executable: C:\Windows\System32\reg.exe
+        CommandLine: export "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" "%destinationDirectory%\reg_runonce_hklm.reg" /y
+        ExportFormat: reg
+        ExportFile: reg_runonce_hklm.reg
+    -
+        Executable: C:\Windows\System32\reg.exe
+        CommandLine: export "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" "%destinationDirectory%\reg_run_hkcu.reg" /y
+        ExportFormat: reg
+        ExportFile: reg_run_hkcu.reg
+    -
+        Executable: C:\Windows\System32\reg.exe
+        CommandLine: export "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" "%destinationDirectory%\reg_runonce_hkcu.reg" /y
+        ExportFormat: reg
+        ExportFile: reg_runonce_hkcu.reg
+
+# Documentation
+# Live Run/RunOnce snapshot (Order of Volatility). Complements Phase 2 RegistryHives.
+# Skill: collecting-volatile-evidence-from-compromised-host §6.

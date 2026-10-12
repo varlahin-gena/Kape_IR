@@ -33,51 +33,85 @@
     <StackPanel Grid.Row="0" Margin="0,0,0,12"
                 AutomationProperties.Name="Сведения о пакете">
       <TextBlock Text="{Binding PackageTitle}" FontSize="22" FontWeight="SemiBold"/>
-      <TextBlock Text="{Binding Subtitle}"
-                 Foreground="{StaticResource Brush.TextSecondary}" Margin="0,4,0,0"/>
+      <TextBlock Text="{Binding ModeLabel}"
+                 Foreground="{StaticResource Brush.TextSecondary}"
+                 Margin="0,4,0,0"
+                 FontSize="12"
+                 ToolTip="{Binding Subtitle}"
+                 AutomationProperties.Name="{Binding ModeLabel}"
+                 AutomationProperties.HelpText="{Binding Subtitle}"/>
     </StackPanel>
 
     <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="0,0,0,12"
-            AutomationProperties.Name="Ход сбора">
+            AutomationProperties.Name="Ход сбора"
+            AutomationProperties.HelpText="{Binding StatusText}">
       <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <StackPanel>
-          <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold"
+        <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
+          <TextBlock Text="{Binding PhaseText}"
+                     FontWeight="SemiBold"
+                     Visibility="{Binding IsPhaseVisible, Converter={StaticResource BoolToVis}}"
+                     AutomationProperties.Name="{Binding PhaseText}"/>
+          <TextBlock Text="{Binding ActionText}"
+                     Margin="0,2,0,0"
+                     TextWrapping="Wrap"
                      AutomationProperties.LiveSetting="Polite"
-                     AutomationProperties.Name="{Binding StatusText}"/>
-          <ProgressBar Margin="0,8,0,0"
-                       Minimum="0" Maximum="100"
-                       Value="{Binding ProgressValue}"
-                       IsIndeterminate="{Binding IsProgressIndeterminate}"
-                       AutomationProperties.Name="Прогресс сбора"
-                       AutomationProperties.HelpText="{Binding StatusText}">
-            <ProgressBar.Style>
-              <Style TargetType="ProgressBar">
-                <Setter Property="Foreground" Value="{StaticResource Brush.Accent}"/>
+                     AutomationProperties.Name="{Binding StatusText}">
+            <TextBlock.Style>
+              <Style TargetType="TextBlock">
+                <!-- Idle / terminal: action is the primary status line. -->
+                <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
                 <Style.Triggers>
-                  <DataTrigger Binding="{Binding ProgressTone}" Value="{x:Static vm:ProgressTone.Success}">
-                    <Setter Property="Foreground" Value="{StaticResource Brush.Success}"/>
-                  </DataTrigger>
-                  <DataTrigger Binding="{Binding ProgressTone}" Value="{x:Static vm:ProgressTone.Danger}">
-                    <Setter Property="Foreground" Value="{StaticResource Brush.Danger}"/>
+                  <!-- Under a sticky phase: action is the secondary "doing…" line. -->
+                  <DataTrigger Binding="{Binding IsPhaseVisible}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}"/>
+                    <Setter Property="FontWeight" Value="Normal"/>
                   </DataTrigger>
                 </Style.Triggers>
               </Style>
-            </ProgressBar.Style>
-          </ProgressBar>
+            </TextBlock.Style>
+          </TextBlock>
         </StackPanel>
-        <TextBlock Grid.Column="1" Text="{Binding PercentText}" VerticalAlignment="Center"
-                   Margin="16,0,0,0" Foreground="{StaticResource Brush.TextSecondary}"
+        <ProgressBar Grid.Row="1" Grid.Column="0"
+                     Margin="0,8,0,0"
+                     VerticalAlignment="Center"
+                     Minimum="0" Maximum="100"
+                     Value="{Binding ProgressValue}"
+                     IsIndeterminate="{Binding IsProgressIndeterminate}"
+                     AutomationProperties.Name="Прогресс сбора"
+                     AutomationProperties.HelpText="{Binding StatusText}">
+          <ProgressBar.Style>
+            <Style TargetType="ProgressBar">
+              <Setter Property="Foreground" Value="{StaticResource Brush.Accent}"/>
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding ProgressTone}" Value="{x:Static vm:ProgressTone.Success}">
+                  <Setter Property="Foreground" Value="{StaticResource Brush.Success}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding ProgressTone}" Value="{x:Static vm:ProgressTone.Danger}">
+                  <Setter Property="Foreground" Value="{StaticResource Brush.Danger}"/>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </ProgressBar.Style>
+        </ProgressBar>
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PercentText}"
+                   VerticalAlignment="Center"
+                   Margin="16,8,0,0" Foreground="{StaticResource Brush.TextSecondary}"
                    FontFamily="Consolas"
                    AutomationProperties.Name="{Binding PercentText}"/>
-        <Button Grid.Column="2" Content="Остановить"
+        <Button Grid.Row="1" Grid.Column="2" Content="Остановить"
                 Command="{Binding CancelRunCommand}"
                 Style="{StaticResource DangerButton}"
-                Margin="16,0,0,0" VerticalAlignment="Center"
+                Margin="16,8,0,0" VerticalAlignment="Center"
                 Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}"
                 ToolTip="Прервать текущий сбор"
                 AutomationProperties.Name="Остановить"
@@ -186,23 +220,29 @@
                          AutomationProperties.Name="Дело (Case ID)"
                          AutomationProperties.HelpText="Идентификатор дела для chain_of_custody.txt"/>
               </Grid>
-              <StackPanel Orientation="Horizontal">
-                <CheckBox Content="Без дампа памяти" Margin="0,0,16,0"
+              <WrapPanel Orientation="Horizontal">
+                <CheckBox Content="Без дампа памяти" Margin="0,0,16,6"
                           IsChecked="{Binding SkipMemory}"
-                          ToolTip="Фаза 1 без дампа оперативной памяти"
+                          ToolTip="Фаза 1a без дампа оперативной памяти (Phase1_VolatileFirst_NoMemory); Vol3 1b тоже не запускается"
                           AutomationProperties.Name="Без дампа памяти"
-                          AutomationProperties.HelpText="Фаза 1 без дампа оперативной памяти"/>
-                <CheckBox Content="Только фаза 1" Margin="0,0,16,0"
+                          AutomationProperties.HelpText="Фаза 1a без дампа оперативной памяти"/>
+                <CheckBox Content="Без пост-анализа памяти (Vol3)" Margin="0,0,16,6"
+                          IsChecked="{Binding SkipMemoryAnalysis}"
+                          IsEnabled="{Binding IsMemoryAnalysisOptionEnabled}"
+                          ToolTip="Дамп в 1a снимается; MemoryAnalysis / MemoryDeep (Vol3) на этой машине не запускаются"
+                          AutomationProperties.Name="Без пост-анализа памяти"
+                          AutomationProperties.HelpText="Пропустить Phase 1b Volatility3, дамп оставить"/>
+                <CheckBox Content="Только фаза 1" Margin="0,0,16,6"
                           IsChecked="{Binding Phase1Only}"
                           ToolTip="Только оперативный сбор (память, сеть, процессы)"
                           AutomationProperties.Name="Только фаза 1"
                           AutomationProperties.HelpText="Только оперативный сбор"/>
-                <CheckBox Content="Только фаза 2"
+                <CheckBox Content="Только фаза 2" Margin="0,0,0,6"
                           IsChecked="{Binding Phase2Only}"
                           ToolTip="Только дисковый сбор (targets)"
                           AutomationProperties.Name="Только фаза 2"
                           AutomationProperties.HelpText="Только дисковый сбор"/>
-              </StackPanel>
+              </WrapPanel>
             </StackPanel>
           </StackPanel>
         </Expander>
@@ -220,8 +260,18 @@
       <StackPanel>
         <TextBlock Text="{Binding ErrorTitle}" FontWeight="SemiBold"
                    Foreground="{StaticResource Brush.Danger}"/>
-        <TextBlock Text="{Binding ErrorDetail}" Margin="0,6,0,0" TextWrapping="Wrap"
-                   Foreground="{StaticResource Brush.TextPrimary}"/>
+        <TextBox Text="{Binding ErrorDetail, Mode=OneWay}"
+                 Margin="0,6,0,0"
+                 IsReadOnly="True"
+                 TextWrapping="Wrap"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 Foreground="{StaticResource Brush.TextPrimary}"
+                 CaretBrush="{StaticResource Brush.TextPrimary}"
+                 Padding="0"
+                 AcceptsReturn="True"
+                 AutomationProperties.Name="Текст ошибки"
+                 AutomationProperties.HelpText="{Binding ErrorDetail}"/>
         <TextBlock Text="Подробности — в журнале. Можно сохранить журнал и закрыть окно."
                    Margin="0,8,0,0" FontSize="12"
                    Foreground="{StaticResource Brush.TextSecondary}"

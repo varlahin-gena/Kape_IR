@@ -1,0 +1,40 @@
+Description: Live system snapshot (time, env, sessions, schtasks, Run keys, services)
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.2
+Id: b2c3d4e5-f6a7-8901-bc23-de45f6789011
+ExportFormat: txt
+Processors:
+    -
+        Executable: Windows_SystemTime.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Windows_Environment.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Windows_QueryUser.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Windows_QuerySession.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Windows_SchtasksLive.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Windows_RegRunLive.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Windows_ServicesLive.mkape
+        CommandLine: ""
+        ExportFormat: ""
+
+# Documentation
+# Part of VolatileFirst IR playbook (Order of Volatility).
+# Firewall + TCP/UDP CSV + portproxy → LiveResponse_NetworkDetails (network compound).
+# As this processes live data, any directory can be set as msource.

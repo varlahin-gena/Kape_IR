@@ -12,7 +12,7 @@ public enum FakeKapeProfile
     /// <summary>Minimal + LeafA/LeafB + Bundle compound target.</summary>
     WithCompounds,
 
-    /// <summary>Two-phase IR: VolatileFirst(+NoMemory), WinPmem leaf, optional winpmem.exe.</summary>
+    /// <summary>Two-phase IR: Phase1_VolatileFirst(+NoMemory), MemoryTriage/Deep, WinPmem, optional bins.</summary>
     TwoPhaseIr,
 
     /// <summary>Minimal + active vs !Disabled copies (catalog skip rules).</summary>
@@ -38,8 +38,10 @@ public sealed class FakeKapeRoot : IDisposable
     public const string LeafAName = "LeafA";
     public const string LeafBName = "LeafB";
     public const string BundleName = "Bundle";
-    public const string VolatileFirstName = "VolatileFirst";
-    public const string VolatileFirstNoMemoryName = "VolatileFirst_NoMemory";
+    public const string VolatileFirstName = "Phase1_VolatileFirst";
+    public const string VolatileFirstNoMemoryName = "Phase1_VolatileFirst_NoMemory";
+    public const string MemoryTriageName = "Phase1_MemoryTriage";
+    public const string MemoryDeepName = "Phase1_MemoryDeep";
     public const string WinPmemModuleName = "Velocidex_WinPmem";
 
     public string Root { get; }
@@ -177,7 +179,7 @@ Targets:
         Directory.CreateDirectory(bin);
 
         File.WriteAllText(Path.Combine(compound, VolatileFirstName + ".mkape"), """
-Description: 'IR VolatileFirst fixture'
+Description: 'IR Phase1_VolatileFirst fixture'
 Category: LiveResponse
 Author: FakeKapeRoot
 Version: 1.0
@@ -199,7 +201,7 @@ Processors:
 """);
 
         File.WriteAllText(Path.Combine(compound, VolatileFirstNoMemoryName + ".mkape"), """
-Description: 'IR VolatileFirst without RAM'
+Description: 'IR Phase1_VolatileFirst without RAM'
 Category: LiveResponse
 Author: FakeKapeRoot
 Version: 1.0
@@ -214,6 +216,34 @@ Processors:
         Executable: LiveResponse_ProcessDetails.mkape
         CommandLine: ""
         ExportFormat: ""
+""");
+
+        File.WriteAllText(Path.Combine(compound, MemoryTriageName + ".mkape"), """
+Description: 'Phase1_MemoryTriage fixture'
+Category: Memory
+Author: FakeKapeRoot
+Version: 1.0
+Id: b1c2d3e4-f5a6-4789-8abc-111111111000
+ExportFormat: csv
+Processors:
+    -
+        Executable: C:\Windows\System32\cmd.exe
+        CommandLine: /c echo triage
+        ExportFormat: txt
+""");
+
+        File.WriteAllText(Path.Combine(compound, MemoryDeepName + ".mkape"), """
+Description: 'Phase1_MemoryDeep fixture'
+Category: Memory
+Author: FakeKapeRoot
+Version: 1.0
+Id: b1c2d3e4-f5a6-4789-8abc-111111111020
+ExportFormat: csv
+Processors:
+    -
+        Executable: C:\Windows\System32\cmd.exe
+        CommandLine: /c echo deep
+        ExportFormat: txt
 """);
 
         File.WriteAllText(Path.Combine(github, WinPmemModuleName + ".mkape"), """
@@ -235,6 +265,12 @@ Processors:
 
         if (includeWinpmemBin)
             File.WriteAllText(Path.Combine(bin, "winpmem.exe"), "MZ-fake-winpmem");
+
+        var volDir = Path.Combine(bin, "volatility3");
+        Directory.CreateDirectory(volDir);
+        File.WriteAllText(Path.Combine(volDir, "vol.exe"), "MZ-fake-vol3");
+        File.WriteAllText(Path.Combine(bin, "Invoke-Volatility3Plugin.ps1"), "# fixture");
+        File.WriteAllText(Path.Combine(bin, "Invoke-Utf8Capture.ps1"), "# fixture");
     }
 
     private static void WriteLiveLeaf(string dir, string name, string id)

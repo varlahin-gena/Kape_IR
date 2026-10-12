@@ -146,5 +146,7 @@ public static class ModulesBinPreflight
 
         EnsureModule(pkg.Phase1ModuleName);
         EnsureModule(PackageDefinition.DefaultPhase1ModuleNoMemory);
+        EnsureModule(PackageDefinition.DefaultPhase1MemoryTriage);
+        EnsureModule(PackageDefinition.DefaultPhase1MemoryDeep);
     }
 }

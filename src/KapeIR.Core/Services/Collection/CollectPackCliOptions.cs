@@ -12,6 +12,8 @@ public sealed class CollectPackCliOptions
     /// <summary>1, 2, or null (all).</summary>
     public int? Phase { get; init; }
     public bool SkipMemory { get; init; }
+    /// <summary>Skip Phase 1b Vol3; RAM dump in 1a still runs unless <see cref="SkipMemory"/>.</summary>
+    public bool SkipMemoryAnalysis { get; init; }
     /// <summary>Require sibling &lt;exe&gt;.sha256 and match before collect.</summary>
     public bool VerifySha256 { get; init; }
     public List<string> Errors { get; init; } = new();
@@ -23,6 +25,7 @@ public sealed class CollectPackCliOptions
         var help = false;
         var simOnly = false;
         var skipMemory = false;
+        var skipMemoryAnalysis = false;
         var verify = false;
         string? tsource = null;
         string? log = null;
@@ -53,6 +56,12 @@ public sealed class CollectPackCliOptions
             if (a is "--skip-memory" or "--no-memory")
             {
                 skipMemory = true;
+                continue;
+            }
+
+            if (a is "--skip-memory-analysis" or "--no-memory-analysis")
+            {
+                skipMemoryAnalysis = true;
                 continue;
             }
 
@@ -140,6 +149,7 @@ public sealed class CollectPackCliOptions
             CaseId = caseId,
             Phase = phase,
             SkipMemory = skipMemory,
+            SkipMemoryAnalysis = skipMemoryAnalysis,
             VerifySha256 = verify,
             Errors = errors
         };
@@ -161,6 +171,7 @@ public sealed class CollectPackCliOptions
           Двухфазный IR (package.json collection_mode=two_phase):
             MyPack.exe --silent --tsource C: --case-id IR-2026-001
             MyPack.exe --silent --tsource C: --phase 1
+            MyPack.exe --silent --tsource C: --phase 1 --skip-memory-analysis
             MyPack.exe --silent --tsource C: --phase 2 --skip-memory
 
           Параметры:
@@ -170,7 +181,8 @@ public sealed class CollectPackCliOptions
             --log, -l        Файл журнала (silent; иначе рядом с EXE)
             --case-id        ID дела для chain_of_custody.txt
             --phase 1|2      Только фаза 1 (volatile) или 2 (disk)
-            --skip-memory    Фаза 1 без WinPmem (VolatileFirst_NoMemory)
+            --skip-memory    Фаза 1a без WinPmem (Phase1_VolatileFirst_NoMemory); Phase 1b (Vol3) не запускается
+            --skip-memory-analysis  Дамп в 1a остаётся; Phase 1b (Vol3 triage/deep) не запускается
             --verify         Требовать и проверить <exe>.sha256 перед сбором
             --help, -h       Эта справка
 

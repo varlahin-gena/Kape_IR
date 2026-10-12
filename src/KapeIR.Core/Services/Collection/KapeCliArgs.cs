@@ -21,6 +21,11 @@ public static class KapeCliArgs
         /// <summary>Override --mdest.</summary>
         string? Mdest = null,
         /// <summary>
+        /// Override --msource for module-only runs (default: <see cref="Tsource"/>).
+        /// Used by Phase 1b Vol3 against Phase1_Volatile.
+        /// </summary>
+        string? Msource = null,
+        /// <summary>
         /// Module-only live response: use --msource instead of requiring --target.
         /// </summary>
         bool ModuleOnly = false);
@@ -51,8 +56,9 @@ public static class KapeCliArgs
 
         if (opt.ModuleOnly || string.IsNullOrWhiteSpace(opt.Target))
         {
-            // Live modules: --msource + --mdest + --module
-            args.AddRange(new[] { "--msource", opt.Tsource, "--mdest", mdest });
+            // Live modules / offline module-only: --msource + --mdest + --module
+            var msource = string.IsNullOrWhiteSpace(opt.Msource) ? opt.Tsource : opt.Msource!;
+            args.AddRange(new[] { "--msource", msource, "--mdest", mdest });
             if (runModules)
             {
                 args.AddRange(new[] { "--module", opt.Module! });

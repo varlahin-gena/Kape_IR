@@ -123,10 +123,10 @@ public sealed partial class PackageEditorViewModel : ObservableObject
             return;
         }
 
-        if (SelectedExisting.Item.Origin != CatalogOrigin.Local)
+        if (SelectedExisting.Item.Origin is not (CatalogOrigin.Local or CatalogOrigin.KapeIR))
         {
             _shell.Dialogs.ShowMessage(
-                "Удаление доступно только для локальных сборок (колонка «Источник»).\n" +
+                "Удаление доступно только для сборок KapeIR / локальных (колонка «Источник»).\n" +
                 "Сначала «Обновить с GitHub…», чтобы метки стали точными, либо сохраните копию.",
                 "Удаление");
             return;

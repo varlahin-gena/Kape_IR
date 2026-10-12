@@ -44,8 +44,9 @@ public sealed partial class SyncViewModel : ObservableObject, IDisposable
                 "• Hayabusa + rules (Modules\\bin\\hayabusa\\ — exe, config, ~4500 rules)\n" +
                 "• dfir_ntfs (Modules\\bin\\dfir_ntfs — нужен python.exe на цели)\n" +
                 "• RegRipper plugins (докачка недостающих .pl / правка профилей)\n" +
+                "• KapeIR: Phase1 + Hayabusa v41 каталог + WinPmem + Volatility3 + Sysinternals/scripts\n" +
                 "Локальные custom-файлы и уже лежащие бинарники не удаляются без замены.\n" +
-                "После проверки будет обновлён список путей для меток «GitHub» / «локальный» в каталоге." +
+                "После проверки будет обновлён список путей для меток «GitHub» / «KapeIR» / «локальный» в каталоге." +
                 lastLine + "\n\nЗапустить проверку?",
                 "Обновление KAPE"))
             return;
@@ -66,7 +67,8 @@ public sealed partial class SyncViewModel : ObservableObject, IDisposable
             var report = await _toolkitWs.CheckAsync(root, progress, ct);
 
             if (!report.KapeFiles.Ok && report.EzTools.Present.Count == 0 && !report.Chainsaw.Ok
-                && !report.Hayabusa.Ok && !report.DfirNtfs.Ok && !report.RegRipper.Ok)
+                && !report.Hayabusa.Ok && !report.DfirNtfs.Ok && !report.RegRipper.Ok
+                && !report.WinPmem.Ok && !report.Volatility3.Ok)
             {
                 _shell.Dialogs.ShowMessage(
                     report.Summary + "\n\nПроверка KapeFiles не удалась — сеть или корень KAPE.",
@@ -90,6 +92,10 @@ public sealed partial class SyncViewModel : ObservableObject, IDisposable
             var applyHayabusa = report.Hayabusa.NeedsUpdate;
             var applyDfir = report.DfirNtfs.NeedsInstall;
             var applyRr = report.RegRipper.NeedsRepair;
+            var applyWinPmem = report.WinPmem.NeedsInstall;
+            var applyVol3 = report.Volatility3.NeedsInstall;
+            var applyLive = report.Phase1LiveTools.NeedsInstall;
+            var seedPhase1 = report.Phase1Seed is null || !report.Phase1Seed.SkippedUpToDate;
 
             var confirm =
                 report.Summary +
@@ -100,6 +106,10 @@ public sealed partial class SyncViewModel : ObservableObject, IDisposable
                 $"  Hayabusa + rules: {(applyHayabusa ? "да" : "нет")}\n" +
                 $"  dfir_ntfs: {(applyDfir ? "да" : "нет")}\n" +
                 $"  RegRipper plugins: {(applyRr ? "да" : "нет")}\n" +
+                $"  KapeIR каталог: {(seedPhase1 ? "да" : "нет")}\n" +
+                $"  WinPmem: {(applyWinPmem ? "да" : "нет")}\n" +
+                $"  Volatility3: {(applyVol3 ? "да" : "нет")}\n" +
+                $"  Phase1 live tools: {(applyLive ? "да" : "нет")}\n" +
                 "Перед перезаписью .tkape/.mkape будет backup в PackBuilder\\sync_backup\\.";
 
             if (!_shell.Dialogs.Confirm(confirm, "Применить обновления"))
@@ -118,6 +128,10 @@ public sealed partial class SyncViewModel : ObservableObject, IDisposable
                     UpdateChainsaw = applyChainsaw,
                     UpdateHayabusa = applyHayabusa,
                     UpdateDfirNtfs = applyDfir,
+                    SeedPhase1Catalog = seedPhase1,
+                    UpdateWinPmem = applyWinPmem,
+                    UpdateVolatility3 = applyVol3,
+                    UpdatePhase1LiveTools = applyLive,
                     RepairRegRipperPlugins = applyRr,
                     CachedKapeFilesZipPath = report.CachedKapeFilesZipPath,
                     ExpectedZipSha256 = applyKape ? report.KapeFiles.ZipSha256 : null,
@@ -129,9 +143,13 @@ public sealed partial class SyncViewModel : ObservableObject, IDisposable
 
             if (result.Ok)
             {
-                _shell.Dialogs.ShowMessage(result.Message, "Обновление KAPE");
                 await _shell.Catalog.ReloadCatalogAsync(promptIfMissing: true);
                 await _shell.Binaries.LoadBinariesAsync(updateStatus: true);
+                var binNote = await BuildPostSyncBinNoteAsync(ct);
+                _shell.Dialogs.ShowMessage(
+                    result.Message + (string.IsNullOrEmpty(binNote) ? "" : "\n\n" + binNote),
+                    "Обновление KAPE",
+                    binNote.Contains('✗') ? DialogIcon.Warning : DialogIcon.Info);
                 _shell.StatusText = "Обновление завершено";
             }
             else
@@ -159,6 +177,27 @@ public sealed partial class SyncViewModel : ObservableObject, IDisposable
             _shell.IsSyncing = false;
             _syncCts?.Dispose();
             _syncCts = null;
+        }
+    }
+
+    private async Task<string> BuildPostSyncBinNoteAsync(CancellationToken ct)
+    {
+        try
+        {
+            // Wait briefly for background catalog bin index; fall back to direct audit.
+            var catalogReport = await _shell.Catalog.BuildCatalogBinReportAsync(ct);
+            ModuleBinAuditReport? packageReport = null;
+            if (_shell.Package.Modules.Count > 0)
+                packageReport = await _shell.Catalog.BuildPackageBinReportAsync(ct);
+            return ModuleBinAudit.FormatSyncSummary(catalogReport, packageReport);
+        }
+        catch (OperationCanceledException)
+        {
+            return "";
+        }
+        catch
+        {
+            return "";
         }
     }
 

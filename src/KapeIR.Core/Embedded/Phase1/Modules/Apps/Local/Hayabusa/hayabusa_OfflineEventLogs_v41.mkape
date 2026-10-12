@@ -1,0 +1,22 @@
+Description: Hayabusa v4.1+ offline DFIR timeline (CSV + JSONL); does not replace stock GitHub csv-timeline module
+Category: EventLogs
+Author: KapeIR
+Version: 1.0
+Id: a1b2c3d4-e5f6-4789-a012-3456789abc01
+BinaryUrl: https://github.com/Yamato-Security/hayabusa/releases
+ExportFormat: csv
+Processors:
+    -
+        Executable: hayabusa\hayabusa.exe
+        CommandLine: dfir-timeline -d %sourceDirectory% -p standard -w -q -U -o %destinationDirectory%\hayabusa_events_offline_v41.csv
+        ExportFormat: csv
+    -
+        Executable: hayabusa\hayabusa.exe
+        CommandLine: dfir-timeline -d %sourceDirectory% -p standard -w -q -U -t jsonl -o %destinationDirectory%\hayabusa_events_offline_v41.jsonl
+        ExportFormat: json
+
+# Documentation
+# Local copy for Hayabusa 4.1+ (stock hayabusa_OfflineEventLogs.mkape still uses csv-timeline / --UTC).
+# CLI: csv-timeline → dfir-timeline; --UTC → -U.
+# Use after collecting EventLogs / CombinedLogs (msource = EVTX tree).
+# Requires Modules\bin\hayabusa\hayabusa.exe + config\ + rules\.

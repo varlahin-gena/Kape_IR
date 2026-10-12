@@ -147,8 +147,8 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource Brush.AccentHover}"/>
-              <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brush.AccentHover}"/>
+              <Setter TargetName="bd" Property="Background" Value="{StaticResource Brush.AccentStrong}"/>
+              <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brush.AccentStrong}"/>
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
               <Setter TargetName="bd" Property="Background" Value="{StaticResource Brush.AccentMuted}"/>
@@ -163,9 +163,9 @@
   </Style>
 
   <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-    <Setter Property="Background" Value="{StaticResource Brush.Danger}"/>
+    <Setter Property="Background" Value="{StaticResource Brush.DangerFill}"/>
     <Setter Property="Foreground" Value="White"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Danger}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Brush.DangerFill}"/>
   </Style>
 
   <Style x:Key="LinkButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">

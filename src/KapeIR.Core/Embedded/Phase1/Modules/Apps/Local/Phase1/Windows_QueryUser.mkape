@@ -1,0 +1,16 @@
+Description: Logged-on users (quser or PowerShell fallback for Windows Home)
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.1
+Id: a1b2c3d4-e5f6-7890-ab12-cd34ef567802
+ExportFormat: txt
+Processors:
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -ExecutionPolicy Bypass -File "%kapeDirectory%\Modules\bin\Get-LoggedOnUsers.ps1" -OutputFile "%destinationDirectory%\query_user.txt"
+        ExportFormat: txt
+        ExportFile: query_user.txt
+
+# Documentation
+# https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/query-user
+# Windows Home often has no quser.exe — script falls back to CIM / explorer sessions.

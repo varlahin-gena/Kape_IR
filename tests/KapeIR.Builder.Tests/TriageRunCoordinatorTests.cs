@@ -49,6 +49,7 @@ public class TriageRunCoordinatorTests
             simulate: true,
             phaseFilter: 2,
             skipMemory: true,
+            skipMemoryAnalysis: true,
             caseIdOverride: "IR-9",
             resultsRoot: @"E:\out");
 
@@ -56,6 +57,7 @@ public class TriageRunCoordinatorTests
         Assert.True(rt.Simulate);
         Assert.Equal(2, rt.PhaseFilter);
         Assert.True(rt.SkipMemory);
+        Assert.True(rt.SkipMemoryAnalysis);
         Assert.Equal("IR-9", rt.CaseIdOverride);
         Assert.Equal(@"E:\out", rt.ResultsRoot);
     }

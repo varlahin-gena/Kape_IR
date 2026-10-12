@@ -40,16 +40,24 @@ public partial class TriageViewModel : ObservableObject
 
     [ObservableProperty] private string _windowTitle = "KapeIR.Triage";
     [ObservableProperty] private string _packageTitle = "KapeIR.Triage";
+    [ObservableProperty] private string _modeLabel = "";
+    /// <summary>One-line package recipe (tooltip under mode label).</summary>
     [ObservableProperty] private string _subtitle = "Автономный пакет сбора артефактов";
+    [ObservableProperty] private string _phaseText = "";
+    [ObservableProperty] private string _actionText = "Подготовка…";
+    [ObservableProperty] private bool _isPhaseVisible;
+    /// <summary>Composed announcement for screen readers and legacy tests (phase + action + %).</summary>
     [ObservableProperty] private string _statusText = "Подготовка…";
     [ObservableProperty] private string _percentText = "";
     [ObservableProperty] private double _progressValue;
     [ObservableProperty] private bool _isProgressIndeterminate = true;
     [ObservableProperty] private ProgressTone _progressTone = ProgressTone.Accent;
+
     [ObservableProperty] private string _resultsPath = "";
     [ObservableProperty] private string _caseId = "";
     [ObservableProperty] private bool _simBeforeCollect;
     [ObservableProperty] private bool _skipMemory;
+    [ObservableProperty] private bool _skipMemoryAnalysis;
     [ObservableProperty] private bool _phase1Only;
     [ObservableProperty] private bool _phase2Only;
     [ObservableProperty] private bool _isTwoPhase;
@@ -105,12 +113,26 @@ public partial class TriageViewModel : ObservableObject
     partial void OnPhase1OnlyChanged(bool value)
     {
         if (value) Phase2Only = false;
+        RefreshTwoPhaseSubtitle();
     }
 
     partial void OnPhase2OnlyChanged(bool value)
     {
         if (value) Phase1Only = false;
+        RefreshTwoPhaseSubtitle();
     }
+
+    partial void OnSkipMemoryChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsMemoryAnalysisOptionEnabled));
+        RefreshTwoPhaseSubtitle();
+    }
+
+    partial void OnSkipMemoryAnalysisChanged(bool value)
+        => RefreshTwoPhaseSubtitle();
+
+    /// <summary>Vol3 1b checkbox is irrelevant when RAM dump itself is skipped.</summary>
+    public bool IsMemoryAnalysisOptionEnabled => !SkipMemory;
 
     [RelayCommand]
     public async Task InitializeAsync()
@@ -160,20 +182,7 @@ public partial class TriageViewModel : ObservableObject
             WindowTitle = $"KapeIR.Triage — {cfg.Name}";
             PackageTitle = cfg.Name;
             IsTwoPhase = cfg.CollectionMode == IrCollectionMode.TwoPhase;
-            if (IsTwoPhase)
-            {
-                Subtitle =
-                    $"Двухфазный сбор: {cfg.Phase1Module} → {cfg.Target}" +
-                    (string.IsNullOrWhiteSpace(cfg.Phase2Module) ? "" : $" + {cfg.Phase2Module}");
-                IsAdvancedExpanded = true;
-                CaseId = cfg.CaseId ?? "";
-            }
-            else
-            {
-                Subtitle = $"Цель: {cfg.Target}" +
-                           (string.IsNullOrWhiteSpace(cfg.Module) ? "" : $"  ·  Модуль: {cfg.Module}");
-                IsAdvancedExpanded = false;
-            }
+            ApplyPackageRecipe(cfg);
 
             var initialTs = string.IsNullOrWhiteSpace(cfg.Tsource) ? "C:" : cfg.Tsource;
             PopulateDrives(initialTs);
@@ -184,8 +193,9 @@ public partial class TriageViewModel : ObservableObject
             IsRunning = false;
             CanClose = true;
             SetStatus("Выберите диск и папку результатов, затем нажмите «Начать сбор»",
-                indeterminate: false, percent: 0);
+                indeterminate: false, percent: 0, clearPhase: true);
             PercentText = "";
+            RefreshStatusAnnouncement();
             AppendLog("Пакет готов. Выберите диск и папку результатов. При необходимости сначала оцените объём без копирования.");
             if (IsTwoPhase)
                 AppendLog("Двухфазный режим: сначала оперативный сбор (память, сеть, процессы), затем дисковый.");
@@ -331,7 +341,10 @@ public partial class TriageViewModel : ObservableObject
                        && !Phase1Only
                        && !Phase2Only;
         if (twoPhase)
-            ApplySnapshot(_progress.BeginPhase(0, 15, "Фаза 1…"));
+            ApplySnapshot(_progress.BeginPhase(
+                CollectionProgressBands.Phase1aFloor,
+                CollectionProgressBands.Phase1aCeil,
+                "Фаза 1…"));
         else
             ApplySnapshot(_progress.BeginPhase(0, 99, simulateOnly ? "Оценка объёма…" : "Сбор…"));
 
@@ -349,6 +362,7 @@ public partial class TriageViewModel : ObservableObject
                 simulate: simulateOnly,
                 phaseFilter: phaseFilter,
                 skipMemory: SkipMemory,
+                skipMemoryAnalysis: SkipMemoryAnalysis,
                 caseIdOverride: string.IsNullOrWhiteSpace(CaseId) ? null : CaseId.Trim(),
                 resultsRoot: _resultsRoot);
 
@@ -374,7 +388,7 @@ public partial class TriageViewModel : ObservableObject
             if (simulateOnly)
             {
                 SetStatus(result.ExitCode == 0 ? "Оценка завершена" : $"Оценка завершилась с кодом {result.ExitCode}",
-                    indeterminate: false, percent: 100);
+                    indeterminate: false, percent: 100, clearPhase: true);
                 ProgressTone = result.ExitCode == 0 ? ProgressTone.Success : ProgressTone.Danger;
                 AppendLog(result.StatusMessage);
                 var estimateBlock = _estimateParser?.FormatLogBlock();
@@ -386,7 +400,7 @@ public partial class TriageViewModel : ObservableObject
             if (result.HasResultsDirectory)
             {
                 SetStatus(result.ExitCode == 0 ? "Готово" : $"Готово с ошибками (код {result.ExitCode})",
-                    indeterminate: false, percent: 100);
+                    indeterminate: false, percent: 100, clearPhase: true);
                 ProgressTone = result.ExitCode == 0 ? ProgressTone.Success : ProgressTone.Danger;
                 AppendLog($"Папка результатов: {_resultsDir}");
                 CanOpenResults = true;
@@ -395,7 +409,7 @@ public partial class TriageViewModel : ObservableObject
             else
             {
                 SetStatus(result.ExitCode == 0 ? "Папка RESULTS не создана" : $"Ошибка (код {result.ExitCode})",
-                    indeterminate: false);
+                    indeterminate: false, clearPhase: true);
                 ProgressTone = ProgressTone.Danger;
                 ProgressValue = 100;
                 AppendLog(result.StatusMessage);
@@ -406,7 +420,7 @@ public partial class TriageViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             AppendLog("Сбор остановлен пользователем.");
-            SetStatus("Остановлено", indeterminate: false);
+            SetStatus("Остановлено", indeterminate: false, clearPhase: true);
             return false;
         }
         catch (Exception ex)
@@ -485,21 +499,31 @@ public partial class TriageViewModel : ObservableObject
 
     private void ApplySnapshot(CollectionProgressFacade.Snapshot snap)
     {
-        StatusText = snap.Status;
+        PhaseText = snap.Phase ?? "";
+        ActionText = snap.Action ?? "";
+        IsPhaseVisible = !string.IsNullOrWhiteSpace(PhaseText);
         IsProgressIndeterminate = snap.IsIndeterminate;
         if (snap.IsIndeterminate)
         {
             PercentText = "…";
+            RefreshStatusAnnouncement();
             return;
         }
 
         ProgressValue = snap.OverallPercent;
         PercentText = $"{snap.OverallPercent:0}%";
+        RefreshStatusAnnouncement();
     }
 
-    private void SetStatus(string text, bool indeterminate, double? percent = null)
+    private void SetStatus(string text, bool indeterminate, double? percent = null, bool clearPhase = false)
     {
-        StatusText = text;
+        if (clearPhase)
+        {
+            PhaseText = "";
+            IsPhaseVisible = false;
+        }
+
+        ActionText = text;
         IsProgressIndeterminate = indeterminate;
         if (percent is { } p)
         {
@@ -510,6 +534,50 @@ public partial class TriageViewModel : ObservableObject
         {
             PercentText = "…";
         }
+
+        RefreshStatusAnnouncement();
+    }
+
+    private void RefreshStatusAnnouncement()
+    {
+        var parts = new List<string>(3);
+        if (!string.IsNullOrWhiteSpace(PhaseText))
+            parts.Add(PhaseText);
+        if (!string.IsNullOrWhiteSpace(ActionText))
+            parts.Add(ActionText);
+        if (!string.IsNullOrWhiteSpace(PercentText) && PercentText != "…")
+            parts.Add(PercentText);
+        StatusText = parts.Count > 0 ? string.Join(", ", parts) : (ActionText ?? "");
+    }
+
+    private void ApplyPackageRecipe(CollectionPlan.LaunchManifest cfg)
+    {
+        if (cfg.CollectionMode == IrCollectionMode.TwoPhase)
+        {
+            ModeLabel = "Двухфазный сбор";
+            IsAdvancedExpanded = true;
+            CaseId = cfg.CaseId ?? "";
+            RefreshTwoPhaseSubtitle();
+        }
+        else
+        {
+            ModeLabel = "Обычный сбор";
+            Subtitle = $"Цель: {cfg.Target}" +
+                       (string.IsNullOrWhiteSpace(cfg.Module) ? "" : $"  ·  Модуль: {cfg.Module}");
+            IsAdvancedExpanded = false;
+        }
+    }
+
+    private void RefreshTwoPhaseSubtitle()
+    {
+        var cfg = _session?.Manifest;
+        if (cfg is null || cfg.CollectionMode != IrCollectionMode.TwoPhase)
+            return;
+
+        var vol3 = !SkipMemory && !SkipMemoryAnalysis ? " (+ Vol3 1b)" : "";
+        Subtitle =
+            $"Двухфазный сбор: {cfg.Phase1Module}{vol3} → {cfg.Target}" +
+            (string.IsNullOrWhiteSpace(cfg.Phase2Module) ? "" : $" + {cfg.Phase2Module}");
     }
 
     /// <summary>Prepare-phase log: keep journal + surface SHA256/extract % in the status bar.</summary>
@@ -560,7 +628,7 @@ public partial class TriageViewModel : ObservableObject
     internal void PresentError(string title, string message)
     {
         _progress.EndCopyWait();
-        SetStatus("Ошибка", indeterminate: false);
+        SetStatus("Ошибка", indeterminate: false, clearPhase: true);
         ProgressValue = 100;
         ProgressTone = ProgressTone.Danger;
         ErrorTitle = title;

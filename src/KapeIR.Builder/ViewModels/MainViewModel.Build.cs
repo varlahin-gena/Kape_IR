@@ -32,6 +32,49 @@ public partial class MainViewModel
             return;
         }
 
+        // Phase1 binaries for two_phase — offer download before generic bin preflight.
+        if (PackageEditor.TwoPhaseCollection)
+        {
+            var phase1Bins = Phase1Toolkit.CheckBins(root);
+            if (phase1Bins.NeedsInstall)
+            {
+                StatusText = "Phase1: нужны WinPmem / Volatility3";
+                var download = _dialogs.Confirm(
+                    "Для полноценной фазы 1 нужны бинарники (WinPmem / Vol3 / Sysinternals / scripts):\n\n" +
+                    phase1Bins.Message + "\n\n" +
+                    "Скачать/дозасеять сейчас в Modules\\bin?\n" +
+                    "(Нет — собрать пакет без них: часть Phase1 будет пропущена на хосте)",
+                    "Phase1 binaries",
+                    DialogIcon.Warning);
+                if (download)
+                {
+                    StatusText = "Скачивание Phase1 binaries…";
+                    var progressBins = new Progress<string>(m => StatusText = m);
+                    var installed = await Phase1Toolkit.EnsureBinsAsync(
+                        root,
+                        installWinPmem: phase1Bins.WinPmem.NeedsInstall,
+                        installVolatility3: phase1Bins.Volatility3.NeedsInstall,
+                        installLiveTools: phase1Bins.LiveTools.NeedsInstall,
+                        progress: progressBins);
+                    if (!installed.Ok)
+                    {
+                        if (!_dialogs.Confirm(
+                                installed.Message + "\n\nПродолжить сборку без полного Phase1?",
+                                "Phase1 binaries",
+                                DialogIcon.Warning))
+                        {
+                            StatusText = "Сборка отменена (Phase1 binaries)";
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        StatusText = installed.Message;
+                    }
+                }
+            }
+        }
+
         // Preflight: missing Modules\bin before picking output folder (cancel / continue).
         var includeModuleBinPreview = PackageEditor.TwoPhaseCollection || Package.Modules.Count > 0;
         if (includeModuleBinPreview)

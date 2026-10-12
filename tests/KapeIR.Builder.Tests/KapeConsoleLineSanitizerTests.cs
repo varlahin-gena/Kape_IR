@@ -52,4 +52,26 @@ public sealed class KapeConsoleLineSanitizerTests
         const string line = "  Expanded --tdest to D:\\test\\RESULTS\\V_HONOR";
         Assert.Equal(line, KapeConsoleLineSanitizer.Sanitize(line, oem));
     }
+
+    [Fact]
+    public void Sanitize_LeavesOemDecodedRussianErrorIntact()
+    {
+        var oem = Encoding.GetEncoding(866);
+        // Same text as KAPE ConsoleLog / reg.exe failure on Russian Windows.
+        const string line = "    Ошибка: Не удается выполнить запись в файл. Возможно, обнаружена ошибка диска или";
+        Assert.Equal(line, KapeConsoleLineSanitizer.Sanitize(line, oem));
+    }
+
+    [Fact]
+    public void OemDecode_OfRussianBytes_IsReadable_Utf8Decode_IsNot()
+    {
+        // Regression: StandardOutputEncoding=UTF8 on CP866 console bytes → journal mojibake.
+        var oem = Encoding.GetEncoding(866);
+        const string russian = "Ошибка: Не удается выполнить запись в файл.";
+        var oemBytes = oem.GetBytes(russian);
+        Assert.Equal(russian, oem.GetString(oemBytes));
+        var asUtf8 = Encoding.UTF8.GetString(oemBytes);
+        Assert.Contains('\uFFFD', asUtf8);
+        Assert.NotEqual(russian, asUtf8);
+    }
 }

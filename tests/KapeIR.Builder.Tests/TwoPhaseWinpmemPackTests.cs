@@ -47,6 +47,8 @@ public class TwoPhaseWinpmemPackTests
             req.Any(x => x.Equals("winpmem.exe", StringComparison.OrdinalIgnoreCase)),
             "required=[" + string.Join(", ", req.Take(40)) + "] leaves=" +
             string.Join(", ", leaves.Select(l => l.Name).Take(30)));
+        Assert.Contains(req, x => x.Contains("volatility3", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(req, x => x.Equals("Invoke-Volatility3Plugin.ps1", StringComparison.OrdinalIgnoreCase));
 
         var tmp = Path.Combine(Path.GetTempPath(), "kape_wp_" + Guid.NewGuid().ToString("N"));
         try
@@ -57,6 +59,9 @@ public class TwoPhaseWinpmemPackTests
             Assert.True(File.Exists(dest),
                 "winpmem.exe must be selectively copied for two_phase. Missing=" +
                 string.Join(", ", copy.Missing) + " Warnings=" + string.Join("; ", copy.Warnings));
+            Assert.True(File.Exists(Path.Combine(tmp, "Modules", "bin", "volatility3", "vol.exe")),
+                "volatility3\\vol.exe must be selectively copied for two_phase. Missing=" +
+                string.Join(", ", copy.Missing));
         }
         finally
         {

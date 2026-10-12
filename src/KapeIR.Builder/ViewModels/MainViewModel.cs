@@ -177,10 +177,27 @@ public partial class MainViewModel : ObservableObject, IBuilderShell, IDisposabl
             return null;
         }
 
+        // First-party KapeIR catalog (Phase1 + Hayabusa v41) always travels with Builder.
+        Phase1CatalogSeeder.Result? phase1Seed = null;
+        try
+        {
+            phase1Seed = Phase1CatalogSeeder.Ensure(root);
+        }
+        catch (Exception ex)
+        {
+            _dialogs.ShowMessage(
+                "Не удалось засеять каталог KapeIR:\n" + ex.Message,
+                "KapeIR",
+                DialogIcon.Warning);
+        }
+
         if (!string.Equals(KapeRoot, root, StringComparison.OrdinalIgnoreCase))
             SetKapeRootQuiet(root);
 
-        if (!_catalogWs.IsBoundTo(root))
+        // Reload when KapeIR files were written so catalog lists new modules.
+        var needReload = !_catalogWs.IsBoundTo(root) ||
+                         (phase1Seed is { SkippedUpToDate: false, FilesWritten: > 0 });
+        if (needReload)
             await Catalog.ReloadCatalogAsync(promptIfMissing: false);
 
         if (!_catalogWs.IsBoundTo(root))

@@ -11,7 +11,7 @@ public class ModuleBinGateTests
     [InlineData("Sync_KAPE", "Sync_KAPE.mkape", "General", true)]
     [InlineData("Maps_Sync", "Maps_Sync.mkape", "KAPESync", true)]
     [InlineData("AmcacheParser", "AmcacheParser.mkape", "EZTools", false)]
-    [InlineData("VolatileFirst", "VolatileFirst.mkape", "Compound", false)]
+    [InlineData("Phase1_VolatileFirst", "Phase1_VolatileFirst.mkape", "Compound", false)]
     public void IsSyncOrMaintenanceModule_ByNamePathCategory(
         string name, string path, string category, bool expected)
     {

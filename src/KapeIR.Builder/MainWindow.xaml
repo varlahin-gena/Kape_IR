@@ -10,6 +10,9 @@
         Icon="pack://application:,,,/app.ico"
         AutomationProperties.Name="KapeIR"
         Loaded="Window_Loaded">
+  <Window.Resources>
+    <ui:BindingProxy x:Key="MainVmProxy" Data="{Binding}"/>
+  </Window.Resources>
   <Window.CommandBindings>
     <CommandBinding Command="ApplicationCommands.Find" Executed="Find_Executed"/>
   </Window.CommandBindings>
@@ -177,24 +180,24 @@
                   <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Width="220">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.TargetSortNameHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortTargetsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.TargetSortNameHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortTargetsCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Name"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding OriginLabel}" Width="90">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.TargetSortOriginHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortTargetsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.TargetSortOriginHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortTargetsCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Origin"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding Meta}" Width="280">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.TargetSortMetaHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortTargetsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.TargetSortMetaHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortTargetsCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Meta"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
@@ -218,12 +221,16 @@
                        AutomationProperties.Name="Поиск модулей по имени"
                        AutomationProperties.HelpText="Поиск модулей по имени"/>
               <ComboBox Grid.Column="1" Margin="8,0,0,0"
-                        ItemsSource="{Binding Catalog.FilterOptions}"
+                        ItemsSource="{Binding Catalog.ModuleFilterOptions}"
                         SelectedItem="{Binding Catalog.ModuleFilter}"
                         AutomationProperties.Name="Фильтр модулей"/>
             </Grid>
             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
               <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Content="Проверить bin" Command="{Binding Catalog.CheckModuleBinariesCommand}"
+                        ToolTip="Сверить выбранные .mkape (или весь каталог) с Modules\bin"
+                        AutomationProperties.Name="Проверить бинарники модулей"
+                        AutomationProperties.HelpText="Сверить .mkape с Modules\bin"/>
                 <Button Content="Подсказать" Command="{Binding Catalog.SuggestModulesCommand}"
                         ToolTip="Подобрать парсеры под выбранные таргеты"
                         AutomationProperties.Name="Подсказать модули"
@@ -235,17 +242,22 @@
             <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="40"/>
-                <ColumnDefinition Width="220"/>
-                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="48"/>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="80"/>
                 <ColumnDefinition Width="*"/>
               </Grid.ColumnDefinitions>
-              <TextBox Grid.Column="1" Margin="0,0,4,0"
+              <TextBox Grid.Column="2" Margin="0,0,4,0"
                        Text="{Binding Catalog.ModuleColFilterName, UpdateSourceTrigger=PropertyChanged}"
                        ui:Watermark.Text="Имя…" AutomationProperties.Name="Фильтр столбца Имя модули"/>
-              <TextBox Grid.Column="2" Margin="0,0,4,0"
+              <TextBox Grid.Column="3" Margin="0,0,4,0"
                        Text="{Binding Catalog.ModuleColFilterOrigin, UpdateSourceTrigger=PropertyChanged}"
                        ui:Watermark.Text="Источник…" AutomationProperties.Name="Фильтр столбца Источник модули"/>
-              <TextBox Grid.Column="3"
+              <TextBox Grid.Column="1" Margin="0,0,4,0"
+                       Text="{Binding Catalog.ModuleColFilterBin, UpdateSourceTrigger=PropertyChanged}"
+                       ui:Watermark.Text="Bin…" ToolTip="✓ / ~ / ✗ / —"
+                       AutomationProperties.Name="Фильтр столбца Bin модули"/>
+              <TextBox Grid.Column="4"
                        Text="{Binding Catalog.ModuleColFilterMeta, UpdateSourceTrigger=PropertyChanged}"
                        ui:Watermark.Text="Категория / путь…" AutomationProperties.Name="Фильтр столбца Мета модули"/>
             </Grid>
@@ -284,27 +296,43 @@
                       </DataTemplate>
                     </GridViewColumn.CellTemplate>
                   </GridViewColumn>
-                  <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Width="220">
+                  <GridViewColumn Width="48">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.ModuleSortNameHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortModulesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.ModuleSortBinHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortModulesCommand, Source={StaticResource MainVmProxy}}"
+                              CommandParameter="Bin"
+                              ToolTip="Modules\bin: ✓ есть, ~ частично, ✗ нет, — sync"/>
+                    </GridViewColumn.Header>
+                    <GridViewColumn.CellTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding BinDisplay}" ToolTip="{Binding BinTooltip}"
+                                   HorizontalAlignment="Center"
+                                   AutomationProperties.Name="{Binding BinTooltip}"/>
+                      </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                  </GridViewColumn>
+                  <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Width="200">
+                    <GridViewColumn.Header>
+                      <Button Style="{StaticResource ColumnSortHeaderButton}"
+                              Content="{Binding Data.Catalog.ModuleSortNameHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortModulesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Name"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
-                  <GridViewColumn DisplayMemberBinding="{Binding OriginLabel}" Width="90">
+                  <GridViewColumn DisplayMemberBinding="{Binding OriginLabel}" Width="80">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.ModuleSortOriginHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortModulesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.ModuleSortOriginHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortModulesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Origin"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding Meta}" Width="280">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.ModuleSortMetaHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortModulesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.ModuleSortMetaHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortModulesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Meta"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
@@ -415,48 +443,48 @@
                   <GridViewColumn DisplayMemberBinding="{Binding DisplayName}" Width="180">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.PackSortNameHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.PackSortNameHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortPacksCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Name"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding NestingRole}" Width="80">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.PackSortRoleHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.PackSortRoleHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortPacksCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Role"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding ChildCount}" Width="50">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.PackSortChildrenHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.PackSortChildrenHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortPacksCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Children"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding UsedByDisplay}" Width="260">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.PackSortUsedByHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.PackSortUsedByHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortPacksCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="UsedBy"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding OriginLabel}" Width="80">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.PackSortOriginHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.PackSortOriginHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortPacksCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Origin"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding Item.Description}" Width="280">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Catalog.PackSortDescriptionHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Catalog.SortPacksCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Catalog.PackSortDescriptionHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Catalog.SortPacksCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Description"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
@@ -534,56 +562,56 @@
                   <GridViewColumn DisplayMemberBinding="{Binding Name}" Width="180">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Binaries.SortNameHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Binaries.SortNameHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Binaries.SortBinariesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Name"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding Category}" Width="100">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Binaries.SortCategoryHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Binaries.SortCategoryHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Binaries.SortBinariesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Category"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding Group}" Width="140">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Binaries.SortGroupHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Binaries.SortGroupHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Binaries.SortBinariesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Group"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding VersionDisplay}" Width="110">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Binaries.SortVersionHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Binaries.SortVersionHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Binaries.SortBinariesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Version"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding SizeDisplay}" Width="80">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Binaries.SortSizeHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Binaries.SortSizeHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Binaries.SortBinariesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Size"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding ModifiedDisplay}" Width="120">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Binaries.SortModifiedHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Binaries.SortModifiedHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Binaries.SortBinariesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Modified"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
                   <GridViewColumn DisplayMemberBinding="{Binding RelativePath}" Width="220">
                     <GridViewColumn.Header>
                       <Button Style="{StaticResource ColumnSortHeaderButton}"
-                              Content="{Binding DataContext.Binaries.SortPathHeader, RelativeSource={RelativeSource AncestorType=Window}}"
-                              Command="{Binding DataContext.Binaries.SortBinariesCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Content="{Binding Data.Binaries.SortPathHeader, Source={StaticResource MainVmProxy}}"
+                              Command="{Binding Data.Binaries.SortBinariesCommand, Source={StaticResource MainVmProxy}}"
                               CommandParameter="Path"/>
                     </GridViewColumn.Header>
                   </GridViewColumn>
@@ -660,16 +688,11 @@
                            ToolTip="Том на целевой системе, с которого собирать артефакты (например C:)"
                            AutomationProperties.Name="Диск-источник"
                            AutomationProperties.HelpText="Том на целевой системе для сбора"/>
-                  <WrapPanel Margin="0,0,0,8">
-                    <CheckBox Content="Архивировать результаты" IsChecked="{Binding PackageEditor.ZipOutput}"
-                              ToolTip="Упаковать папку RESULTS в ZIP после сбора"
-                              AutomationProperties.Name="Архивировать результаты"
-                              AutomationProperties.HelpText="Упаковать RESULTS в ZIP после сбора"/>
-                    <CheckBox Content="Теневые копии" IsChecked="{Binding PackageEditor.Vss}"
-                              ToolTip="Читать файлы через Volume Shadow Copy, если доступно"
-                              AutomationProperties.Name="Теневые копии"
-                              AutomationProperties.HelpText="Читать через Volume Shadow Copy"/>
-                  </WrapPanel>
+                  <CheckBox Content="Теневые копии" IsChecked="{Binding PackageEditor.Vss}"
+                            Margin="0,0,0,8"
+                            ToolTip="Читать файлы через Volume Shadow Copy, если доступно"
+                            AutomationProperties.Name="Теневые копии"
+                            AutomationProperties.HelpText="Читать через Volume Shadow Copy"/>
                   <CheckBox Content="Двухфазный IR (volatile → disk)" IsChecked="{Binding PackageEditor.TwoPhaseCollection}"
                             Margin="0,0,0,8"
                             ToolTip="Сначала оперативный сбор, затем дисковый триаж"

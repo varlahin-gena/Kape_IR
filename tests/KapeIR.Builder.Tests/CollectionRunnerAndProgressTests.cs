@@ -35,8 +35,8 @@ public class CollectPackProgressParserTests
         var u = p.TryParse("Фаза 2 — disk triage (targets)");
         Assert.NotNull(u);
         Assert.True(u!.ResetPhase);
-        Assert.Equal(15, u.PhaseFloor);
-        Assert.Equal(99, u.PhaseCeil);
+        Assert.Equal(CollectionProgressBands.Phase2Floor, u.PhaseFloor);
+        Assert.Equal(CollectionProgressBands.Phase2Ceil, u.PhaseCeil);
     }
 
     [Theory]
@@ -88,7 +88,8 @@ public class CollectionRunnerTests
             Assert.Equal(0, result.ExitCode);
             Assert.Contains(result.PhaseSummaries, s => s.Contains("skipped — sim", StringComparison.Ordinal));
             Assert.Single(calls);
-            Assert.DoesNotContain(calls, c => c.Contains("VolatileFirst", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(calls, c =>
+                c.Contains(PackageDefinition.DefaultPhase1Module, StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
@@ -155,7 +156,99 @@ public class CollectionRunnerTests
                 });
 
             Assert.Equal(0, result.ExitCode);
+            // 1a (NoMemory) + phase 2 — no 1b when --skip-memory
             Assert.Equal(2, called);
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Phase1bFail_ContinuesPhase2_ExitFromPhase1aOnly()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_cr_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Modules", "bin", "volatility3"));
+        File.WriteAllText(Path.Combine(root, "Modules", "bin", "winpmem.exe"), "MZ");
+        File.WriteAllText(Path.Combine(root, "Modules", "bin", "volatility3", "vol.exe"), "MZ");
+        var modules = new List<string>();
+
+        try
+        {
+            var hostResults = CollectionPlan.ResolveHostResultsDir(root, null);
+            Directory.CreateDirectory(Path.Combine(hostResults, "Phase1_Volatile"));
+
+            var result = await CollectionRunner.RunAsync(
+                root,
+                Path.Combine(root, "kape.exe"),
+                TwoPhaseManifest(),
+                new CollectionPlan.RuntimeOptions("C:", Simulate: false, SkipMemory: false),
+                collectorExe: null,
+                log: _ => { },
+                runKape: (_, args, _, _) =>
+                {
+                    var line = string.Join(' ', args);
+                    modules.Add(line);
+                    // After phase 1a, plant a dump so 1b runs.
+                    if (line.Contains(PackageDefinition.DefaultPhase1Module, StringComparison.OrdinalIgnoreCase))
+                    {
+                        File.WriteAllText(
+                            Path.Combine(hostResults, "Phase1_Volatile", "memory.raw"),
+                            "dump");
+                        return Task.FromResult(0);
+                    }
+
+                    if (line.Contains(PackageDefinition.DefaultPhase1MemoryTriage, StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains(PackageDefinition.DefaultPhase1MemoryDeep, StringComparison.OrdinalIgnoreCase))
+                        return Task.FromResult(7);
+
+                    return Task.FromResult(0);
+                });
+
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal(4, modules.Count);
+            Assert.Contains(result.PhaseSummaries, s => s.Contains("1b-triage") && s.Contains("exit=7"));
+            Assert.Contains(result.PhaseSummaries, s => s.StartsWith("2:", StringComparison.Ordinal));
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { /* ignore */ }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_Phase1b_SkippedWithoutDump()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kape_cr_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "Modules", "bin", "volatility3"));
+        File.WriteAllText(Path.Combine(root, "Modules", "bin", "winpmem.exe"), "MZ");
+        File.WriteAllText(Path.Combine(root, "Modules", "bin", "volatility3", "vol.exe"), "MZ");
+        var called = 0;
+
+        try
+        {
+            var hostResults = CollectionPlan.ResolveHostResultsDir(root, null);
+            Directory.CreateDirectory(hostResults);
+            File.WriteAllText(Path.Combine(hostResults, "marker.txt"), "x");
+
+            var result = await CollectionRunner.RunAsync(
+                root,
+                Path.Combine(root, "kape.exe"),
+                TwoPhaseManifest(),
+                new CollectionPlan.RuntimeOptions("C:", Simulate: false, SkipMemory: false),
+                collectorExe: null,
+                log: _ => { },
+                runKape: (_, _, _, _) =>
+                {
+                    called++;
+                    return Task.FromResult(0);
+                });
+
+            Assert.Equal(0, result.ExitCode);
+            // 1a + phase2 only (1b skipped — no dump)
+            Assert.Equal(2, called);
+            Assert.Contains(result.PhaseSummaries, s => s.Contains("skipped", StringComparison.OrdinalIgnoreCase));
         }
         finally
         {

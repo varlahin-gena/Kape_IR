@@ -33,6 +33,19 @@ public sealed class TriageViewModelTests
     }
 
     [Fact]
+    public void SkipMemory_disables_memory_analysis_option()
+    {
+        var vm = new TriageViewModel(new FakeTriageDialogService());
+        Assert.True(vm.IsMemoryAnalysisOptionEnabled);
+
+        vm.SkipMemory = true;
+        Assert.False(vm.IsMemoryAnalysisOptionEnabled);
+
+        vm.SkipMemory = false;
+        Assert.True(vm.IsMemoryAnalysisOptionEnabled);
+    }
+
+    [Fact]
     public void IsRunning_disables_close_and_source_panel()
     {
         var vm = new TriageViewModel(new FakeTriageDialogService())

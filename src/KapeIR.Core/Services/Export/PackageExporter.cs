@@ -55,7 +55,18 @@ public sealed class PackageExporter : IPackageExporter
         File.WriteAllText(targetFile, KapeCompoundIo.RenderCompoundTarget(pkg));
 
         if (pkg.IsTwoPhase)
+        {
+            Report("KapeIR: засев встроенного каталога…");
+            var seed = Phase1CatalogSeeder.Ensure(_catalog.KapeRoot);
+            if (!seed.Ok)
+                warnings.Add(seed.Message);
+            else if (!seed.SkippedUpToDate)
+                warnings.Add(seed.Message);
+            if (seed.FilesWritten > 0)
+                _catalog.Refresh();
+
             EnsureTwoPhaseModules(pkg, warnings);
+        }
 
         string? moduleFile = null;
         string? phase2ModuleFile = null;
@@ -65,7 +76,7 @@ public sealed class PackageExporter : IPackageExporter
         if (pkg.IsTwoPhase)
         {
             Directory.CreateDirectory(modulesOut);
-            // Phase 1: shipped VolatileFirst*.mkape (copied with deps).
+            // Phase 1a/1b: Phase1_VolatileFirst* + MemoryTriage/Deep (copied with deps).
             moduleFile = Path.Combine(modulesOut, pkg.ModuleCompoundName + ".mkape");
 
             // Phase 2: any other selected modules → generated compound (skip missing bins).
@@ -120,6 +131,18 @@ public sealed class PackageExporter : IPackageExporter
                 PackageDefinition.DefaultPhase1ModuleNoMemory + ".mkape");
             if (!File.Exists(noMem))
                 warnings.Add($"Для --skip-memory нужен {PackageDefinition.DefaultPhase1ModuleNoMemory}.mkape.");
+            foreach (var memMod in new[]
+                     {
+                         PackageDefinition.DefaultPhase1MemoryTriage,
+                         PackageDefinition.DefaultPhase1MemoryDeep
+                     })
+            {
+                var memPath = Path.Combine(packageDir, "Modules", "Compound", memMod + ".mkape");
+                if (!File.Exists(memPath))
+                    warnings.Add($"Двухфазный пакет: для автопоста фазы 1 нужен {memMod}.mkape.");
+            }
+
+            // vol.exe is verified after CopyRuntime (selective Modules\bin) — not here.
             if (File.Exists(p1))
                 moduleFile = p1;
 
@@ -146,6 +169,26 @@ public sealed class PackageExporter : IPackageExporter
                 fullModuleBin: false,
                 cancellationToken,
                 progress));
+        }
+        else if (options.IncludeModuleBin)
+        {
+            // Folder-only export still needs selective bin for two_phase Phase1b.
+            warnings.AddRange(SelectiveModulesBinCopier.Copy(
+                _catalog, pkg, packageDir, cancellationToken, progress).Warnings);
+        }
+
+        if (pkg.IsTwoPhase && (options.BuildStandaloneExe || options.IncludeModuleBin))
+        {
+            var volExe = Path.Combine(packageDir, "Modules", "bin", "volatility3", "vol.exe");
+            if (!File.Exists(volExe))
+            {
+                var inRoot = File.Exists(Path.Combine(
+                    _catalog.KapeRoot, "Modules", "bin", "volatility3", "vol.exe"));
+                warnings.Add(inRoot
+                    ? "Двухфазный пакет: vol.exe есть в KAPE-корне, но не скопирован в пакет — проверьте selective Modules\\bin."
+                    : "Двухфазный пакет: нет Modules\\bin\\volatility3\\vol.exe — Phase 1b (Vol3) будет пропущен на хосте. " +
+                      "Установите Volatility3 через «Обновить с GitHub…» / Phase1 binaries и пересоберите.");
+            }
         }
 
         Check();
@@ -329,6 +372,8 @@ public sealed class PackageExporter : IPackageExporter
 
         EnsureModule(pkg.Phase1ModuleName);
         EnsureModule(PackageDefinition.DefaultPhase1ModuleNoMemory);
+        EnsureModule(PackageDefinition.DefaultPhase1MemoryTriage);
+        EnsureModule(PackageDefinition.DefaultPhase1MemoryDeep);
     }
 
     private List<SelectionEntry> FilterPhase2Modules(PackageDefinition pkg, List<string> warnings)
@@ -476,12 +521,14 @@ public sealed class PackageExporter : IPackageExporter
             lines.Add($"  - Compound-модуль: {pkg.ModuleCompoundName}.mkape");
         if (pkg.IsTwoPhase)
         {
-            lines.Add($"  - Фаза 1: {pkg.Phase1ModuleName} → RESULTS\\%m\\Phase1_Volatile");
+            lines.Add($"  - Фаза 1a: {pkg.Phase1ModuleName} → RESULTS\\%m\\Phase1_Volatile");
+            lines.Add($"  - Фаза 1b: {PackageDefinition.DefaultPhase1MemoryTriage} → Phase1_Volatile\\MemoryAnalysis");
+            lines.Add($"  - Фаза 1b: {PackageDefinition.DefaultPhase1MemoryDeep} → Phase1_Volatile\\MemoryDeep");
             lines.Add($"  - Фаза 2: {pkg.TargetCompoundName} → RESULTS\\%m\\Phase2_Disk");
             var p2m = pkg.ResolvePhase2ModuleName();
             if (p2m is not null)
                 lines.Add($"  - Фаза 2 modules: {p2m}.mkape");
-            lines.Add($"  - Также: {PackageDefinition.DefaultPhase1ModuleNoMemory} (--skip-memory)");
+            lines.Add($"  - Также: {PackageDefinition.DefaultPhase1ModuleNoMemory} (--skip-memory; 1b пропускается)");
         }
 
         lines.AddRange(new[]

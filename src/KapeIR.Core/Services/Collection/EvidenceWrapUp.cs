@@ -33,9 +33,10 @@ public static class EvidenceWrapUp
         "□ Часовой пояс хоста записан (Id / Display / UTC offset / DST) — для таймлайна",
         "□ evidence_manifest.sha256 сверен; для дампа памяти — memory_hash.sha256 (дамп в манифесте не дублируется)",
         "□ CopyLog / SkipLog / ConsoleLog без критичных пропусков",
-        "□ Фаза 1 (оперативный сбор) до тяжёлого диска; --skip-memory — осознанный выбор",
+        "□ Фаза 1a (оперативный сбор) до диска; --skip-memory — осознанный выбор (без дампа)",
+        "□ Фаза 1b (по желанию): MemoryAnalysis / MemoryDeep — или --skip-memory-analysis / skip в логе",
         "□ findings_template.csv → findings.csv; строки EXAMPLE заменены",
-        "□ Lab при необходимости: Volatility3_Triage / Hayabusa_Offline / hayabusa_IocCandidates (IOC = unverified)",
+        "□ Фаза 2 Event Logs: желательно Chainsaw + Hayabusa_Offline_v41 (оба); IOC = unverified до сверки",
         "□ Передача evidence: заполнить Transfer / Storage в chain_of_custody.txt",
     };
 

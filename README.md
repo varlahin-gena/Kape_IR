@@ -6,7 +6,8 @@
 
 **Версия: 1.8.8**
 
-> В этом репозитории **нет** дистрибутива KAPE (`kape.exe`, `Targets`, `Modules`). Нужна отдельная установка KAPE рядом с Builder.
+> В этом репозитории **нет** полного дистрибутива KAPE (`kape.exe` + stock Targets/Modules). Нужна отдельная установка KAPE рядом с Builder.  
+> **Phase 1 IR** (модули + скрипты) **вшит в KapeIR** и автоматически засевается в выбранный корень; WinPmem / Volatility3 ставятся через «Обновить с GitHub…» или при сборке two_phase.
 
 ---
 
@@ -45,7 +46,7 @@
 |-----------|------|
 | **KapeIR** | Каталог Targets/Modules, фильтры, подсказки модулей, готовые сборки (CRUD), sync с GitHub KapeFiles, EZ Tools / Chainsaw |
 | **KapeIR.Triage** | Портативный сборщик: распаковка рядом с EXE, запуск `kape.exe`, GUI-прогресс или silent |
-| **Two-phase IR** | Phase 1 volatile → Phase 2 disk (RFC 3227 / Order of Volatility), Case ID, манифесты |
+| **Two-phase IR** | Phase 1a volatile + Phase 1b Vol3 (авто) → Phase 2 disk; каталог Phase1 вшит в Builder |
 
 KAPE остаётся движком сбора; KapeIR — оболочка над каталогом и упаковкой.
 
@@ -85,28 +86,37 @@ KAPE остаётся движком сбора; KapeIR — оболочка н�
 | Только volatile | `ИмяПакета.exe --silent --tsource C: --phase 1` |
 | Без RAM dump | `ИмяПакета.exe --silent --tsource C: --skip-memory` |
 
-### Двухфазный IR (VolatileFirst)
+### Двухфазный IR (Phase1)
 
-Порядок по RFC 3227 (Order of Volatility): сначала живые данные, потом диск.
+Порядок по RFC 3227 (Order of Volatility): сначала живые данные и автопост памяти, потом диск.
 
-#### Фаза 1 — volatile (`VolatileFirst` → `RESULTS\<host>\Phase1_Volatile`)
-
-Собирает **только live/volatile** evidence (modules-only, до дискового triage):
+#### Фаза 1a — volatile collect (`Phase1_VolatileFirst` → `RESULTS\<host>\Phase1_Volatile`)
 
 | Шаг | Модуль | Что снимает |
 |-----|--------|-------------|
-| 1 | `Velocidex_WinPmem` | RAM-дамп (`memory.raw` / aff4) + `memory_hash.sha256` |
-| 2 | `LiveResponse_NetworkDetails` | IP/DNS/ARP/маршрут, netstat, TCP/UDP CSV, firewall, portproxy, NetBIOS |
+| 1 | `Velocidex_WinPmem` | RAM-дамп (`memory.raw`) + `memory_hash.sha256` |
+| 2 | `LiveResponse_NetworkDetails` | IP/DNS/ARP/маршрут, netstat, NetBIOS |
 | 3 | `LiveResponse_ProcessDetails` | Процессы, дерево, сервисы, handles, injected threads |
-| 4 | `LiveResponse_NetSystemInfo` | `net user` / groups / sessions / shares / started services |
+| 4 | `LiveResponse_NetSystemInfo` | `net user` / groups / sessions / shares |
 | 5 | `LiveResponse_SystemSnapshot` | Время, env, quser/session, schtasks, Run-keys, services |
 
-Без RAM: модуль `VolatileFirst_NoMemory` или `--skip-memory`.  
-Для дампа нужен signed **WinPmem** как `Modules\bin\winpmem.exe` (см. `Velocidex_WinPmem.mkape`). Без него — `--skip-memory` или код выхода 2.
+Без RAM: `Phase1_VolatileFirst_NoMemory` или `--skip-memory`.  
+Нужен signed **WinPmem** → `Modules\bin\winpmem.exe`. Без него — `--skip-memory` или exit 2.
+
+#### Фаза 1b — автопост памяти (тот же прогон Triage)
+
+При наличии `memory.raw`/`memory.dmp` и `Modules\bin\volatility3\vol.exe`:
+
+| Модуль | Вывод |
+|--------|--------|
+| `Phase1_MemoryTriage` | `Phase1_Volatile\MemoryAnalysis\` |
+| `Phase1_MemoryDeep` | `Phase1_Volatile\MemoryDeep\` |
+
+Нет дампа / нет vol / ошибка Vol3 → warning, **фаза 2 всё равно идёт**.
 
 #### Фаза 2 — disk (`Phase2_Disk`)
 
-Выбранные в Builder **Targets** и парсеры (**Modules**) — классический KAPE-сбор с диска.
+Выбранные в Builder **Targets** и парсеры (**Modules**) — по желанию пакета.
 
 #### После сбора
 

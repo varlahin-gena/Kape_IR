@@ -1,0 +1,16 @@
+Description: Scheduled tasks (live schtasks query)
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.1
+Id: a1b2c3d4-e5f6-7890-ab12-cd34ef567806
+ExportFormat: csv
+Processors:
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -ExecutionPolicy Bypass -File "%kapeDirectory%\Modules\bin\Invoke-Utf8Capture.ps1" -Exe "schtasks.exe" -Arguments "/query /fo CSV /v" -OutputFile "%destinationDirectory%\scheduled_tasks_live.csv"
+        ExportFormat: csv
+
+# Documentation
+# Live task list complements on-disk Task XML collected by Targets.
+# UTF-8 via Invoke-Utf8Capture.ps1 (OEM CP866 → UTF-8).
+# https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-query

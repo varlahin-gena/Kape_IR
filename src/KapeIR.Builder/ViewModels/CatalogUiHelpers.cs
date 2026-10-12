@@ -23,23 +23,43 @@ public static class CatalogUiHelpers
         string? colName = null,
         string? colOrigin = null,
         string? colMeta = null,
-        ColumnSortState? sort = null)
+        string? colBin = null,
+        ColumnSortState? sort = null,
+        IReadOnlyDictionary<string, ModuleBinAuditEntry>? binIndex = null)
     {
         var compoundsOnly = ParseFilter(filter);
         var selectedOnly = filter == "Только выбранные";
+        var missingBinOnly = filter == "Без бинарника";
         var keys = KapeCatalog.BuildSelectionKeys(selection);
         var items = (kind == ItemKind.Target
                 ? catalog.FilterTargets(search, selectedOnly ? null : compoundsOnly)
-                : catalog.FilterModules(search, selectedOnly ? null : compoundsOnly))
+                : catalog.FilterModules(search, selectedOnly || missingBinOnly ? null : compoundsOnly))
             .ToList();
         if (selectedOnly)
             items = items.Where(i => KapeCatalog.IsSelected(i, keys)).ToList();
 
-        IEnumerable<CatalogRowVm> rows = items.Select(i => new CatalogRowVm(i, KapeCatalog.IsSelected(i, keys)));
+        IEnumerable<CatalogRowVm> rows = items.Select(i =>
+        {
+            ModuleBinAuditEntry? bin = null;
+            if (kind == ItemKind.Module && binIndex is not null)
+                bin = LookupBin(binIndex, i);
+            return new CatalogRowVm(
+                i,
+                KapeCatalog.IsSelected(i, keys),
+                childCount: i.Children.Count,
+                usedBy: Array.Empty<string>(),
+                directParentCount: 0,
+                binAudit: kind == ItemKind.Module ? bin : null);
+        });
+
+        if (missingBinOnly && kind == ItemKind.Module)
+            rows = rows.Where(r => r.BinStatus is ModuleBinStatus.Missing or ModuleBinStatus.Partial);
+
         rows = rows.Where(r =>
             ColumnListOps.Matches(r.Item.Name, colName) &&
             ColumnListOps.Matches(r.OriginLabel, colOrigin) &&
-            ColumnListOps.Matches(r.Meta, colMeta));
+            ColumnListOps.Matches(r.Meta, colMeta) &&
+            (kind != ItemKind.Module || ColumnListOps.Matches(r.BinDisplay, colBin)));
 
         if (sort is { Dir: not ColumnSortDir.None, Key: not null })
         {
@@ -48,11 +68,26 @@ public static class CatalogUiHelpers
                 "Name" => ColumnListOps.SortBy(rows, sort, r => r.Item.Name),
                 "Origin" => ColumnListOps.SortBy(rows, sort, r => r.OriginLabel),
                 "Meta" => ColumnListOps.SortBy(rows, sort, r => r.Meta),
+                "Bin" => ColumnListOps.SortBy(rows, sort, r => r.BinDisplay),
                 _ => rows
             };
         }
 
         return rows.ToList();
+    }
+
+    public static ModuleBinAuditEntry? LookupBin(
+        IReadOnlyDictionary<string, ModuleBinAuditEntry> index,
+        CatalogItem item)
+    {
+        if (!string.IsNullOrEmpty(item.AbsolutePath) && index.TryGetValue(item.AbsolutePath, out var byPath))
+            return byPath;
+        if (index.TryGetValue(item.Name, out var byName))
+            return byName;
+        var file = Path.GetFileName(item.RelativePath);
+        if (!string.IsNullOrEmpty(file) && index.TryGetValue(file, out var byFile))
+            return byFile;
+        return null;
     }
 
     public static List<CatalogRowVm> BuildExistingPackRows(

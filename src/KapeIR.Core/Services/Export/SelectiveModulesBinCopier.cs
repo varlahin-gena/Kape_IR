@@ -273,9 +273,17 @@ public static class SelectiveModulesBinCopier
 
         var exes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Phase 1 RAM dump — do not rely solely on FlattenToLeaves(Velocidex_WinPmem).
+        // Phase 1a/1b payloads — always for two_phase (even if leaf parse missed).
         if (pkg.IsTwoPhase)
+        {
             exes.Add("winpmem.exe");
+            exes.Add(@"volatility3\vol.exe");
+            exes.Add("Invoke-Volatility3Plugin.ps1");
+            foreach (var name in Phase1LiveToolsInstaller.RequiredScripts)
+                exes.Add(name);
+            foreach (var name in Phase1LiveToolsInstaller.RequiredSysinternals)
+                exes.Add(name);
+        }
 
         if (refs.Count == 0)
             return exes.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();

@@ -1,0 +1,20 @@
+Description: Windows Firewall profiles and rules (live)
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.1
+Id: a1b2c3d4-e5f6-7890-ab12-cd34ef567801
+ExportFormat: txt
+Processors:
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -ExecutionPolicy Bypass -File "%kapeDirectory%\Modules\bin\Invoke-Utf8Capture.ps1" -Exe "netsh.exe" -Arguments "advfirewall show allprofiles" -OutputFile "%destinationDirectory%\firewall_profiles.txt"
+        ExportFormat: txt
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -ExecutionPolicy Bypass -File "%kapeDirectory%\Modules\bin\Invoke-Utf8Capture.ps1" -Exe "netsh.exe" -Arguments "advfirewall firewall show rule name=all" -OutputFile "%destinationDirectory%\firewall_rules.txt"
+        ExportFormat: txt
+
+# Documentation
+# Captures live firewall state (Order of Volatility / live IR).
+# UTF-8 via Invoke-Utf8Capture.ps1 (fixes Cyrillic mojibake from OEM console capture).
+# https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netsh-advfirewall

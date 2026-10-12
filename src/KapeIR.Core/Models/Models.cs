@@ -21,7 +21,7 @@ public sealed class CatalogItem
     public List<string> FileMasks { get; init; } = new();
     public List<string> DocumentationUrls { get; init; } = new();
     public string AbsolutePath { get; init; } = "";
-    /// <summary>GitHub KapeFiles vs local-only (see CatalogOriginLabels).</summary>
+    /// <summary>GitHub KapeFiles vs KapeIR first-party vs other local-only (see CatalogOriginLabels).</summary>
     public CatalogOrigin Origin { get; init; }
 
     public string DisplayName => IsCompound ? $"[C] {Name}" : Name;
@@ -64,8 +64,14 @@ public enum IrCollectionMode
 
 public sealed class PackageDefinition
 {
-    public const string DefaultPhase1Module = "VolatileFirst";
-    public const string DefaultPhase1ModuleNoMemory = "VolatileFirst_NoMemory";
+    public const string DefaultPhase1Module = "Phase1_VolatileFirst";
+    public const string DefaultPhase1ModuleNoMemory = "Phase1_VolatileFirst_NoMemory";
+    public const string DefaultPhase1MemoryTriage = "Phase1_MemoryTriage";
+    public const string DefaultPhase1MemoryDeep = "Phase1_MemoryDeep";
+
+    /// <summary>Legacy compound names still accepted in manifests / catalogs.</summary>
+    public const string LegacyPhase1Module = "VolatileFirst";
+    public const string LegacyPhase1ModuleNoMemory = "VolatileFirst_NoMemory";
 
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
@@ -87,12 +93,12 @@ public sealed class PackageDefinition
     /// <summary>Case / ticket id written into chain-of-custody on the host.</summary>
     public string CaseId { get; set; } = "";
 
-    /// <summary>Phase 1 compound module name (two_phase). Default VolatileFirst.</summary>
+    /// <summary>Phase 1a compound module name (two_phase). Default Phase1_VolatileFirst.</summary>
     public string Phase1ModuleName { get; set; } = DefaultPhase1Module;
 
     /// <summary>
     /// Optional phase-2 module compound (parsers after disk copy).
-    /// When null at export time, derived from non-VolatileFirst selected modules.
+    /// When null at export time, derived from non-Phase1 playbook selected modules.
     /// </summary>
     public string? Phase2ModuleName { get; set; }
 
@@ -137,10 +143,23 @@ public sealed class PackageDefinition
         if (string.IsNullOrWhiteSpace(nameOrPath)) return false;
         var bare = Path.GetFileNameWithoutExtension(nameOrPath.Trim());
         return bare.Equals(DefaultPhase1Module, StringComparison.OrdinalIgnoreCase) ||
-               bare.Equals(DefaultPhase1ModuleNoMemory, StringComparison.OrdinalIgnoreCase);
+               bare.Equals(DefaultPhase1ModuleNoMemory, StringComparison.OrdinalIgnoreCase) ||
+               bare.Equals(LegacyPhase1Module, StringComparison.OrdinalIgnoreCase) ||
+               bare.Equals(LegacyPhase1ModuleNoMemory, StringComparison.OrdinalIgnoreCase) ||
+               bare.Equals(DefaultPhase1MemoryTriage, StringComparison.OrdinalIgnoreCase) ||
+               bare.Equals(DefaultPhase1MemoryDeep, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Modules that run in phase 2 (anything except VolatileFirst playbooks).</summary>
+    /// <summary>True when the named module is Phase 1a collect that includes WinPmem.</summary>
+    public static bool IsPhase1CollectWithMemory(string? nameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(nameOrPath)) return false;
+        var bare = Path.GetFileNameWithoutExtension(nameOrPath.Trim());
+        return bare.Equals(DefaultPhase1Module, StringComparison.OrdinalIgnoreCase) ||
+               bare.Equals(LegacyPhase1Module, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Modules that run in phase 2 (anything except Phase 1 playbooks).</summary>
     public List<SelectionEntry> GetPhase2ModuleEntries()
         => Modules
             .Where(m => !IsVolatileFirstPlaybookModule(m.Path) && !IsVolatileFirstPlaybookModule(m.Name))

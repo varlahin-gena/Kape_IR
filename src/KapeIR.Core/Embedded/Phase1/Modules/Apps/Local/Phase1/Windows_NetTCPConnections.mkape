@@ -1,0 +1,14 @@
+Description: TCP/UDP endpoints via Get-NetTCPConnection / Get-NetUDPEndpoint
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.0
+Id: a1b2c3d4-e5f6-7890-ab12-cd34ef567807
+ExportFormat: csv
+Processors:
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -Command "Get-NetTCPConnection -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,State,OwningProcess,CreationTime | Export-Csv -NoTypeInformation -Path '%destinationDirectory%\tcp_connections.csv'; Get-NetUDPEndpoint -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess,CreationTime | Export-Csv -NoTypeInformation -Path '%destinationDirectory%\udp_endpoints.csv'"
+        ExportFormat: csv
+
+# Documentation
+# Complements netstat -anob with structured CSV (Windows 8+ / Server 2012+).

@@ -1,0 +1,18 @@
+Description: System time (UTC) and W32Time status
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.0
+Id: a1b2c3d4-e5f6-7890-ab12-cd34ef567804
+ExportFormat: txt
+Processors:
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -Command "[DateTime]::UtcNow.ToString('o') | Out-File -FilePath '%destinationDirectory%\system_time_utc.txt' -Encoding utf8; Get-Date | Out-File -FilePath '%destinationDirectory%\system_time_local.txt' -Encoding utf8"
+        ExportFormat: txt
+    -
+        Executable: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+        CommandLine: -NoProfile -ExecutionPolicy Bypass -File "%kapeDirectory%\Modules\bin\Invoke-Utf8Capture.ps1" -Exe "w32tm.exe" -Arguments "/query /status" -OutputFile "%destinationDirectory%\ntp_status.txt"
+        ExportFormat: txt
+
+# Documentation
+# Critical for timeline correlation during live IR.

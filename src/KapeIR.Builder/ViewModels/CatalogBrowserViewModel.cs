@@ -21,6 +21,8 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     private readonly IUiDebounce _packSearchDebounce;
     private readonly IUiDebounce _colFilterDebounce;
     private CancellationTokenSource? _catalogReloadCts;
+    private CancellationTokenSource? _binAuditCts;
+    private IReadOnlyDictionary<string, ModuleBinAuditEntry>? _moduleBinIndex;
     private bool _disposed;
 
     private KapeCatalog Catalog => _shell.CatalogWorkspace.Catalog;
@@ -43,6 +45,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     [ObservableProperty] private string _moduleColFilterName = "";
     [ObservableProperty] private string _moduleColFilterOrigin = "";
     [ObservableProperty] private string _moduleColFilterMeta = "";
+    [ObservableProperty] private string _moduleColFilterBin = "";
     [ObservableProperty] private string _packColFilterName = "";
     [ObservableProperty] private string _packColFilterRole = "";
     [ObservableProperty] private string _packColFilterChildren = "";
@@ -60,6 +63,14 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     public ObservableCollection<TreeNodeVm> TreeRoots { get; } = new();
     public ObservableCollection<string> DocumentationLinks { get; } = new();
     public List<string> FilterOptions { get; } = new() { "Все", "Только выбранные", "Только compound", "Только leaf" };
+    public List<string> ModuleFilterOptions { get; } = new()
+    {
+        "Все",
+        "Только выбранные",
+        "Только compound",
+        "Только leaf",
+        "Без бинарника"
+    };
 
     public string TargetSortNameHeader => _targetSort.Label("Имя", "Name");
     public string TargetSortOriginHeader => _targetSort.Label("Источник", "Origin");
@@ -67,6 +78,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     public string ModuleSortNameHeader => _moduleSort.Label("Имя", "Name");
     public string ModuleSortOriginHeader => _moduleSort.Label("Источник", "Origin");
     public string ModuleSortMetaHeader => _moduleSort.Label("Категория / путь", "Meta");
+    public string ModuleSortBinHeader => _moduleSort.Label("Bin", "Bin");
     public string PackSortNameHeader => _packSort.Label("Имя", "Name");
     public string PackSortRoleHeader => _packSort.Label("Роль", "Role");
     public string PackSortChildrenHeader => _packSort.Label("Детей", "Children");
@@ -98,6 +110,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     partial void OnModuleColFilterNameChanged(string value) => _colFilterDebounce.Schedule(RefreshModuleRows);
     partial void OnModuleColFilterOriginChanged(string value) => _colFilterDebounce.Schedule(RefreshModuleRows);
     partial void OnModuleColFilterMetaChanged(string value) => _colFilterDebounce.Schedule(RefreshModuleRows);
+    partial void OnModuleColFilterBinChanged(string value) => _colFilterDebounce.Schedule(RefreshModuleRows);
     partial void OnPackColFilterNameChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
     partial void OnPackColFilterRoleChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
     partial void OnPackColFilterChildrenChanged(string value) => _colFilterDebounce.Schedule(RefreshExisting);
@@ -267,6 +280,9 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
     [LoggerMessage(EventId = 1001, Level = LogLevel.Error, Message = "Catalog reload failed")]
     private partial void LogCatalogReloadFailed(Exception ex);
 
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Warning, Message = "Module bin audit failed")]
+    private partial void LogModuleBinAuditFailed(Exception ex);
+
     internal void CancelPendingReload()
     {
         _catalogReloadCts?.Cancel();
@@ -277,13 +293,14 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         var last = _shell.CatalogOps.ReadLastSync(_shell.KapeRoot);
         var syncNote = last is not null && last.TryGetValue("synced_at", out var at) ? $" | синхронизация GitHub: {at}" : "";
         var localN = Catalog.Targets.Concat(Catalog.Modules).Count(i => i.Origin == CatalogOrigin.Local);
+        var kapeIrN = Catalog.Targets.Concat(Catalog.Modules).Count(i => i.Origin == CatalogOrigin.KapeIR);
         var ghN = Catalog.Targets.Concat(Catalog.Modules).Count(i => i.Origin == CatalogOrigin.GitHub);
         var unkN = Catalog.Targets.Concat(Catalog.Modules).Count(i => i.Origin == CatalogOrigin.Unknown);
         var originNote = Catalog.HasUpstreamInventory
-            ? $" | источник: GitHub {ghN}, локальных {localN}"
+            ? $" | источник: GitHub {ghN}, KapeIR {kapeIrN}, локальных {localN}"
             : unkN > 0
-                ? $" | источник: локальных (по Author) {localN}, ? {unkN} — нажмите «Обновить с GitHub…» для меток GitHub"
-                : $" | источник: локальных {localN}";
+                ? $" | источник: KapeIR {kapeIrN}, локальных {localN}, ? {unkN} — нажмите «Обновить с GitHub…» для меток GitHub"
+                : $" | источник: KapeIR {kapeIrN}, локальных {localN}";
         var tDup = _shell.CatalogOps.FindCollisions(Catalog.Targets);
         var mDup = _shell.CatalogOps.FindCollisions(Catalog.Modules);
         var dupNote = "";
@@ -295,12 +312,124 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
             ? $" | кеш файлов: {stats.CacheHits}/{stats.FilesSeen}"
             : "";
         _shell.StatusText = $"Загружено: {Catalog.Targets.Count} таргетов, {Catalog.Modules.Count} модулей{syncNote}{originNote}{dupNote}{cacheNote}";
+        _moduleBinIndex = null;
         RefreshTargetRows();
         RefreshModuleRows();
         RefreshExisting();
         RebuildTree();
         _shell.PackageEditor.SyncSelectionTexts();
         _ = _shell.Binaries.LoadBinariesAsync(updateStatus: false);
+        ScheduleModuleBinAudit();
+    }
+
+    /// <summary>Background Modules\bin readiness index for the Modules list column.</summary>
+    internal void ScheduleModuleBinAudit()
+    {
+        _ = RefreshModuleBinAuditAsync();
+    }
+
+    internal async Task RefreshModuleBinAuditAsync()
+    {
+        _binAuditCts?.Cancel();
+        _binAuditCts?.Dispose();
+        _binAuditCts = new CancellationTokenSource();
+        var ct = _binAuditCts.Token;
+        var catalog = Catalog;
+        if (string.IsNullOrEmpty(catalog.KapeRoot))
+            return;
+
+        try
+        {
+            var index = await Task.Run(() => ModuleBinAudit.IndexCatalog(catalog), ct);
+            if (ct.IsCancellationRequested) return;
+            await _shell.InvokeOnUiAsync(() =>
+            {
+                if (ct.IsCancellationRequested) return;
+                _moduleBinIndex = index;
+                RefreshModuleRows();
+                var missing = index.Values
+                    .Where(e => e.Status is ModuleBinStatus.Missing or ModuleBinStatus.Partial)
+                    .Select(e => e.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+                if (missing > 0 && !_shell.StatusText.Contains("без bin", StringComparison.OrdinalIgnoreCase))
+                    _shell.StatusText += $" | без bin: {missing}";
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // superseded
+        }
+        catch (Exception ex)
+        {
+            LogModuleBinAuditFailed(ex);
+        }
+    }
+
+    /// <summary>Used after sync to show catalog + package Modules\\bin report.</summary>
+    internal async Task<ModuleBinAuditReport> BuildCatalogBinReportAsync(CancellationToken ct = default)
+    {
+        var catalog = Catalog;
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return ModuleBinAudit.AuditCatalog(catalog);
+        }, ct);
+    }
+
+    internal async Task<ModuleBinAuditReport> BuildPackageBinReportAsync(CancellationToken ct = default)
+    {
+        var catalog = Catalog;
+        var pkg = _shell.Package;
+        return await Task.Run(() =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return ModuleBinAudit.AuditPackage(catalog, pkg);
+        }, ct);
+    }
+
+    [RelayCommand]
+    private async Task CheckModuleBinariesAsync()
+    {
+        if (string.IsNullOrEmpty(Catalog.KapeRoot))
+        {
+            _shell.Dialogs.ShowMessage("Сначала укажите корень KAPE.", "Бинарники Modules\\bin", DialogIcon.Warning);
+            return;
+        }
+
+        _shell.StatusText = "Проверка Modules\\bin для .mkape…";
+        try
+        {
+            ModuleBinAuditReport report;
+            if (_shell.Package.Modules.Count > 0)
+            {
+                report = await BuildPackageBinReportAsync();
+                var title = "Проверка bin — текущая сборка";
+                _shell.Dialogs.ShowMessage(
+                    ModuleBinAudit.FormatReport(report, title: title),
+                    "Бинарники Modules\\bin",
+                    report.HasIssues ? DialogIcon.Warning : DialogIcon.Info);
+            }
+            else
+            {
+                report = await BuildCatalogBinReportAsync();
+                _shell.Dialogs.ShowMessage(
+                    ModuleBinAudit.FormatReport(report, title: "Проверка bin — весь каталог Modules"),
+                    "Бинарники Modules\\bin",
+                    report.HasIssues ? DialogIcon.Warning : DialogIcon.Info);
+            }
+
+            // Refresh column index from the same pass when possible.
+            ScheduleModuleBinAudit();
+            _shell.StatusText = report.HasIssues
+                ? $"Bin: ✗ {report.MissingCount}, ~ {report.PartialCount} (см. диалог / фильтр «Без бинарника»)"
+                : "Bin: все проверенные модули видят Modules\\bin";
+        }
+        catch (Exception ex)
+        {
+            _shell.Dialogs.ShowMessage(ex.Message, "Бинарники Modules\\bin", DialogIcon.Error);
+            _shell.StatusText = "Ошибка проверки bin";
+        }
     }
 
     [RelayCommand]
@@ -358,7 +487,10 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
                 TargetRows,
                 CatalogUiHelpers.BuildFilteredRows(
                     Catalog, ItemKind.Target, TargetSearch, TargetFilter, _shell.Package.Targets,
-                    TargetColFilterName, TargetColFilterOrigin, TargetColFilterMeta, _targetSort));
+                    colName: TargetColFilterName,
+                    colOrigin: TargetColFilterOrigin,
+                    colMeta: TargetColFilterMeta,
+                    sort: _targetSort));
         }
     }
 
@@ -370,7 +502,12 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
                 ModuleRows,
                 CatalogUiHelpers.BuildFilteredRows(
                     Catalog, ItemKind.Module, ModuleSearch, ModuleFilter, _shell.Package.Modules,
-                    ModuleColFilterName, ModuleColFilterOrigin, ModuleColFilterMeta, _moduleSort));
+                    colName: ModuleColFilterName,
+                    colOrigin: ModuleColFilterOrigin,
+                    colMeta: ModuleColFilterMeta,
+                    colBin: ModuleColFilterBin,
+                    sort: _moduleSort,
+                    binIndex: _moduleBinIndex));
         }
     }
 
@@ -429,6 +566,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         OnPropertyChanged(nameof(ModuleSortNameHeader));
         OnPropertyChanged(nameof(ModuleSortOriginHeader));
         OnPropertyChanged(nameof(ModuleSortMetaHeader));
+        OnPropertyChanged(nameof(ModuleSortBinHeader));
     }
 
     private void NotifyPackSortHeaders()
@@ -734,6 +872,25 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
             $"Источник: {item.OriginLabel} ({item.OriginTag})\n" +
             $"Автор: {item.Author} | Версия: {item.Version}\nCompound: {item.IsCompound}\n" +
             $"Описание: {item.Description}\n";
+        if (item.Kind == ItemKind.Module)
+        {
+            if (_moduleBinIndex is not null &&
+                CatalogUiHelpers.LookupBin(_moduleBinIndex, item) is { } bin)
+            {
+                text += $"Modules\\bin: {bin.DisplayGlyph} {bin.DisplayLabel}\n";
+                if (bin.Required.Count > 0)
+                    text += "Требует: " + string.Join(", ", bin.Required.Take(12)) +
+                            (bin.Required.Count > 12 ? $" (+{bin.Required.Count - 12})" : "") + "\n";
+                if (bin.Missing.Count > 0)
+                    text += "Нет в bin: " + string.Join(", ", bin.Missing.Take(12)) +
+                            (bin.Missing.Count > 12 ? $" (+{bin.Missing.Count - 12})" : "") + "\n";
+            }
+            else
+            {
+                text += "Modules\\bin: проверка ещё не готова (обновится после сканирования)\n";
+            }
+        }
+
         if (item.FileMasks.Count > 0)
             text += "FileMask: " + string.Join(", ", item.FileMasks.Take(12)) + "\n";
         if (item.Children.Count > 0)
@@ -743,7 +900,7 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         else
             text += "Документация: нет ссылок в файле\n";
         if (item.Origin == CatalogOrigin.Unknown)
-            text += "Подсказка: «Обновить с GitHub…» запишет список путей KapeFiles — метки GitHub/локальный станут точными.\n";
+            text += "Подсказка: «Обновить с GitHub…» запишет список путей KapeFiles — метки GitHub / KapeIR / локальный станут точными.\n";
         DetailText = text;
 
         DocumentationLinks.Clear();
@@ -783,6 +940,9 @@ public sealed partial class CatalogBrowserViewModel : ObservableObject, IDisposa
         _catalogReloadCts?.Cancel();
         _catalogReloadCts?.Dispose();
         _catalogReloadCts = null;
+        _binAuditCts?.Cancel();
+        _binAuditCts?.Dispose();
+        _binAuditCts = null;
         _targetSearchDebounce.Dispose();
         _moduleSearchDebounce.Dispose();
         _packSearchDebounce.Dispose();

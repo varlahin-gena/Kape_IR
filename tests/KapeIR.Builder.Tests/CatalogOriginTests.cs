@@ -6,7 +6,7 @@ namespace KapeIR.Builder.Tests;
 public class CatalogOriginTests
 {
     [Fact]
-    public void Resolve_WithInventory_MarksLocalVsGitHub()
+    public void Resolve_WithInventory_MarksKapeIrLocalVsGitHub()
     {
         var upstream = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -18,17 +18,26 @@ public class CatalogOriginTests
             CatalogOriginLabels.Resolve("Targets/Windows/Amcache.tkape", "Eric Zimmerman", upstream));
         Assert.Equal(CatalogOrigin.Local,
             CatalogOriginLabels.Resolve("Targets/Compound/!LocalOnly.tkape", "test", upstream));
-        Assert.Equal(CatalogOrigin.Local,
-            CatalogOriginLabels.Resolve("Modules/Compound/VolatileFirst.mkape",
+        Assert.Equal(CatalogOrigin.KapeIR,
+            CatalogOriginLabels.Resolve("Modules/Compound/Phase1_VolatileFirst.mkape",
+                "KapeIR / IR Phase1", upstream));
+        Assert.Equal(CatalogOrigin.KapeIR,
+            CatalogOriginLabels.Resolve("Modules/Apps/Local/Hayabusa/hayabusa_LiveResponse_v41.mkape",
+                "Someone", upstream));
+        Assert.Equal(CatalogOrigin.KapeIR,
+            CatalogOriginLabels.Resolve("Modules/Apps/Local/Phase1/Windows_SystemTime.mkape",
                 "KAPE Pack Builder / IR VolatileFirst", upstream));
     }
 
     [Fact]
     public void Resolve_WithoutInventory_UsesPackBuilderAuthorHeuristic()
     {
-        Assert.Equal(CatalogOrigin.Local,
+        Assert.Equal(CatalogOrigin.KapeIR,
+            CatalogOriginLabels.Resolve("Modules/Compound/Hayabusa_Offline_v41.mkape",
+                "KapeIR", upstreamPaths: null));
+        Assert.Equal(CatalogOrigin.KapeIR,
             CatalogOriginLabels.Resolve("Modules/Compound/Hayabusa_Offline.mkape",
-                "KAPE Pack Builder (local)", upstreamPaths: null));
+                "KAPE Pack Builder", upstreamPaths: null));
         Assert.Equal(CatalogOrigin.Unknown,
             CatalogOriginLabels.Resolve("Targets/Windows/Amcache.tkape", "Eric Zimmerman", null));
     }
@@ -37,14 +46,16 @@ public class CatalogOriginTests
     public void Labels_DisplayAndShort()
     {
         Assert.Equal("GitHub", CatalogOriginLabels.Display(CatalogOrigin.GitHub));
+        Assert.Equal("KapeIR", CatalogOriginLabels.Display(CatalogOrigin.KapeIR));
         Assert.Equal("локальный", CatalogOriginLabels.Display(CatalogOrigin.Local));
         Assert.Equal("?", CatalogOriginLabels.Display(CatalogOrigin.Unknown));
         Assert.Equal("[GH]", CatalogOriginLabels.Short(CatalogOrigin.GitHub));
+        Assert.Equal("[KapeIR]", CatalogOriginLabels.Short(CatalogOrigin.KapeIR));
         Assert.Equal("[лок.]", CatalogOriginLabels.Short(CatalogOrigin.Local));
     }
 
     [Fact]
-    public void Refresh_WithoutInventory_MarksPackBuilderAuthorAsLocal()
+    public void Refresh_WithoutInventory_MarksPackBuilderAuthorAsKapeIr()
     {
         var root = Path.Combine(Path.GetTempPath(), "kape_origin_auth_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "Targets", "Apps"));
@@ -52,7 +63,7 @@ public class CatalogOriginTests
 
         File.WriteAllText(Path.Combine(root, "Modules", "Compound", "Mine.mkape"), """
 Description: local module
-Author: KAPE Pack Builder (local)
+Author: KAPE Pack Builder
 Version: 1.0
 Id: 44444444-4444-4444-4444-444444444444
 Category: Compound
@@ -82,7 +93,7 @@ Targets:
             var cat = new KapeCatalog(root);
             cat.Refresh();
             Assert.False(cat.HasUpstreamInventory);
-            Assert.Equal(CatalogOrigin.Local, cat.FindModule("Mine")!.Origin);
+            Assert.Equal(CatalogOrigin.KapeIR, cat.FindModule("Mine")!.Origin);
             Assert.Equal(CatalogOrigin.Unknown, cat.FindTarget("Stockish")!.Origin);
         }
         finally

@@ -70,6 +70,7 @@ internal static class SilentCollectionHost
                 simulate: opt.SimOnly,
                 phaseFilter: opt.Phase,
                 skipMemory: opt.SkipMemory,
+                skipMemoryAnalysis: opt.SkipMemoryAnalysis,
                 caseIdOverride: opt.CaseId);
 
             EstimateSummaryParser? estimate = opt.SimOnly ? new EstimateSummaryParser() : null;

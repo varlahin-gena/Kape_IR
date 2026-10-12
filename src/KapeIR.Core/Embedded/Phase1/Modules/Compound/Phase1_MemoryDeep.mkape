@@ -1,0 +1,42 @@
+Description: 'Phase 1b — Volatility 3 offline deep: dlllist, handles, modules, modscan, svcscan, filescan, hivelist'
+Category: Memory
+Author: KapeIR / digital-forensics
+Version: 1.1
+Id: b1c2d3e4-f5a6-4789-8abc-111111111020
+BinaryUrl: https://github.com/volatilityfoundation/volatility3/releases/download/v2.28.0/volatility3-win-exes-2.28.0.zip
+ExportFormat: csv
+Processors:
+    -
+        Executable: Volatility3_windows_dlllist.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_handles.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_modules.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_modscan.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_svcscan.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_filescan.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: Volatility3_windows_hivelist.mkape
+        CommandLine: ""
+        ExportFormat: ""
+
+# Documentation
+# Auto-run by KapeIR.Triage after Phase1_MemoryTriage (same msource).
+# mdest = RESULTS\<host>\Phase1_Volatile\MemoryDeep
+# filescan can be slow/large on big dumps.
+# Failures do not block Phase 2 disk collection.

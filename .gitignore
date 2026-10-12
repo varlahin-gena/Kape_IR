@@ -18,6 +18,12 @@ x86/
 [Aa][Rr][Mm]64/
 bld/
 [Bb]in/
+# First-party Phase1 helper scripts live under Embedded\...\Modules\bin\ (not build output).
+!src/KapeIR.Core/Embedded/
+!src/KapeIR.Core/Embedded/**/
+!src/KapeIR.Core/Embedded/**/Modules/
+!src/KapeIR.Core/Embedded/**/Modules/bin/
+!src/KapeIR.Core/Embedded/**/Modules/bin/**
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/

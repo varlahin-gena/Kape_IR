@@ -1,0 +1,16 @@
+Description: Hayabusa v4.1+ live-analysis DFIR timeline (not for collected EVTX)
+Category: EventLogs
+Author: KapeIR
+Version: 1.0
+Id: a1b2c3d4-e5f6-4789-a012-3456789abc05
+BinaryUrl: https://github.com/Yamato-Security/hayabusa/releases
+ExportFormat: csv
+Processors:
+    -
+        Executable: hayabusa\hayabusa.exe
+        CommandLine: dfir-timeline --live-analysis -p standard -w -m medium -q -U -o %destinationDirectory%\hayabusa_events_live_system_v41.csv
+        ExportFormat: csv
+
+# Documentation
+# Local copy for Hayabusa 4.1+ live host triage.
+# For post-collection hunt use hayabusa_OfflineEventLogs_v41 / Hayabusa_Offline_v41.

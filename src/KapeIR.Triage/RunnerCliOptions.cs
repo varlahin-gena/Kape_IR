@@ -13,6 +13,7 @@ internal sealed class RunnerCliOptions
     public string? CaseId { get; init; }
     public int? Phase { get; init; }
     public bool SkipMemory { get; init; }
+    public bool SkipMemoryAnalysis { get; init; }
     public bool VerifySha256 { get; init; }
     public List<string> Errors { get; init; } = new();
 
@@ -29,6 +30,7 @@ internal sealed class RunnerCliOptions
             CaseId = o.CaseId,
             Phase = o.Phase,
             SkipMemory = o.SkipMemory,
+            SkipMemoryAnalysis = o.SkipMemoryAnalysis,
             VerifySha256 = o.VerifySha256,
             Errors = o.Errors
         };

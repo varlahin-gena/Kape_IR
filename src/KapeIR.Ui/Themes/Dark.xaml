@@ -9,12 +9,17 @@
   <Color x:Key="Color.BorderSubtle">#FF2A3A55</Color>
   <Color x:Key="Color.TextPrimary">#FFE8EEF7</Color>
   <Color x:Key="Color.TextSecondary">#FF8B9BB4</Color>
-  <!-- Cold blue accent (shared Builder + Triage) -->
-  <Color x:Key="Color.Accent">#FF3B82F6</Color>
+  <!-- Cold blue accent (shared Builder + Triage). Accent fill is dark enough for white labels (≥4.5:1). -->
+  <Color x:Key="Color.Accent">#FF2563EB</Color>
+  <!-- Lighter accent for link/hover foreground on dark surfaces (not for filled-button backgrounds). -->
   <Color x:Key="Color.AccentHover">#FF60A5FA</Color>
+  <!-- Darker accent for PrimaryButton mouse-over (white label stays ≥4.5:1). -->
+  <Color x:Key="Color.AccentStrong">#FF1D4ED8</Color>
   <Color x:Key="Color.AccentMuted">#FF1E3A5F</Color>
   <Color x:Key="Color.Success">#FF2DD4BF</Color>
+  <!-- Danger text/border on dark panels; button fill is Color.DangerFill. -->
   <Color x:Key="Color.Danger">#FFF85149</Color>
+  <Color x:Key="Color.DangerFill">#FFDC2626</Color>
   <Color x:Key="Color.Link">#FF7DD3FC</Color>
   <!-- Keyboard focus ring: light enough on Accent/Danger fills and dark surfaces -->
   <Color x:Key="Color.FocusRing">#FFE8EEF7</Color>
@@ -31,9 +36,11 @@
   <SolidColorBrush x:Key="Brush.TextSecondary" Color="{StaticResource Color.TextSecondary}"/>
   <SolidColorBrush x:Key="Brush.Accent" Color="{StaticResource Color.Accent}"/>
   <SolidColorBrush x:Key="Brush.AccentHover" Color="{StaticResource Color.AccentHover}"/>
+  <SolidColorBrush x:Key="Brush.AccentStrong" Color="{StaticResource Color.AccentStrong}"/>
   <SolidColorBrush x:Key="Brush.AccentMuted" Color="{StaticResource Color.AccentMuted}"/>
   <SolidColorBrush x:Key="Brush.Success" Color="{StaticResource Color.Success}"/>
   <SolidColorBrush x:Key="Brush.Danger" Color="{StaticResource Color.Danger}"/>
+  <SolidColorBrush x:Key="Brush.DangerFill" Color="{StaticResource Color.DangerFill}"/>
   <SolidColorBrush x:Key="Brush.Link" Color="{StaticResource Color.Link}"/>
   <SolidColorBrush x:Key="Brush.FocusRing" Color="{StaticResource Color.FocusRing}"/>
   <SolidColorBrush x:Key="Brush.Selection" Color="{StaticResource Color.Selection}"/>

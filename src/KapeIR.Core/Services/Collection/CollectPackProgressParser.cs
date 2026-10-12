@@ -71,16 +71,43 @@ public sealed class CollectPackProgressParser
         if (string.IsNullOrWhiteSpace(line))
             return null;
 
+        if (line.StartsWith("Фаза 1b", StringComparison.Ordinal))
+        {
+            ResetCounters();
+            return new ProgressUpdate(
+                0,
+                "Фаза 1b — Vol3 пост…",
+                true,
+                CollectionProgressBands.Phase1bFloor,
+                CollectionProgressBands.Phase1bCeil,
+                false,
+                true);
+        }
+
         if (line.StartsWith("Фаза 1", StringComparison.Ordinal))
         {
             ResetCounters();
-            return new ProgressUpdate(0, "Фаза 1 — оперативный сбор…", true, 0, 15, false, true);
+            return new ProgressUpdate(
+                0,
+                "Фаза 1a — оперативный сбор…",
+                true,
+                CollectionProgressBands.Phase1aFloor,
+                CollectionProgressBands.Phase1aCeil,
+                false,
+                true);
         }
 
         if (line.StartsWith("Фаза 2", StringComparison.Ordinal))
         {
             ResetCounters();
-            return new ProgressUpdate(0, "Фаза 2 — дисковый сбор…", true, 15, 99, false, true);
+            return new ProgressUpdate(
+                0,
+                "Фаза 2 — дисковый сбор…",
+                true,
+                CollectionProgressBands.Phase2Floor,
+                CollectionProgressBands.Phase2Ceil,
+                false,
+                true);
         }
 
         var found = FoundFiles.Match(line);

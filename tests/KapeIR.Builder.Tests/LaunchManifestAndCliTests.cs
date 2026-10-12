@@ -32,10 +32,10 @@ public class LaunchManifestIoTests
           "name": "IR",
           "tsource": "D:",
           "target_compound": "IR",
-          "module_compound": "VolatileFirst",
+          "module_compound": "Phase1_VolatileFirst",
           "collection_mode": "two_phase",
           "case_id": "CASE-1",
-          "phase1_module": "VolatileFirst",
+          "phase1_module": "Phase1_VolatileFirst",
           "phase2_module": "IR_Phase2",
           "zip_output": false,
           "flush": true,
@@ -47,7 +47,7 @@ public class LaunchManifestIoTests
         Assert.Equal("D:", m.Tsource);
         Assert.Equal(IrCollectionMode.TwoPhase, m.CollectionMode);
         Assert.Equal("CASE-1", m.CaseId);
-        Assert.Equal("VolatileFirst", m.Phase1Module);
+        Assert.Equal("Phase1_VolatileFirst", m.Phase1Module);
         Assert.Equal("IR_Phase2", m.Phase2Module);
         Assert.False(m.ZipOutput);
         Assert.True(m.Flush);
@@ -84,7 +84,24 @@ public class CollectPackCliOptionsTests
         Assert.Equal("IR-1", o.CaseId);
         Assert.Equal(1, o.Phase);
         Assert.True(o.SkipMemory);
+        Assert.False(o.SkipMemoryAnalysis);
         Assert.Empty(o.Errors);
+    }
+
+    [Fact]
+    public void Parse_SkipMemoryAnalysis()
+    {
+        var o = CollectPackCliOptions.Parse(new[]
+        {
+            "--silent", "--tsource", "C:", "--skip-memory-analysis"
+        });
+        Assert.True(o.SkipMemoryAnalysis);
+        Assert.False(o.SkipMemory);
+        Assert.Empty(o.Errors);
+
+        var o2 = CollectPackCliOptions.Parse(new[] { "--no-memory-analysis", "--tsource", "E:" });
+        Assert.True(o2.SkipMemoryAnalysis);
+        Assert.Empty(o2.Errors);
     }
 
     [Fact]

@@ -1,0 +1,27 @@
+Description: 'Phase 1a — IR volatile collect without RAM dump: network → processes → sessions → system snapshot'
+Category: LiveResponse
+Author: KapeIR / IR Phase1
+Version: 1.1
+Id: c3d4e5f6-a7b8-9012-cd34-ef5678901333
+ExportFormat: txt
+Processors:
+    -
+        Executable: LiveResponse_NetworkDetails.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: LiveResponse_ProcessDetails.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: LiveResponse_NetSystemInfo.mkape
+        CommandLine: ""
+        ExportFormat: ""
+    -
+        Executable: LiveResponse_SystemSnapshot.mkape
+        CommandLine: ""
+        ExportFormat: ""
+
+# Documentation
+# Same as Phase1_VolatileFirst but skips WinPmem.
+# KapeIR --skip-memory selects this compound; Phase 1b (Vol3) is skipped when there is no dump.

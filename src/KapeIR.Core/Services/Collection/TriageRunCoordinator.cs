@@ -124,7 +124,11 @@ public sealed class TriageRunCoordinator
                 2 => "только фаза 2",
                 _ => "обе фазы"
             };
-            var memoryLabel = rt.SkipMemory ? "без дампа памяти" : "с дампом памяти";
+            var memoryLabel = rt.SkipMemory
+                ? "без дампа памяти"
+                : rt.SkipMemoryAnalysis
+                    ? "с дампом, без Vol3 1b"
+                    : "с дампом памяти + Vol3 1b";
             log($"Двухфазный сбор ({phaseLabel}, {memoryLabel})");
         }
 
@@ -189,6 +193,7 @@ public sealed class TriageRunCoordinator
         bool simulate = false,
         int? phaseFilter = null,
         bool skipMemory = false,
+        bool skipMemoryAnalysis = false,
         string? caseIdOverride = null,
         string? resultsRoot = null)
         => new(
@@ -196,6 +201,7 @@ public sealed class TriageRunCoordinator
             Simulate: simulate,
             PhaseFilter: phaseFilter,
             SkipMemory: skipMemory,
+            SkipMemoryAnalysis: skipMemoryAnalysis,
             CaseIdOverride: caseIdOverride,
             ResultsRoot: resultsRoot);
 

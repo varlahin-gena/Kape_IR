@@ -6,8 +6,9 @@ namespace KapeIR.Core.Services;
 
 /// <summary>
 /// Shared kape.exe process host (ArgumentList, redirected console).
-/// Prefers UTF-8 so child tools (Chainsaw banners) stay readable; sanitizer still
-/// recovers UTF-8 mis-decoded as OEM when the pipe falls back.
+/// Uses the OEM code page for redirect decode (kape.exe / Win32 tools print
+/// Russian errors as CP866). <see cref="KapeConsoleLineSanitizer"/> recovers
+/// UTF-8 Chainsaw/Hayabusa banners that arrive as OEM-misread bytes.
 /// </summary>
 public static class KapeProcessHost
 {
@@ -30,7 +31,6 @@ public static class KapeProcessHost
             if (cancellationToken.IsCancellationRequested)
                 return Task.FromCanceled<int>(cancellationToken);
 
-            var utf8 = GetUtf8Encoding();
             var oem = GetOemEncoding();
             var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
             var psi = new ProcessStartInfo
@@ -41,12 +41,10 @@ public static class KapeProcessHost
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true,
-                // UTF-8: Chainsaw/Hayabusa logos; KAPE lines are mostly ASCII.
-                StandardOutputEncoding = utf8,
-                StandardErrorEncoding = utf8
+                // OEM: Russian KAPE/Win32 errors. Sanitizer restores UTF-8 tool banners.
+                StandardOutputEncoding = oem,
+                StandardErrorEncoding = oem
             };
-            // Hint for some .NET / console hosts (harmless if ignored).
-            psi.Environment["DOTNET_SYSTEM_CONSOLE_ALLOW_UTF8"] = "1";
             foreach (var a in args)
                 psi.ArgumentList.Add(a);
 
@@ -134,10 +132,10 @@ public static class KapeProcessHost
         }
     }
 
-    /// <summary>Preferred redirect encoding (UTF-8 without BOM).</summary>
+    /// <summary>UTF-8 without BOM (helpers / non-redirect use).</summary>
     public static Encoding GetUtf8Encoding() => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
-    /// <summary>OEM code page for sanitizer recovery when UTF-8 bytes were mis-decoded.</summary>
+    /// <summary>OEM code page for console redirect and sanitizer banner recovery.</summary>
     public static Encoding GetOemEncoding()
     {
         try
@@ -150,6 +148,6 @@ public static class KapeProcessHost
         }
     }
 
-    /// <summary>Legacy alias — UTF-8 (redirect default).</summary>
-    public static Encoding GetConsoleEncoding() => GetUtf8Encoding();
+    /// <summary>Redirect decode encoding (OEM).</summary>
+    public static Encoding GetConsoleEncoding() => GetOemEncoding();
 }

@@ -231,7 +231,7 @@ Processors:
         var args = KapeCliArgs.Build(new KapeCliArgs.Options(
             "C:",
             Target: null,
-            Module: "VolatileFirst",
+            Module: "Phase1_VolatileFirst",
             ZipOutput: true,
             ModuleOnly: true));
         Assert.Contains("--msource", args);
